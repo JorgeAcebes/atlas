@@ -11,6 +11,8 @@ import { countries } from "@/data/countries";
 import { peaks } from "@/data/peaks";
 import { predefinedCategories } from "@/data/experiences";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
+import { sortPhotosByTime } from "@/lib/image-utils";
+import { PhotoLightbox } from "./photo-lightbox";
 
 function isUnknownDate(dateVal: string | undefined | null): boolean {
   if (!dateVal) return true;
@@ -86,6 +88,7 @@ function renderFeedLink(link?: string | null, linkName?: string | null) {
   else if (urlStr.includes("linkedin.com")) Icon = Briefcase;
   else if (
     urlStr.includes("strava.com") ||
+    urlStr.includes("strava.app.link") ||
     urlStr.includes("wikiloc.com") ||
     urlStr.includes("komoot.com") ||
     urlStr.includes("alltrails.com") ||
@@ -116,7 +119,7 @@ function renderFeedLink(link?: string | null, linkName?: string | null) {
             ? "Ver en mapa"
             : urlStr.includes("wikiloc.com")
               ? "Ruta en Wikiloc"
-              : urlStr.includes("strava.com")
+              : urlStr.includes("strava.com") || urlStr.includes("strava.app.link")
                 ? "Actividad en Strava"
                 : urlStr.includes("komoot.com")
                   ? "Ruta en Komoot"
@@ -136,20 +139,7 @@ function renderFeedLink(link?: string | null, linkName?: string | null) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        fontSize: "13px",
-        color: "var(--pine)",
-        textDecoration: "none",
-        fontWeight: 500,
-        padding: "4px 10px",
-        backgroundColor: "rgba(35, 78, 82, 0.05)",
-        borderRadius: 16,
-        border: "1px solid rgba(35, 78, 82, 0.1)",
-        width: "fit-content",
-      }}
+      className="feed-link"
     >
       <Icon size={14} />
       <span style={{ textDecoration: "underline" }}>{displayName}</span>
@@ -160,50 +150,9 @@ function renderFeedLink(link?: string | null, linkName?: string | null) {
 function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired }: { item: any, session?: Session | null, onAuthRequired?: () => void }) {
   const router = useRouter();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
 
-  const photos: any[] = (item.photos || []).filter((p: any) => p && p.public_url);
+  const photos: any[] = sortPhotosByTime((item.photos || []).filter((p: any) => p && p.public_url));
   const hasPhotos = photos.length > 0;
-  const hasPrevPhoto = lightboxIndex !== null && lightboxIndex > 0;
-  const hasNextPhoto = lightboxIndex !== null && lightboxIndex < photos.length - 1;
-
-  const showPrevPhoto = () => {
-    if (lightboxIndex !== null && lightboxIndex > 0) {
-      setLightboxIndex(lightboxIndex - 1);
-    }
-  };
-
-  const showNextPhoto = () => {
-    if (lightboxIndex !== null && lightboxIndex < photos.length - 1) {
-      setLightboxIndex(lightboxIndex + 1);
-    }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.changedTouches[0].clientX;
-    touchStartY.current = e.changedTouches[0].clientY;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || lightboxIndex === null) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
-    const distanceX = touchStartX.current - touchEndX;
-    const distanceY = touchStartY.current !== null ? Math.abs(touchStartY.current - touchEndY) : 0;
-    const minSwipeDistance = 40;
-
-    if (Math.abs(distanceX) > minSwipeDistance && Math.abs(distanceX) > distanceY) {
-      if (distanceX > 0 && lightboxIndex < photos.length - 1) {
-        setLightboxIndex(prev => (prev !== null ? prev + 1 : null));
-      } else if (distanceX < 0 && lightboxIndex > 0) {
-        setLightboxIndex(prev => (prev !== null ? prev - 1 : null));
-      }
-    }
-    touchStartX.current = null;
-    touchStartY.current = null;
-  };
-
   const isLightboxOpen = lightboxIndex !== null;
 
   const openLightbox = (index: number) => {
@@ -380,7 +329,7 @@ function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired
     <div className="feed-card">
       <div className="feed-card-header">
         <Link href={`/perfil/${item.profiles?.username}`} style={{ textDecoration: 'none' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--pine)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'white' }}>
+          <div className="feed-card-avatar" style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--pine)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'white' }}>
             {item.profiles?.avatar_url ? (
               <img src={item.profiles.avatar_url} alt={item.profiles.username} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
             ) : (
@@ -456,12 +405,7 @@ function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired
               display: "flex",
               flexWrap: "wrap",
               gap: 8,
-              marginTop:
-                Boolean(item.notes) &&
-                (isVideoLink(item.link, item.link_name) ||
-                 isVideoLink(item.link_2, item.link_name_2))
-                  ? 14
-                  : 8,
+              marginTop: Boolean(item.notes) ? 4 : 8,
             }}
           >
             {renderFeedLink(item.link, item.link_name)}
@@ -542,96 +486,15 @@ function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired
         </div>
       )}
 
-      {/* Lightbox Modal con soporte de deslizamiento táctil y botones de navegación en ordenador */}
+      {/* Lightbox Modal con soporte de zoom, galería sin sobreposición de títulos y fondo negro */}
       {isLightboxOpen && photos[lightboxIndex] && (
-        <div 
-          className="lightbox-backdrop" 
-          onClick={closeLightbox} 
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onWheel={(e) => e.stopPropagation()}
-          style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
-        >
-          {hasPrevPhoto && (
-            <button 
-              className="lightbox-nav lightbox-nav--prev" 
-              onClick={(e) => { e.stopPropagation(); showPrevPhoto(); }} 
-              aria-label="Foto anterior"
-              style={{ zIndex: 10001 }}
-            >
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6"></polyline>
-              </svg>
-            </button>
-          )}
-
-          {hasNextPhoto && (
-            <button 
-              className="lightbox-nav lightbox-nav--next" 
-              onClick={(e) => { e.stopPropagation(); showNextPhoto(); }} 
-              aria-label="Foto siguiente"
-              style={{ zIndex: 10001 }}
-            >
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-          )}
-
-          <button 
-            className="lightbox-close" 
-            onClick={(e) => { e.stopPropagation(); closeLightbox(); }}
-            aria-label="Cerrar imagen"
-            style={{ zIndex: 10001 }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-
-          <img 
-            key={photos[lightboxIndex].id || lightboxIndex}
-            className="lightbox-image"
-            src={photos[lightboxIndex].public_url} 
-            alt="Fullscreen" 
-            style={{ maxWidth: '90vw', maxHeight: '80vh', objectFit: 'contain' }} 
-            onClick={e => e.stopPropagation()} 
-          />
-
-          <div style={{ position: 'fixed', bottom: '24px', left: 0, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', zIndex: 10002 }}>
-            <span className="lightbox-caption" style={{ position: 'relative', bottom: 'auto', left: 'auto', transform: 'none', width: '90%', textAlign: 'center', zIndex: 10001 }}>
-              {photos[lightboxIndex].caption && (
-                <strong style={{ display: 'block', fontSize: '15px', marginBottom: '2px', color: 'white' }}>
-                  {photos[lightboxIndex].caption}
-                </strong>
-              )}
-              <span style={{ opacity: photos[lightboxIndex].caption ? 0.7 : 1 }}>
-                {finalLocationName}
-                
-              </span>
-            </span>
-
-            {photos.length > 1 && (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {photos.map((_: any, idx: number) => (
-                  <div 
-                    key={idx} 
-                    onClick={(e) => { e.stopPropagation(); setLightboxIndex(idx); }}
-                    style={{ 
-                      width: idx === lightboxIndex ? '18px' : '8px', 
-                      height: '8px', 
-                      borderRadius: '4px', 
-                      backgroundColor: idx === lightboxIndex ? 'white' : 'rgba(255,255,255,0.4)', 
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }} 
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <PhotoLightbox
+          photos={photos}
+          currentIndex={lightboxIndex}
+          onIndexChange={(idx) => setLightboxIndex(idx)}
+          onClose={closeLightbox}
+          title={finalLocationName}
+        />
       )}
     </div>
   );
@@ -651,10 +514,33 @@ let globalFeedLastFetched = 0;
 let isFetchingFeed = false;
 const FEED_CACHE_TTL = 60 * 1000;
 
-export function FeedTab({ session, isActive = true, onAuthRequired }: { session: Session | null; isActive?: boolean; onAuthRequired?: () => void }) {
+export function FeedTab({
+  session,
+  isActive = true,
+  onAuthRequired,
+  mode = "countries",
+  experiencesMode = false,
+  searchQuery = "",
+  onClearSearch,
+  followingOnly = false,
+  followingUserIds = [],
+  onDisableFollowingOnly,
+}: {
+  session: Session | null;
+  isActive?: boolean;
+  onAuthRequired?: () => void;
+  mode?: "countries" | "peaks";
+  experiencesMode?: boolean;
+  searchQuery?: string;
+  onClearSearch?: () => void;
+  followingOnly?: boolean;
+  followingUserIds?: string[];
+  onDisableFollowingOnly?: () => void;
+}) {
   const { profile: myProfile } = useAuth();
   const enablePeaks = !myProfile || myProfile.enable_peaks !== false;
   const enableCountries = !myProfile || myProfile.enable_countries !== false;
+  const enableExperiences = enableCountries && (!myProfile || myProfile.enable_experiences !== false);
   const [feedItems, setFeedItems] = useState<any[]>(() => globalCachedFeedItems || getStoredFeedItems() || []);
   const [loading, setLoading] = useState(() => (!globalCachedFeedItems && !getStoredFeedItems()) || (globalCachedFeedItems ? globalCachedFeedItems.length === 0 : false));
 
@@ -818,9 +704,10 @@ export function FeedTab({ session, isActive = true, onAuthRequired }: { session:
           const batchSummitIds = [...new Set(batch.map(p => p.summit_id))];
           const { data: photosData } = await supabase
             .from('summit_photos')
-            .select('id, user_id, summit_id, public_url, taken_on, caption')
+            .select('id, user_id, summit_id, public_url, taken_on, caption, created_at, storage_path, shot_at')
             .in('user_id', batchUserIds)
-            .in('summit_id', batchSummitIds);
+            .in('summit_id', batchSummitIds)
+            .order('created_at', { ascending: true });
           if (photosData) allPhotos.push(...photosData);
         }
           
@@ -869,7 +756,7 @@ export function FeedTab({ session, isActive = true, onAuthRequired }: { session:
            matched = photosMapBySummit.get(`${item.user_id}_${baseId}`);
          }
 
-         item.photos = matched || [];
+         item.photos = sortPhotosByTime(matched || []);
       });
       
 
@@ -889,20 +776,127 @@ export function FeedTab({ session, isActive = true, onAuthRequired }: { session:
     fetchFeed();
   }, [isActive]);
 
+  const followingUserIdsSet = useMemo(
+    () => new Set(followingUserIds || []),
+    [followingUserIds]
+  );
+
   const visibleFeedItems = useMemo(() => {
-    return feedItems.filter((item) => {
+    let items = feedItems.filter((item) => {
+      if (item.type === "error") return true;
+
+      if (followingOnly) {
+        if (!item.user_id || !followingUserIdsSet.has(item.user_id)) {
+          return false;
+        }
+      }
+
+      const summitIdLower = (item.summit_id || "").toLowerCase();
+      const isPeak = item.type === "ascent" && peaks.some((p) => p.id === summitIdLower);
+      const isCountry =
+        item.type === "ascent" &&
+        (countries.some((c) => c.id === summitIdLower) || summitIdLower.startsWith("country-"));
+      const isExperience =
+        item.type === "experience" ||
+        (item.type === "ascent" && (summitIdLower.startsWith("exp-") || summitIdLower.startsWith("custom-")));
+
       if (item.type === "ascent") {
-        const summitIdLower = (item.summit_id || "").toLowerCase();
-        const isPeak = peaks.some((p) => p.id === summitIdLower);
-        const isCountry =
-          countries.some((c) => c.id === summitIdLower) ||
-          summitIdLower.startsWith("country-");
         if (!enablePeaks && isPeak) return false;
         if (!enableCountries && isCountry) return false;
       }
-      return true;
+      if (!enableExperiences && isExperience) return false;
+
+      if (mode === "peaks") {
+        return isPeak;
+      } else {
+        // mode === "countries"
+        if (isPeak) return false;
+        if (experiencesMode && enableExperiences) {
+          return isExperience;
+        }
+        return isCountry;
+      }
     });
-  }, [feedItems, enablePeaks, enableCountries]);
+
+    if (searchQuery.trim()) {
+      const tokens = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      items = items.filter((item) => {
+        const username = item.profiles?.username || "";
+        const summitIdLower = (item.summit_id || "").toLowerCase();
+
+        let locName = "";
+        let extraLoc = "";
+        if (item.type === "ascent") {
+          const country = countries.find((c) => c.id === summitIdLower);
+          if (country) {
+            locName = country.name;
+          } else {
+            const peak = peaks.find((p) => p.id === summitIdLower);
+            if (peak) {
+              locName = peak.name;
+              extraLoc = peak.province || "";
+            }
+          }
+        } else if (item.type === "experience") {
+          locName = item.experience_title || item.location_name || "";
+          extraLoc = item.sub_item_title || "";
+        }
+
+        const dateRangeStr = formatRecordDateRange(item.achieved_on, item.end_date);
+
+        let dateWords = "";
+        if (item.achieved_on && !isUnknownDate(item.achieved_on)) {
+          try {
+            const d = new Date(item.achieved_on);
+            if (!isNaN(d.getTime())) {
+              dateWords += " " + format(d, "MMMM yyyy d", { locale: es });
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        if (item.end_date && !isUnknownDate(item.end_date)) {
+          try {
+            const d2 = new Date(item.end_date);
+            if (!isNaN(d2.getTime())) {
+              dateWords += " " + format(d2, "MMMM yyyy d", { locale: es });
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        const searchable = [
+          username,
+          `@${username}`,
+          locName,
+          extraLoc,
+          item.location_name || "",
+          item.notes || "",
+          dateRangeStr,
+          dateWords,
+          item.achieved_on || "",
+          item.end_date || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return tokens.every((t) => searchable.includes(t));
+      });
+    }
+
+    return items;
+  }, [
+    feedItems,
+    enablePeaks,
+    enableCountries,
+    enableExperiences,
+    mode,
+    experiencesMode,
+    searchQuery,
+    followingOnly,
+    followingUserIdsSet,
+  ]);
 
   return (
     <div className="feed-container">
@@ -910,7 +904,46 @@ export function FeedTab({ session, isActive = true, onAuthRequired }: { session:
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>Cargando novedades...</div>
       ) : visibleFeedItems.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>No hay actividad reciente para mostrar.</div>
+        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
+          {searchQuery.trim() ? (
+            <>
+              <div>No se encontraron actividades para &ldquo;{searchQuery}&rdquo;.</div>
+              {onClearSearch && (
+                <div style={{ marginTop: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={onClearSearch}
+                    className="feed-empty-link"
+                  >
+                    Limpiar búsqueda
+                  </button>
+                </div>
+              )}
+            </>
+          ) : followingOnly ? (
+            <>
+              <div>No hay actividades recientes de personas a las que sigues.</div>
+              {followingUserIds.length === 0 ? (
+                <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--muted)' }}>
+                  Aún no sigues a nadie. ¡Descubre otros exploradores en la comunidad!
+                </div>
+              ) : null}
+              {onDisableFollowingOnly && (
+                <div style={{ marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={onDisableFollowingOnly}
+                    className="feed-empty-link"
+                  >
+                    Ver todas las actividades
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            "No hay actividad reciente para mostrar."
+          )}
+        </div>
       ) : (
         <div>
           {visibleFeedItems.map(item => (

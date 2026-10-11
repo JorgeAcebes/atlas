@@ -22,6 +22,8 @@ import { predefinedCategories } from "@/data/experiences";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useAuth } from "./auth-context";
+import { AuthDialog } from "@/components/auth-dialog";
+import { UserRoundCheck } from "lucide-react";
 import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
 
@@ -141,6 +143,8 @@ type CollectiveSummitData = {
 
 type Props = {
   onClose: () => void;
+  scope?: "all" | "following";
+  onScopeChange?: (scope: "all" | "following") => void;
 };
 
 function ExperiencesToggleControl({ showExperiences, setShowExperiences, experienceMarkersCount }: { showExperiences: boolean, setShowExperiences: (v: boolean) => void, experienceMarkersCount: number }) {
@@ -206,9 +210,24 @@ function ExperiencesToggleControl({ showExperiences, setShowExperiences, experie
   );
 }
 
-export function CollectiveMap({ onClose }: Props) {
+export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Props) {
   const { session } = useAuth();
-  const [scope, setScope] = useState<"all" | "following">("all");
+  const [internalScope, setInternalScope] = useState<"all" | "following">("all");
+  const scope = propScope !== undefined ? propScope : internalScope;
+  const [authOpen, setAuthOpen] = useState<"login" | "register" | null>(null);
+
+  const toggleScope = () => {
+    if (!session) {
+      setAuthOpen("login");
+      return;
+    }
+    const next = scope === "following" ? "all" : "following";
+    if (onScopeChange) {
+      onScopeChange(next);
+    } else {
+      setInternalScope(next);
+    }
+  };
 
   const [worldGeo, setWorldGeo] = useState<FeatureCollection | null>(_worldGeoCache);
   const [collectiveData, setCollectiveData] = useState<Map<string, CollectiveSummitData>>(new Map());
@@ -515,7 +534,7 @@ export function CollectiveMap({ onClose }: Props) {
   }, [collectiveData]);
 
   return (
-    <div className="collective-map-overlay">
+    <div className="collective-map-overlay mode-countries">
       <div className="collective-map-header">
         <div className="collective-map-header-left">
           <h2>Mapa Colectivo</h2>
@@ -524,23 +543,17 @@ export function CollectiveMap({ onClose }: Props) {
           </span>
         </div>
         
-        <div className="collective-map-toggles" style={{ marginLeft: 'auto', marginRight: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div className="list-filters" style={{ margin: 0, display: "flex", gap: "6px" }}>
-            <button
-              className={`list-filter-pill ${scope === 'all' ? 'list-filter-pill--active' : ''}`}
-              onClick={() => setScope('all')}
-              style={scope === 'all' ? { background: '#7b52ab', color: 'white', borderColor: '#7b52ab', padding: "4px 12px", minWidth: "auto", fontSize: "0.8rem", height: "32px", alignItems: "center", justifyContent: "center" } : { padding: "4px 12px", minWidth: "auto", fontSize: "0.8rem", height: "32px", alignItems: "center", justifyContent: "center" }}
-            >
-              Global
-            </button>
-            <button
-              className={`list-filter-pill ${scope === 'following' ? 'list-filter-pill--active' : ''}`}
-              onClick={() => setScope('following')}
-              style={scope === 'following' ? { background: '#7b52ab', color: 'white', borderColor: '#7b52ab', padding: "4px 12px", minWidth: "auto", fontSize: "0.8rem", height: "32px", alignItems: "center", justifyContent: "center" } : { padding: "4px 12px", minWidth: "auto", fontSize: "0.8rem", height: "32px", alignItems: "center", justifyContent: "center" }}
-            >
-              Siguiendo
-            </button>
-          </div>
+        <div className="collective-map-toggles">
+          <button
+            type="button"
+            className={`social-following-btn ${scope === "following" ? "social-following-btn--active" : ""}`}
+            onClick={toggleScope}
+            title={scope === "following" ? "Ver mapa colectivo global" : "Ver solo a quienes sigues"}
+            aria-pressed={scope === "following"}
+          >
+            <UserRoundCheck size={14} className="social-following-icon" />
+            <span>Siguiendo</span>
+          </button>
         </div>
 
         <button className="collective-map-close" onClick={onClose} aria-label="Cerrar mapa colectivo">
@@ -699,11 +712,17 @@ export function CollectiveMap({ onClose }: Props) {
                 </ul>
               </>
             ) : (
-              <p className="collective-visitors-empty">Nadie ha visitado este lugar todavía.</p>
+              <p className="collective-visitors-empty">
+                {scope === "following"
+                  ? "Ninguna persona a la que sigues ha visitado este lugar todavía."
+                  : "Nadie ha visitado este lugar todavía."}
+              </p>
             )}
           </div>
         )}
       </div>
+
+      {authOpen && <AuthDialog onClose={() => setAuthOpen(null)} initialTab={authOpen} />}
     </div>
   );
 }

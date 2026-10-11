@@ -14,7 +14,6 @@ type Profile = {
   is_public: boolean;
   enable_peaks?: boolean;
   enable_countries?: boolean;
-  enable_regions?: boolean;
   enable_experiences?: boolean;
   share_photos?: boolean;
   share_notes?: boolean;
@@ -34,7 +33,6 @@ export function ProfileSettings({
   const [isPublic, setIsPublic] = useState(true);
   const [enablePeaks, setEnablePeaks] = useState(true);
   const [enableCountries, setEnableCountries] = useState(true);
-  const [enableRegions, setEnableRegions] = useState(false);
   const [enableExperiences, setEnableExperiences] = useState(false);
   const [sharePhotos, setSharePhotos] = useState(true);
   const [shareNotes, setShareNotes] = useState(true);
@@ -61,7 +59,6 @@ export function ProfileSettings({
         setIsPublic(data.is_public);
         setEnablePeaks(data.enable_peaks ?? true);
         setEnableCountries(data.enable_countries ?? true);
-        setEnableRegions(data.enable_regions ?? false);
         setEnableExperiences(data.enable_experiences ?? false);
         setSharePhotos(data.share_photos ?? true);
         setShareNotes(data.share_notes ?? true);
@@ -99,7 +96,6 @@ export function ProfileSettings({
     setEnableCountries(checked);
     if (!checked) {
       setEnableExperiences(false);
-      setEnableRegions(false);
     }
   };
 
@@ -156,7 +152,6 @@ export function ProfileSettings({
       is_public: isPublic,
       enable_peaks: enablePeaks,
       enable_countries: enableCountries,
-      enable_regions: enableCountries ? enableRegions : false,
       enable_experiences: enableCountries ? enableExperiences : false,
       share_photos: sharePhotos,
       share_notes: shareNotes,
@@ -334,51 +329,7 @@ export function ProfileSettings({
               </div>
             </div>
 
-            {/* Perfil Público */}
-            <div
-              style={{
-                background: "#f5f5f5",
-                padding: "0.45rem 0.7rem",
-                borderRadius: "8px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.2rem",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ fontWeight: "bold", fontSize: "0.82rem" }}>
-                  Perfil Público
-                </span>
-                <label className="custom-toggle">
-                  <input
-                    type="checkbox"
-                    checked={isPublic}
-                    onChange={(e) => setIsPublic(e.target.checked)}
-                  />
-                  <div className="toggle-switch"></div>
-                </label>
-              </div>
-              <p
-                style={{
-                  fontSize: "0.7rem",
-                  color: "#666",
-                  margin: 0,
-                  lineHeight: 1.15,
-                }}
-              >
-                {isPublic
-                  ? "Cualquiera podrá buscarte y ver tu actividad."
-                  : "Solo los usuarios que aceptes podrán ver tu actividad."}
-              </p>
-            </div>
-
-            {/* Privacidad de datos */}
+            {/* Privacidad */}
             <div
               style={{
                 background: "#f5f5f5",
@@ -390,8 +341,41 @@ export function ProfileSettings({
               }}
             >
               <span style={{ fontWeight: "bold", fontSize: "0.82rem" }}>
-                Privacidad de datos
+                Privacidad
               </span>
+
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ fontSize: "0.82rem" }}>Perfil público</span>
+                  <label className="custom-toggle">
+                    <input
+                      type="checkbox"
+                      checked={isPublic}
+                      onChange={(e) => setIsPublic(e.target.checked)}
+                    />
+                    <div className="toggle-switch"></div>
+                  </label>
+                </div>
+                <p
+                  style={{
+                    fontSize: "0.7rem",
+                    color: "#666",
+                    margin: "0.15rem 0 0 0",
+                    lineHeight: 1.15,
+                  }}
+                >
+                  {isPublic
+                    ? "Cualquiera puede ver tus fotos y notas."
+                    : "Solo tus seguidores pueden ver tus fotos y notas."}
+                </p>
+              </div>
+
               <div
                 style={{
                   display: "flex",
@@ -409,6 +393,7 @@ export function ProfileSettings({
                   <div className="toggle-switch"></div>
                 </label>
               </div>
+
               <div
                 style={{
                   display: "flex",
@@ -537,31 +522,6 @@ export function ProfileSettings({
                       checked={enableCountries && enableExperiences}
                       disabled={!enableCountries}
                       onChange={(e) => enableCountries && setEnableExperiences(e.target.checked)}
-                    />
-                    <div className="toggle-switch"></div>
-                  </label>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ fontSize: "0.8rem", color: enableCountries ? "inherit" : "var(--muted)" }}>
-                    Modo Regiones
-                  </span>
-                  <label
-                    className="custom-toggle"
-                    style={{ cursor: enableCountries ? "pointer" : "not-allowed" }}
-                    title={enableCountries ? undefined : "Requiere tener activo el Modo Países"}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={enableCountries && enableRegions}
-                      disabled={!enableCountries}
-                      onChange={(e) => enableCountries && setEnableRegions(e.target.checked)}
                     />
                     <div className="toggle-switch"></div>
                   </label>

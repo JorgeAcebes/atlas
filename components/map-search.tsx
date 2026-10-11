@@ -18,9 +18,10 @@ type Props = {
   /** Called once the map has finished moving to the selected result. */
   onSelect: (item: SearchItem) => void;
   placeholder?: string;
+  offsetDown?: boolean;
 };
 
-export function MapSearchControl({ items, onSelect, placeholder = "Buscar..." }: Props) {
+export function MapSearchControl({ items, onSelect, placeholder = "Buscar...", offsetDown = false }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchItem[]>([]);
@@ -64,11 +65,9 @@ export function MapSearchControl({ items, onSelect, placeholder = "Buscar..." }:
   return (
     <div 
       ref={divRef} 
-      className="leaflet-control leaflet-bar" 
+      className={`leaflet-control leaflet-bar map-search-control ${offsetDown ? "map-search-control--offset" : ""}`} 
       style={{ 
         position: "absolute", 
-        top: 10, 
-        right: 10, 
         zIndex: 1001, 
         background: "white", 
         borderRadius: expanded ? 8 : "50%", 

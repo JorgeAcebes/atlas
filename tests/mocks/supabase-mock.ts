@@ -397,6 +397,17 @@ export class MockSupabaseClient {
       return { data: results, error: null };
     }
 
+    if (functionName === "get_user_completed_summits") {
+      const targetUserId = args?.p_user_id;
+      const ascents = (this.store.get("ascents") || []).filter(
+        (a) => a.user_id === targetUserId && a.is_wishlist !== true
+      );
+      const uniqueSummits = Array.from(new Set(ascents.map((a) => a.summit_id))).map((summit_id) => ({
+        summit_id,
+      }));
+      return { data: uniqueSummits, error: null };
+    }
+
     return { data: [], error: null };
   }
 

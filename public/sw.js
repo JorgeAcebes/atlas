@@ -9,8 +9,7 @@ const PRECACHE_URLS = [
   '/apple-touch-icon.png',
   '/icon.svg',
   '/icon-192.svg',
-  '/icon-512.svg',
-  '/world-regions.topo.json' // Precache the big topojson
+  '/icon-512.svg'
 ];
 
 self.addEventListener('install', (event) => {

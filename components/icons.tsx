@@ -88,3 +88,33 @@ export function IconLogo({ className, style }: { className?: string, style?: Rea
     </svg>
   );
 }
+
+export function IconCollectiveMap({ className, style, size = 20 }: { className?: string, style?: React.CSSProperties, size?: number }) {
+  return (
+    <svg
+      className={className}
+      style={style}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="12" cy="12" r="9" opacity="0.85" />
+      <path d="M12 3a13 13 0 0 0 0 18" opacity="0.6" />
+      <path d="M12 3a13 13 0 0 1 0 18" opacity="0.6" />
+      <path d="M3.6 9h16.8" opacity="0.45" strokeDasharray="1.5 2" />
+      <path d="M3.6 15h16.8" opacity="0.45" strokeDasharray="1.5 2" />
+      <circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="15.5" cy="9.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="15.5" r="1.3" fill="currentColor" stroke="none" />
+      <line x1="8.5" y1="8.5" x2="15.5" y2="9.5" strokeWidth="0.9" opacity="0.75" />
+      <line x1="15.5" y1="9.5" x2="12" y2="15.5" strokeWidth="0.9" opacity="0.75" />
+      <line x1="12" y1="15.5" x2="8.5" y2="8.5" strokeWidth="0.9" opacity="0.75" />
+    </svg>
+  );
+}

@@ -63,6 +63,7 @@ type Props = {
   diffBoth?: Set<string>;
   activeId?: string;
   panelOpen?: boolean;
+  hasCompareButton?: boolean;
 };
 
 function FitSpain() {
@@ -143,7 +144,7 @@ function MapZoomListener() {
 // ── Stable marker list (never changes) ────
 const peakEntries = Object.values(peakByCode);
 
-export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, panelOpen }: Props) {
+export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, panelOpen, hasCompareButton }: Props) {
   const [geo, setGeo] = useState<FeatureCollection | null>(_geoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -450,6 +451,7 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
         items={searchItems} 
         onSelect={handleSearchSelect} 
         placeholder="Buscar pico o provincia..." 
+        offsetDown={hasCompareButton}
       />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

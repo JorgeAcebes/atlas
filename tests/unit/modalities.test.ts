@@ -119,6 +119,71 @@ describe("Modality Preferences & Filtering Logic", () => {
       const filtered = filterFeed(sampleFeedItems, true, true);
       expect(filtered).toHaveLength(5);
     });
+
+    describe("Feed visibleFeedItems mode filtering (Peaks vs Countries vs Experiences)", () => {
+      function filterVisibleFeed(
+        items: any[],
+        mode: "countries" | "peaks",
+        experiencesMode: boolean,
+        enablePeaks = true,
+        enableCountries = true,
+        enableExperiences = true
+      ) {
+        return items.filter((item) => {
+          if (item.type === "error") return true;
+
+          const summitIdLower = (item.summit_id || "").toLowerCase();
+          const isPeak = item.type === "ascent" && peaks.some((p) => p.id === summitIdLower);
+          const isCountry =
+            item.type === "ascent" &&
+            (countries.some((c) => c.id === summitIdLower) || summitIdLower.startsWith("country-"));
+          const isExperience =
+            item.type === "experience" ||
+            (item.type === "ascent" && (summitIdLower.startsWith("exp-") || summitIdLower.startsWith("custom-")));
+
+          if (item.type === "ascent") {
+            if (!enablePeaks && isPeak) return false;
+            if (!enableCountries && isCountry) return false;
+          }
+          if (!enableExperiences && isExperience) return false;
+
+          if (mode === "peaks") {
+            return isPeak;
+          } else {
+            // mode === "countries"
+            if (isPeak) return false;
+            if (experiencesMode && enableExperiences) {
+              return isExperience;
+            }
+            return isCountry;
+          }
+        });
+      }
+
+      it("should show ONLY experiences (and no countries or peaks) when in experiencesMode in social", () => {
+        const result = filterVisibleFeed(sampleFeedItems, "countries", true);
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe("5");
+        expect(result[0].type).toBe("experience");
+        expect(result.some((i) => i.summit_id?.startsWith("country-"))).toBe(false);
+        expect(result.some((i) => i.summit_id === "gorbea" || i.summit_id === "santa-cruz-tenerife")).toBe(false);
+      });
+
+      it("should show ONLY countries (and no experiences or peaks) when experiencesMode is false", () => {
+        const result = filterVisibleFeed(sampleFeedItems, "countries", false);
+        expect(result).toHaveLength(2);
+        expect(result.map((i) => i.summit_id)).toEqual(["country-fr", "country-es"]);
+        expect(result.some((i) => i.type === "experience")).toBe(false);
+      });
+
+      it("should show ONLY peaks when mode is peaks", () => {
+        const result = filterVisibleFeed(sampleFeedItems, "peaks", false);
+        expect(result).toHaveLength(2);
+        expect(result.map((i) => i.summit_id)).toEqual(["santa-cruz-tenerife", "gorbea"]);
+        expect(result.some((i) => i.summit_id?.startsWith("country-"))).toBe(false);
+        expect(result.some((i) => i.type === "experience")).toBe(false);
+      });
+    });
   });
 
   describe("Aesthetic & UI Contract Rules", () => {
@@ -156,16 +221,14 @@ describe("Modality Preferences & Filtering Logic", () => {
       expect(errorMessage).toContain("Debes mantener activa al menos una modalidad");
     });
 
-    it("should freeze experiences and regions when countries mode is toggled off", () => {
+    it("should freeze experiences when countries mode is toggled off", () => {
       let enableCountries = true;
       let enableExperiences = true;
-      let enableRegions = true;
 
       const handleToggleCountries = (checked: boolean) => {
         enableCountries = checked;
         if (!checked) {
           enableExperiences = false;
-          enableRegions = false;
         }
       };
 
@@ -173,17 +236,14 @@ describe("Modality Preferences & Filtering Logic", () => {
       handleToggleCountries(false);
       expect(enableCountries).toBe(false);
       expect(enableExperiences).toBe(false);
-      expect(enableRegions).toBe(false);
 
       // Verify payload serialization enforces hierarchy
       const updates = {
         enable_countries: enableCountries,
-        enable_regions: enableCountries ? enableRegions : false,
         enable_experiences: enableCountries ? enableExperiences : false,
       };
 
       expect(updates.enable_countries).toBe(false);
-      expect(updates.enable_regions).toBe(false);
       expect(updates.enable_experiences).toBe(false);
     });
   });

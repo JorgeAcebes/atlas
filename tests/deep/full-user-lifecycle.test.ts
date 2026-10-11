@@ -137,7 +137,6 @@ describe("Deep E2E: Full User Lifecycle & Stealth Isolation", () => {
         bio: "Probador automatizado de alta montaña y 196 países",
         share_photos: true,
         share_notes: true,
-        enable_regions: true,
         enable_experiences: true,
         enable_peaks: true,
         enable_countries: true,

@@ -5,16 +5,15 @@ import { useMap } from "react-leaflet";
 type Props = {
   searchedId: string | null;
   layerRefs: React.MutableRefObject<Map<string, L.Layer>>;
-  regionLayerRefs?: React.MutableRefObject<Map<string, L.Layer>>;
 };
 
-export function SweepOverlay({ searchedId, layerRefs, regionLayerRefs }: Props) {
+export function SweepOverlay({ searchedId, layerRefs }: Props) {
   const map = useMap();
 
   useEffect(() => {
     if (!searchedId) return;
 
-    const layer = layerRefs.current.get(searchedId) || regionLayerRefs?.current?.get(searchedId);
+    const layer = layerRefs.current.get(searchedId);
     if (!layer) return;
 
     const feature = (layer as any).feature;
@@ -115,7 +114,7 @@ export function SweepOverlay({ searchedId, layerRefs, regionLayerRefs }: Props) 
       clearTimeout(timer);
       overlayLayer.remove();
     };
-  }, [searchedId, layerRefs, regionLayerRefs, map]);
+  }, [searchedId, layerRefs, map]);
 
   return null;
 }

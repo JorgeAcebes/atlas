@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { AuthDialog } from "./auth-dialog";
@@ -8,10 +8,13 @@ import { IconLogo } from "./icons";
 import { ProfileSettings } from "./profile-settings";
 import { ConfirmModal } from "./confirm-modal";
 import { FeedTab } from "./feed-tab";
-import { countries } from "@/data/countries";
-import { peaks } from "@/data/peaks";
-import { predefinedCategories } from "@/data/experiences";
 import { useAuth } from "./auth-context";
+import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
+import { peaks } from "@/data/peaks";
+import { countries } from "@/data/countries";
+import { predefinedCategories } from "@/data/experiences";
+import { UserRoundCheck } from "lucide-react";
+import { usePendingRequests } from "./use-pending-requests";
 
 type Profile = {
   id: string;
@@ -26,21 +29,24 @@ let cachedConnections: Record<string, ConnectionStatus> = {};
 let cachedFollowerStatuses: Record<string, ConnectionStatus> = {};
 let cachedFollowers: Profile[] = [];
 let cachedFollowing: Profile[] = [];
-let cachedRecommended: Profile[] = [];
-const defaultExperiencesCount = predefinedCategories.reduce((acc, cat) => acc + cat.experiences.length, 0);
-let cachedProgressCounts = { countries: 0, peaks: 0, experiences: 0 };
-let cachedTotalCounts = { countries: countries.length, peaks: 47, experiences: defaultExperiencesCount };
 let cachedDataUserId: string | null = null;
 let cachedConnectionsLastFetched = 0;
 let isFetchingSocial = false;
 const SOCIAL_CACHE_TTL = 60 * 1000;
 
-function getStoredSocialData<T>(key: string, userId: string): T | null {
+let cachedUserAscents: any[] = [];
+let cachedUserExpRecords: any[] = [];
+let cachedUserCustomExp: any[] = [];
+let cachedProgressUserId: string | null = null;
+
+function getStoredProgressData<T>(key: string, userId: string): T[] | null {
   if (typeof window === "undefined" || !userId) return null;
   try {
-    const raw = localStorage.getItem(`app_social_${key}_${userId}`);
-    if (raw) return JSON.parse(raw) as T;
-  } catch { /* ignore */ }
+    const raw = localStorage.getItem(`app_tracker_${key}_${userId}`);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -48,6 +54,74 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
   const { session, profile: myProfile, refreshProfile } = useAuth();
   const enablePeaks = !myProfile || myProfile.enable_peaks !== false;
   const enableCountries = !myProfile || myProfile.enable_countries !== false;
+  const enableExperiences = enableCountries && (!myProfile || myProfile.enable_experiences !== false);
+  const hasBothModes = enablePeaks && enableCountries;
+
+  const [currentMode, setCurrentMode] = useState<"countries" | "peaks">(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlChallenge = urlParams.get("challenge");
+      if (urlChallenge === "peaks" && enablePeaks) return "peaks";
+      if (urlChallenge === "countries" && enableCountries) return "countries";
+
+      const saved = localStorage.getItem("last_active_mode") as "countries" | "peaks" | null;
+      if (saved === "peaks" && enablePeaks) return "peaks";
+      if (saved === "countries" && enableCountries) return "countries";
+      const path = localStorage.getItem("last_map_path");
+      if (path === "/picos" && enablePeaks) return "peaks";
+    }
+    return enableCountries ? "countries" : "peaks";
+  });
+
+  const [experiencesMode, setExperiencesMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlView = urlParams.get("view");
+      if (urlView === "experiences") return true;
+      return localStorage.getItem("myExperiencesMode") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("myExperiencesMode", experiencesMode.toString());
+    }
+  }, [experiencesMode]);
+
+  const [connectionsModal, setConnectionsModal] = useState<'followers' | 'following' | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [followingOnly, setFollowingOnly] = useState(false);
+
+  useEffect(() => {
+    if (!session) {
+      setFollowingOnly(false);
+    }
+  }, [session]);
+
+  function switchMode(target: "countries" | "peaks") {
+    if (target === currentMode) return;
+    if (target === "peaks" && !enablePeaks) return;
+    if (target === "countries" && !enableCountries) return;
+    setCurrentMode(target);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("last_active_mode", target);
+      localStorage.setItem("last_map_path", target === "peaks" ? "/picos" : "/");
+      const url = new URL(window.location.href);
+      url.searchParams.set("challenge", target);
+      window.history.replaceState(null, "", url.toString());
+    }
+    setMapLink(target === "peaks" ? "/picos" : "/");
+  }
+
+  useEffect(() => {
+    if (!enablePeaks && currentMode === "peaks") {
+      setCurrentMode("countries");
+    } else if (!enableCountries && currentMode === "countries") {
+      setCurrentMode("peaks");
+    }
+  }, [enablePeaks, enableCountries, currentMode]);
+
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mapLink, setMapLink] = useState("/");
@@ -56,46 +130,232 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
   useEffect(() => {
     setMounted(true);
   }, []);
-  
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Profile[]>([]);
 
   const userId = session?.user.id || myProfile?.id;
   const isCurrentCache = Boolean(userId && cachedDataUserId === userId);
 
-  const [recommended, setRecommended] = useState<Profile[]>(() => isCurrentCache ? cachedRecommended : []);
   const [followers, setFollowers] = useState<Profile[]>(() => isCurrentCache ? cachedFollowers : []);
   const [following, setFollowing] = useState<Profile[]>(() => isCurrentCache ? cachedFollowing : []);
-  const [activeTab, setActiveTab] = useState<'feed' | 'discover' | 'followers' | 'following'>('feed');
-  const [announcements, setAnnouncements] = useState<any[]>([]);
-  
-  const [progressCounts, setProgressCounts] = useState(() => {
-    if (isCurrentCache) return cachedProgressCounts;
-    if (userId) {
-      const stored = getStoredSocialData<typeof cachedProgressCounts>("progress", userId);
-      if (stored) return stored;
-    }
-    return cachedProgressCounts;
-  });
-  const [totalCounts, setTotalCounts] = useState(() => {
-    if (isCurrentCache) return cachedTotalCounts;
-    if (userId) {
-      const stored = getStoredSocialData<typeof cachedTotalCounts>("totals", userId);
-      if (stored) return stored;
-    }
-    return cachedTotalCounts;
-  });
   
   // A mapping of profile id to connection status
   const [connections, setConnections] = useState<Record<string, ConnectionStatus>>(() => isCurrentCache ? cachedConnections : {});
   const [followerStatuses, setFollowerStatuses] = useState<Record<string, ConnectionStatus>>(() => isCurrentCache ? cachedFollowerStatuses : {});
+
+  const followingUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [id, status] of Object.entries(connections)) {
+      if (status === "accepted") ids.add(id);
+    }
+    for (const p of following) {
+      if (connections[p.id] !== "pending") {
+        ids.add(p.id);
+      }
+    }
+    return Array.from(ids);
+  }, [connections, following]);
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
     message: string;
     onConfirm: () => void;
   } | null>(null);
-  
-  const hasPendingRequests = myProfile && !myProfile.is_public && Object.values(followerStatuses).includes('pending');
+
+  const acceptedFollowers = useMemo(() => {
+    return followers.filter((p) => followerStatuses[p.id] === "accepted");
+  }, [followers, followerStatuses]);
+
+  const pendingFollowers = useMemo(() => {
+    return followers.filter((p) => followerStatuses[p.id] === "pending");
+  }, [followers, followerStatuses]);
+
+  const hookPending = usePendingRequests();
+  const hasPendingRequests = Boolean(
+    (myProfile && !myProfile.is_public && Object.values(followerStatuses).includes("pending")) ||
+    pendingFollowers.length > 0 ||
+    hookPending
+  );
+
+  const [userAscents, setUserAscents] = useState<any[]>(() => {
+    if (userId && cachedProgressUserId === userId && cachedUserAscents.length > 0) return cachedUserAscents;
+    if (userId) return getStoredProgressData<any>("ascents", userId) || [];
+    return [];
+  });
+  const [userExpRecords, setUserExpRecords] = useState<any[]>(() => {
+    if (userId && cachedProgressUserId === userId && cachedUserExpRecords.length > 0) return cachedUserExpRecords;
+    if (userId) return getStoredProgressData<any>("exp_records", userId) || [];
+    return [];
+  });
+  const [userCustomExp, setUserCustomExp] = useState<any[]>(() => {
+    if (userId && cachedProgressUserId === userId && cachedUserCustomExp.length > 0) return cachedUserCustomExp;
+    if (userId) return getStoredProgressData<any>("custom_exp", userId) || [];
+    return [];
+  });
+
+  useEffect(() => {
+    if (!isActive || !session || !supabase) return;
+    const uid = session.user.id;
+    let ignore = false;
+
+    async function fetchUserProgress() {
+      try {
+        const [ascentsRes, expRes, customRes] = await Promise.all([
+          supabase!.from("ascents").select("summit_id, is_wishlist").eq("user_id", uid),
+          supabase!.from("experience_records").select("experience_id, sub_item_id, is_wishlist").eq("user_id", uid),
+          supabase!.from("custom_experiences").select("id, name, sub_items").eq("user_id", uid),
+        ]);
+
+        if (ignore) return;
+        if (ascentsRes.data) {
+          setUserAscents(ascentsRes.data);
+          cachedUserAscents = ascentsRes.data;
+          try {
+            localStorage.setItem(`app_tracker_ascents_${uid}`, JSON.stringify(ascentsRes.data));
+          } catch {}
+        }
+        if (expRes.data) {
+          setUserExpRecords(expRes.data);
+          cachedUserExpRecords = expRes.data;
+          try {
+            localStorage.setItem(`app_tracker_exp_records_${uid}`, JSON.stringify(expRes.data));
+          } catch {}
+        }
+        if (customRes.data) {
+          setUserCustomExp(customRes.data);
+          cachedUserCustomExp = customRes.data;
+          try {
+            localStorage.setItem(`app_tracker_custom_exp_${uid}`, JSON.stringify(customRes.data));
+          } catch {}
+        }
+        cachedProgressUserId = uid;
+      } catch (err) {
+        console.error("Error fetching progress for social:", err);
+      }
+    }
+
+    fetchUserProgress();
+    return () => {
+      ignore = true;
+    };
+  }, [isActive, session]);
+
+  const isPeaks = currentMode === "peaks";
+  const isExp = !isPeaks && experiencesMode;
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (isExp) {
+      document.body.classList.add("mode-experiences");
+      document.body.classList.remove("mode-countries");
+    } else if (isPeaks) {
+      document.body.classList.remove("mode-experiences");
+      document.body.classList.remove("mode-countries");
+    } else {
+      document.body.classList.add("mode-countries");
+      document.body.classList.remove("mode-experiences");
+    }
+
+    return () => {
+      document.body.classList.remove("mode-experiences");
+      document.body.classList.remove("mode-countries");
+    };
+  }, [isExp, isPeaks, isActive]);
+
+  const { activeAchieved, activeTotal, activeUnit, activeCompletion } = useMemo(() => {
+    if (isPeaks) {
+      const completed = userAscents.filter(
+        (a) =>
+          !a.is_wishlist &&
+          !a.summit_id.startsWith("country-") &&
+          !a.summit_id.startsWith("region-") &&
+          !a.summit_id.startsWith("exp-") &&
+          !a.summit_id.startsWith("custom-"),
+      );
+      const uniqueNames = new Set(
+        completed
+          .map((a) => peaks.find((p) => p.id === a.summit_id)?.name)
+          .filter(Boolean),
+      );
+      const achieved = uniqueNames.size;
+      const total = 47;
+      const completion = Math.round((achieved / total) * 100);
+      return {
+        activeAchieved: achieved,
+        activeTotal: total,
+        activeUnit: "cimas conquistadas",
+        activeCompletion: completion,
+      };
+    }
+
+    if (isExp) {
+      const allPredefined = predefinedCategories.flatMap((cat) => cat.experiences);
+      const allCustom = userCustomExp.map((ce) => ({
+        id: ce.id,
+        name: ce.name,
+        subItems: ce.sub_items,
+      }));
+      const allItems = [...allPredefined, ...allCustom];
+
+      const completedExpRecords = [
+        ...userExpRecords.filter((r) => !r.is_wishlist),
+        ...userAscents
+          .filter(
+            (a) =>
+              !a.is_wishlist &&
+              (a.summit_id.startsWith("exp-") || a.summit_id.startsWith("custom-")),
+          )
+          .map((a) => ({
+            experience_id: a.summit_id,
+            sub_item_id: a.sub_item_id,
+          })),
+      ];
+
+      let count = 0;
+      for (const item of allItems) {
+        if (!item.subItems || item.subItems.length === 0) {
+          if (completedExpRecords.some((r) => r.experience_id === item.id)) {
+            count++;
+          }
+        } else {
+          const subItemIds = item.subItems.map((s: any) => s.id);
+          const completedSubIds = new Set(
+            completedExpRecords
+              .filter((r) => r.experience_id === item.id && r.sub_item_id)
+              .map((r) => r.sub_item_id)
+          );
+          if (
+            subItemIds.length > 0 &&
+            subItemIds.every((id: string) => completedSubIds.has(id))
+          ) {
+            count++;
+          }
+        }
+      }
+
+      const total = allItems.length || predefinedCategories.reduce((acc, cat) => acc + cat.experiences.length, 0);
+      const completion = total > 0 ? Math.round((count / total) * 100) : 0;
+      return {
+        activeAchieved: count,
+        activeTotal: total,
+        activeUnit: "experiencias registradas",
+        activeCompletion: completion,
+      };
+    }
+
+    // Default: countries
+    const uniqueCountries = new Set(
+      userAscents
+        .filter((a) => !a.is_wishlist && a.summit_id.startsWith("country-"))
+        .map((a) => a.summit_id),
+    );
+    const achieved = uniqueCountries.size;
+    const total = countries.length || 196;
+    const completion = Math.round((achieved / total) * 100);
+    return {
+      activeAchieved: achieved,
+      activeTotal: total,
+      activeUnit: "países visitados",
+      activeCompletion: completion,
+    };
+  }, [isPeaks, isExp, userAscents, userExpRecords, userCustomExp]);
   
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -103,9 +363,22 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
       if (!enablePeaks && stored === "/picos") stored = "/";
       if (!enableCountries && stored === "/") stored = "/picos";
       if (stored !== "/" && stored !== "/picos") stored = enablePeaks ? "/picos" : "/";
-      setMapLink(stored);
+      setMapLink(currentMode === "peaks" ? "/picos" : "/");
     }
-  }, [enablePeaks, enableCountries]);
+  }, [enablePeaks, enableCountries, currentMode]);
+
+  useEffect(() => {
+    if (!connectionsModal) return;
+    lockScroll();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setConnectionsModal(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      unlockScroll();
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [connectionsModal]);
 
   useEffect(() => {
     if (!isActive || !session || !supabase) return;
@@ -136,7 +409,8 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
           const { data: followingProfiles } = await supabase!
             .from('profiles')
             .select('*')
-            .in('id', followingIds);
+            .in('id', followingIds)
+            .neq('is_test', true);
           if (followingProfiles) {
             setFollowing(followingProfiles);
             cachedFollowing = followingProfiles;
@@ -164,184 +438,25 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
           const { data: followerProfiles } = await supabase!
             .from('profiles')
             .select('*')
-            .in('id', followerIds);
+            .in('id', followerIds)
+            .neq('is_test', true);
           if (followerProfiles) {
             setFollowers(followerProfiles);
             cachedFollowers = followerProfiles;
           }
-        }
-      }
-    }
-    
-    async function fetchRecommended() {
-      const { data: recData } = await supabase!.rpc('get_recommended_profiles');
-      
-      const { data: pubData } = await supabase!
-        .from('profiles')
-        .select('*')
-        .eq('is_public', true)
-        .neq('is_test', true)
-        .neq('id', session!.user.id)
-        .limit(10);
-        
-      const combined = [...(recData || [])];
-      if (pubData) {
-        for (const p of pubData) {
-          if (!combined.find(x => x.id === p.id)) {
-            combined.push(p);
-          }
-        }
-      }
-      setRecommended(combined);
-      cachedRecommended = combined;
-    }
-    
-    async function fetchProgress() {
-      if (!session || !supabase) return;
-
-      const [ascRes, expRes, customExpRes, customCatRes, hiddenRes] = await Promise.all([
-        supabase.from('ascents').select('summit_id').eq('user_id', session.user.id).eq('is_wishlist', false),
-        supabase.from('experience_records').select('experience_id, sub_item_id').eq('user_id', session.user.id).eq('is_wishlist', false),
-        supabase.from('custom_experiences').select('*').eq('user_id', session.user.id),
-        supabase.from('custom_experience_categories').select('*').eq('user_id', session.user.id),
-        supabase.from('hidden_items').select('*').eq('user_id', session.user.id),
-      ]);
-
-      const ascData = ascRes.data || [];
-      const expData = expRes.data || [];
-      const customExps = customExpRes.data || [];
-      const customCats = customCatRes.data || [];
-      const hiddenItems = hiddenRes.data || [];
-
-      // Picos: contar cimas únicas (47 picos provinciales únicos)
-      const uniquePeakNames = new Set(
-        ascData
-          .map(a => peaks.find(p => p.id === a.summit_id)?.name)
-          .filter(Boolean)
-      );
-      const pCount = uniquePeakNames.size;
-
-      // Países: contar países únicos
-      const countryIds = new Set(countries.map(c => c.id));
-      const uniqueCountries = new Set(
-        ascData
-          .filter(a => countryIds.has(a.summit_id) || a.summit_id.startsWith('country-'))
-          .map(a => a.summit_id)
-      );
-      const cCount = uniqueCountries.size;
-
-      // Experiencias: calcular categorías y experiencias visibles idéntico a SummitTracker
-      const hiddenCategoryIds = new Set(
-        hiddenItems.filter((h: any) => h.item_type === "category").map((h: any) => h.item_id)
-      );
-      const hiddenExperienceIds = new Set(
-        hiddenItems.filter((h: any) => h.item_type === "experience").map((h: any) => h.item_id)
-      );
-
-      const visiblePredefined = predefinedCategories
-        .filter(cat => !hiddenCategoryIds.has(cat.id))
-        .map(cat => {
-          const linkedCustom = customExps
-            .filter((ce: any) => ce.static_category_id === cat.id)
-            .map((ce: any) => ({ id: ce.id, name: ce.name, subItems: ce.sub_items }));
-          return {
-            ...cat,
-            experiences: [
-              ...cat.experiences.filter(exp => !hiddenExperienceIds.has(exp.id)),
-              ...linkedCustom.filter((exp: any) => !hiddenExperienceIds.has(exp.id)),
-            ],
-          };
-        });
-
-      const customCategoriesList = customCats
-        .filter((cat: any) => !cat.static_id && !hiddenCategoryIds.has(cat.id))
-        .map((cat: any) => ({
-          id: cat.id,
-          name: cat.name,
-          experiences: customExps
-            .filter((ce: any) => ce.category_id === cat.id && !hiddenExperienceIds.has(ce.id))
-            .map((ce: any) => ({ id: ce.id, name: ce.name, subItems: ce.sub_items })),
-        }));
-
-      const orphanExperiences = customExps.filter(
-        (ce: any) => !ce.category_id && !ce.static_category_id && !hiddenExperienceIds.has(ce.id)
-      );
-
-      const allExperiencesList: Array<{ id: string; subItems?: any[] }> = [
-        ...visiblePredefined.flatMap(c => c.experiences),
-        ...customCategoriesList.flatMap((c: any) => c.experiences),
-        ...orphanExperiences.map((ce: any) => ({ id: ce.id, subItems: ce.sub_items })),
-      ];
-
-      let expCompletedCount = 0;
-      for (const exp of allExperiencesList) {
-        if (!exp.subItems || exp.subItems.length === 0) {
-          if (expData.some((r: any) => r.experience_id === exp.id)) {
-            expCompletedCount++;
-          }
         } else {
-          const subItemIds = exp.subItems.map((s: any) => s.id);
-          const completedSubItems = new Set(
-            expData
-              .filter((r: any) => r.experience_id === exp.id && r.sub_item_id)
-              .map((r: any) => r.sub_item_id)
-          );
-          if (subItemIds.length > 0 && subItemIds.every((id: string) => completedSubItems.has(id))) {
-            expCompletedCount++;
-          }
+          setFollowers([]);
+          cachedFollowers = [];
         }
       }
 
-      const newProgress = {
-        countries: cCount,
-        peaks: pCount,
-        experiences: expCompletedCount,
-      };
-      const newTotals = {
-        countries: countries.length,
-        peaks: 47,
-        experiences: allExperiencesList.length,
-      };
-      setProgressCounts(newProgress);
-      setTotalCounts(newTotals);
-      cachedProgressCounts = newProgress;
-      cachedTotalCounts = newTotals;
-      cachedDataUserId = session.user.id;
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem(`app_social_progress_${session.user.id}`, JSON.stringify(newProgress));
-          localStorage.setItem(`app_social_totals_${session.user.id}`, JSON.stringify(newTotals));
-        } catch { /* ignore */ }
-      }
-    }
-
-    Promise.allSettled([
-      fetchConnections(),
-      fetchRecommended(),
-      fetchProgress()
-    ]).finally(() => {
+      cachedDataUserId = session!.user.id;
       cachedConnectionsLastFetched = Date.now();
       isFetchingSocial = false;
-    });
-  }, [session, isActive]);
-
-  useEffect(() => {
-    if (!supabase || searchQuery.length < 2) {
-      setSearchResults([]);
-      return;
     }
-    const cleanSearchQuery = searchQuery.replace(/^@/, '');
-    const delay = setTimeout(async () => {
-      const { data } = await supabase!
-        .from("profiles")
-        .select("*")
-        .ilike("username", `%${cleanSearchQuery}%`)
-        .neq('is_test', true)
-        .limit(20);
-      if (data) setSearchResults(data);
-    }, 300);
-    return () => clearTimeout(delay);
-  }, [searchQuery]);
+    
+    fetchConnections();
+  }, [session, isActive, hookPending]);
 
   async function connect(profileId: string, isPublic: boolean) {
     if (!session || !supabase) return;
@@ -357,9 +472,7 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
       
     if (!error) {
       setConnections(prev => ({ ...prev, [profileId]: newStatus }));
-      const profileToAdd = searchResults.find(p => p.id === profileId) || 
-                           recommended.find(p => p.id === profileId) || 
-                           followers.find(p => p.id === profileId);
+      const profileToAdd = followers.find(p => p.id === profileId);
       if (profileToAdd && !following.find(p => p.id === profileId)) {
         setFollowing(prev => [...prev, profileToAdd]);
       }
@@ -449,46 +562,138 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
     }
   }
 
-  function renderProfileItem(profile: Profile, context: 'discover' | 'followers' | 'following') {
+  function renderProfileItem(profile: Profile, context: 'followers' | 'following') {
     const isMe = session?.user.id === profile.id;
     const followingStatus = connections[profile.id];
     const followerStatus = followerStatuses[profile.id];
-    const isPendingFollower = context === 'followers' && followerStatus === 'pending';
-    
+
     return (
-      <div key={profile.id} className={`peak-list-item ${isPendingFollower ? 'shake-once' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', marginBottom: '0.5rem', background: '#fff', borderRadius: '8px' }}>
-        <Link href={`/perfil/${profile.username}`} style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'white' }}>
+      <div
+        key={profile.id}
+        className="connections-modal-item"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 14px',
+          background: 'var(--cream, #faf8f5)',
+          borderRadius: '12px',
+          border: '1px solid var(--line)',
+        }}
+      >
+        <Link
+          href={`/perfil/${profile.username}`}
+          onClick={() => setConnectionsModal(null)}
+          style={{
+            textDecoration: 'none',
+            color: 'inherit',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            minWidth: 0,
+            flex: 1,
+          }}
+        >
+          <div
+            className="connections-item-avatar"
+            style={{
+              width: 38,
+              height: 38,
+              minWidth: 38,
+              borderRadius: '50%',
+              background: 'var(--pine)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 700,
+              fontSize: '15px',
+              color: 'white',
+              overflow: 'hidden',
+            }}
+          >
             {profile.avatar_url ? (
-               <img src={profile.avatar_url} alt={profile.username} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              <img
+                src={profile.avatar_url}
+                alt={profile.username}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
             ) : (
-               profile.username.charAt(0).toUpperCase()
+              profile.username.charAt(0).toUpperCase()
             )}
           </div>
-          <div>
-            <div style={{ fontWeight: 'bold' }}>@{profile.username}</div>
-            <div style={{ fontSize: '0.8rem', color: '#666' }}>{profile.is_public ? 'Público' : 'Privado'}</div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: '14px',
+                color: 'var(--ink)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              @{profile.username}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+              {profile.is_public ? 'Público' : 'Privado'}
+            </div>
           </div>
         </Link>
         
         {!isMe && session && (
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '6px', flexShrink: 0, marginLeft: '8px' }}>
             {context === 'followers' ? (
               followerStatus === 'pending' ? (
                 <>
-                  <button className="button button--green" onClick={() => acceptRequest(profile.id)}>Aceptar</button>
-                  <button className="button button--outline" onClick={() => rejectRequest(profile.id)}>Rechazar</button>
+                  <button
+                    className="button button--green"
+                    style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '16px', minHeight: 'auto', height: 'auto' }}
+                    onClick={() => acceptRequest(profile.id)}
+                  >
+                    Aceptar
+                  </button>
+                  <button
+                    className="button button--outline"
+                    style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '16px', minHeight: 'auto', height: 'auto' }}
+                    onClick={() => rejectRequest(profile.id)}
+                  >
+                    Rechazar
+                  </button>
                 </>
               ) : (
-                <button className="button button--outline" onClick={() => removeFollower(profile.id, profile.username)}>Eliminar</button>
+                <button
+                  className="button button--outline"
+                  style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '16px', minHeight: 'auto', height: 'auto' }}
+                  onClick={() => removeFollower(profile.id, profile.username)}
+                >
+                  Eliminar
+                </button>
               )
             ) : (
               followingStatus === 'accepted' ? (
-                <button className="button button--outline" onClick={() => unfollow(profile.id, profile.username)}>Siguiendo</button>
+                <button
+                  className="button button--outline"
+                  style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '16px', minHeight: 'auto', height: 'auto' }}
+                  onClick={() => unfollow(profile.id, profile.username)}
+                >
+                  Siguiendo
+                </button>
               ) : followingStatus === 'pending' ? (
-                <button className="button button--outline" onClick={() => unfollow(profile.id, profile.username)}>Pendiente</button>
+                <button
+                  className="button button--outline"
+                  style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '16px', minHeight: 'auto', height: 'auto' }}
+                  onClick={() => unfollow(profile.id, profile.username)}
+                >
+                  Pendiente
+                </button>
               ) : (
-                <button className="button button--purple" onClick={() => connect(profile.id, profile.is_public)}>Conectar</button>
+                <button
+                  className="button button--purple"
+                  style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '16px', minHeight: 'auto', height: 'auto' }}
+                  onClick={() => connect(profile.id, profile.is_public)}
+                >
+                  Conectar
+                </button>
               )
             )}
           </div>
@@ -498,20 +703,42 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
   }
 
   return (
-    <main>
+    <main className={isPeaks ? "" : isExp ? "mode-experiences" : "mode-countries"}>
       <header className="topbar">
         <Link className="brand" href={mapLink} title="Atlas" aria-label="Atlas">
-          <IconLogo className="brand-icon" style={{ filter: 'brightness(0)' }} />
+          <IconLogo className="brand-icon" />
+          <span>
+            <b>Atlas</b>
+          </span>
         </Link>
+
+        {hasBothModes && (
+          <div className={`app-mode-switch hide-on-mobile ${currentMode === "peaks" ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}>
+            <div className="app-mode-switch__indicator" />
+            <button
+              className={`app-mode-btn ${currentMode === "peaks" ? "active" : ""}`}
+              onClick={() => switchMode("peaks")}
+            >
+              47 Picos
+            </button>
+            <button
+              className={`app-mode-btn ${currentMode === "countries" ? "active" : ""}`}
+              onClick={() => switchMode("countries")}
+            >
+              196 Países
+            </button>
+          </div>
+        )}
+
         <nav>
           <Link href={mapLink} prefetch={true} className="topbar-nav-link topbar-nav-link--mapa">Mapa</Link>
-          <Link href="/social" className="topbar-nav-link topbar-nav-link--social" style={{ fontWeight: 'bold', position: 'relative' }}>
+          <Link href={`/social?challenge=${currentMode}`} className="topbar-nav-link topbar-nav-link--social topbar-nav-link--active" style={{ position: 'relative' }}>
             Social
             {hasPendingRequests ? (
               <span 
                 onClick={(e) => {
                   e.preventDefault();
-                  setActiveTab('followers');
+                  setConnectionsModal('followers');
                 }}
                 style={{ 
                   position: 'absolute', 
@@ -526,7 +753,7 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
               />
             ) : null}
           </Link>
-          <Link href="/ranking" prefetch={true} className="topbar-nav-link topbar-nav-link--ranking">Ranking</Link>
+          <Link href={`/ranking?challenge=${currentMode}`} prefetch={true} className="topbar-nav-link topbar-nav-link--ranking">Ranking</Link>
           {(myProfile || session) ? (
             <button
               className="account-button"
@@ -557,256 +784,397 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
         </nav>
       </header>
 
-      <section className="social-grid-layout page-container" style={{ paddingBottom: '70px', paddingLeft: '24px', paddingRight: '24px' }}>
-        
-        {/* Left Sidebar (Desktop only) */}
-        <div className="sidebar-left">
+      {/* ── Franja Vertebral (Hero) ────────────────── */}
+      <section id="inicio" className="hero">
+        <div className="hero-main hero-main--social">
           {session && myProfile ? (
             <>
-              {/* Desktop Profile Card */}
-              <div className="hide-on-mobile" style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid var(--line)', cursor: 'pointer' }} onClick={() => onNavigate?.('profile')}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div className="profile-avatar-container" style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--pine)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: 'bold' }}>
-                    {myProfile.avatar_url ? (
-                      <img src={myProfile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      myProfile.username.charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <div>
-                    <h3 style={{ margin: '0 0 4px', fontSize: '18px' }}>@{myProfile.username}</h3>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: 'var(--ink)' }}>
-                      <div onClick={(e) => { e.stopPropagation(); setActiveTab('followers'); }} style={{ cursor: 'pointer' }}><span style={{ fontWeight: 'bold' }}>{followers.length}</span> seguidores</div>
-                      <div onClick={(e) => { e.stopPropagation(); setActiveTab('following'); }} style={{ cursor: 'pointer' }}><span style={{ fontWeight: 'bold' }}>{following.length}</span> siguiendo</div>
-                    </div>
-                  </div>
-                </div>
-
-                {((enableCountries && progressCounts.countries > 0) || (enablePeaks && progressCounts.peaks > 0) || progressCounts.experiences > 0) && (
-                  <div className="profile-stats-row" style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                    {enableCountries && progressCounts.countries > 0 && (
-                      <div className="profile-stats-col" style={{ textAlign: 'center' }}>
-                        <div className="profile-stats-val" style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--pine)' }}>{progressCounts.countries}/{totalCounts.countries}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Países</div>
-                      </div>
-                    )}
-                    {enablePeaks && progressCounts.peaks > 0 && (
-                      <div className="profile-stats-col" style={{ textAlign: 'center' }}>
-                        <div className="profile-stats-val" style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--pine)' }}>{progressCounts.peaks}/{totalCounts.peaks}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Picos</div>
-                      </div>
-                    )}
-                    {progressCounts.experiences > 0 && (
-                      <div className="profile-stats-col" style={{ textAlign: 'center' }}>
-                        <div className="profile-stats-val" style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--pine)' }}>{progressCounts.experiences}/{totalCounts.experiences}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Experiencias</div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid var(--line)', textAlign: 'center' }}>
-              <h3 style={{ margin: '0 0 8px' }}>Únete a la comunidad</h3>
-              <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--muted)' }}>Conecta con otros usuarios y descubre sus experiencias.</p>
-              <button className="button button--green button--wide" onClick={() => setAuthOpen("login")}>Iniciar sesión</button>
-            </div>
-          )}
-
-          <div className="sidebar-nav-desktop" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '16px' }}>
-            <button className={`social-nav-btn ${activeTab === 'feed' ? 'active' : ''}`} onClick={() => setActiveTab('feed')}>
-              Novedades
-            </button>
-            <button className={`social-nav-btn ${activeTab === 'discover' ? 'active' : ''}`} onClick={() => setActiveTab('discover')}>
-              Descubrir
-            </button>
-            <button className={`social-nav-btn ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>
-              Seguidores
-              {hasPendingRequests && <span style={{ width: 8, height: 8, background: 'red', borderRadius: '50%' }} />}
-            </button>
-            <button className={`social-nav-btn ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>
-              Siguiendo
-            </button>
-          </div>
-        </div>
-
-        {/* Main Feed Area */}
-        <div className="feed-main">
-          {/* Mobile Profile Card (Condensed) */}
-          {session && myProfile && (
-            <div className="hide-on-desktop" style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid var(--line)', cursor: 'pointer', marginBottom: '20px' }} onClick={() => onNavigate?.('profile')}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--pine)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: 'bold' }}>
+              <div className="hero-profile-wrap">
+                <div
+                  className="hero-profile-avatar"
+                  onClick={() => onNavigate?.('profile')}
+                  title="Ver mi perfil"
+                >
                   {myProfile.avatar_url ? (
-                    <img src={myProfile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={myProfile.avatar_url} alt={myProfile.username} />
                   ) : (
                     myProfile.username.charAt(0).toUpperCase()
                   )}
                 </div>
-                <div>
-                  <h3 style={{ margin: '0 0 4px', fontSize: '16px' }}>@{myProfile.username}</h3>
-                  <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: 'var(--ink)' }}>
-                    <div onClick={(e) => { e.stopPropagation(); setActiveTab('followers'); }} style={{ cursor: 'pointer' }}><span style={{ fontWeight: 'bold' }}>{followers.length}</span> seguidores</div>
-                    <div onClick={(e) => { e.stopPropagation(); setActiveTab('following'); }} style={{ cursor: 'pointer' }}><span style={{ fontWeight: 'bold' }}>{following.length}</span> siguiendo</div>
+                <div className="hero-profile-info">
+                  <h2 className="hero-profile-username" onClick={() => onNavigate?.('profile')}>
+                    @{myProfile.username}
+                  </h2>
+                  <div className="hero-profile-connections">
+                    <button
+                      type="button"
+                      className="hero-profile-conn-btn"
+                      onClick={() => setConnectionsModal('followers')}
+                    >
+                      <strong>{acceptedFollowers.length}</strong> seguidores
+                      {hasPendingRequests && <span className="hero-pending-dot" />}
+                    </button>
+                    <span className="hero-profile-conn-sep">·</span>
+                    <button
+                      type="button"
+                      className="hero-profile-conn-btn"
+                      onClick={() => setConnectionsModal('following')}
+                    >
+                      <strong>{following.length}</strong> siguiendo
+                    </button>
                   </div>
                 </div>
               </div>
-              {((enableCountries && progressCounts.countries > 0) || (enablePeaks && progressCounts.peaks > 0) || progressCounts.experiences > 0) && (
-                <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-around', gap: '8px' }}>
-                  {enableCountries && progressCounts.countries > 0 && (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--pine)' }}>{progressCounts.countries}/{totalCounts.countries}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Países</div>
-                    </div>
-                  )}
-                  {enablePeaks && progressCounts.peaks > 0 && (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--pine)' }}>{progressCounts.peaks}/{totalCounts.peaks}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Picos</div>
-                    </div>
-                  )}
-                  {progressCounts.experiences > 0 && (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--pine)' }}>{progressCounts.experiences}/{totalCounts.experiences}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Experiencias</div>
-                    </div>
-                  )}
+
+              <aside className="hero-stat" suppressHydrationWarning>
+                <strong suppressHydrationWarning>
+                  <span suppressHydrationWarning>{activeAchieved}</span>
+                  <small suppressHydrationWarning> / {activeTotal}</small>
+                </strong>
+                <span suppressHydrationWarning>{activeUnit}</span>
+                <div className="progress">
+                  <span style={{ width: `${activeCompletion}%` }} suppressHydrationWarning />
                 </div>
-              )}
-            </div>
+              </aside>
+            </>
+          ) : (
+            <>
+              <div className="hero-title-wrap hide-on-mobile">
+                <h1>
+                  Comunidad viajera.
+                  <br />
+                  <em>Comparte el camino.</em>
+                </h1>
+              </div>
+
+              <aside className="hero-stat hero-stat--anon">
+                <button className="button button--green" onClick={() => setAuthOpen("login")}>
+                  Iniciar sesión
+                </button>
+                <span style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+                  Conecta con otros exploradores
+                </span>
+              </aside>
+            </>
           )}
-
-          {/* Mobile Horizontal Navigation */}
-          <div className="social-mobile-nav" style={{ display: "flex", gap: "10px", marginBottom: "20px", alignItems: "center", overflowX: "auto", paddingBottom: "4px" }}>
-            <button className={`button ${activeTab === 'feed' ? 'button--green' : 'button--outline'}`} style={{ flex: 1, whiteSpace: "nowrap" }} onClick={() => setActiveTab('feed')}>Novedades</button>
-            <button className={`button ${activeTab === 'discover' ? 'button--green' : 'button--outline'}`} style={{ flex: 1, whiteSpace: "nowrap" }} onClick={() => setActiveTab('discover')}>Descubrir</button>
-            <button className={`button ${activeTab === 'followers' ? 'button--green' : 'button--outline'}`} style={{ flex: 1, position: 'relative', whiteSpace: "nowrap" }} onClick={() => setActiveTab('followers')}>
-              Seguidores
-              {hasPendingRequests && <span style={{ position: 'absolute', top: '-4px', right: '-4px', width: '8px', height: '8px', backgroundColor: 'red', borderRadius: '50%' }} />}
-            </button>
-            <button className={`button ${activeTab === 'following' ? 'button--green' : 'button--outline'}`} style={{ flex: 1, whiteSpace: "nowrap" }} onClick={() => setActiveTab('following')}>Siguiendo</button>
-          </div>
-
-          <div style={{ maxWidth: '700px', margin: '0 auto', width: '100%', display: activeTab === 'feed' ? 'block' : 'none' }}>
-            <FeedTab session={session} isActive={isActive && activeTab === 'feed'} onAuthRequired={() => setAuthOpen("login")} />
-          </div>
-
-        {activeTab === 'discover' && (
-          <>
-            <input 
-              type="search"
-              placeholder="Buscar por @usuario..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '1rem', borderRadius: '8px', border: '1px solid #ccc', fontSize: '1rem', marginBottom: '1rem' }}
-            />
-
-            {searchQuery.length >= 2 ? (
-              <div>
-                <h3>Resultados de búsqueda</h3>
-                {searchResults.length > 0 ? (
-                  searchResults.map(p => renderProfileItem(p, 'discover'))
-                ) : (
-                  <p>No se encontraron usuarios.</p>
-                )}
-              </div>
-            ) : (
-              <div>
-                <div style={{ marginBottom: "0.25rem" }}>
-                  <button
-                    onClick={async () => {
-                      try {
-                        if (navigator.share) {
-                          await navigator.share({
-                            title: 'Atlas',
-                            text: '¡Únete a Atlas y registra tus viajes y ascensiones!',
-                            url: window.location.origin
-                          });
-                        } else {
-                          await navigator.clipboard.writeText(window.location.origin);
-                          alert('Enlace copiado al portapapeles');
-                        }
-                      } catch (err) {
-                        console.error('Error compartiendo:', err);
-                      }
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--pine)',
-                      cursor: 'pointer',
-                      fontWeight: 'bold',
-                      fontSize: '0.9rem',
-                      padding: 0,
-                      textDecoration: 'underline'
-                    }}
-                  >
-                    Comparte la aplicación
-                  </button>
-                </div>
-                <h3>Recomendados para ti</h3>
-                {session ? (
-                  recommended.filter(p => p.id !== session.user.id && !connections[p.id]).length > 0 ? (
-                    recommended.filter(p => p.id !== session.user.id && !connections[p.id]).map(p => renderProfileItem(p, 'discover'))
-                  ) : (
-                    <p>No hay recomendaciones por ahora. ¡Busca y conecta con tus primeros amigos!</p>
-                  )
-                ) : (
-                  <p>Inicia sesión para ver recomendaciones basadas en tus conexiones.</p>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {activeTab === 'followers' && (
-          <div>
-            <h3>Tus Seguidores</h3>
-            {session ? (
-              followers.length > 0 ? (
-                followers.map(p => renderProfileItem(p, 'followers'))
-              ) : (
-                <p>Aún no tienes seguidores.</p>
-              )
-            ) : (
-              <p>Inicia sesión para ver tus seguidores.</p>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'following' && (
-          <div>
-            <h3>Siguiendo</h3>
-            {session ? (
-              following.length > 0 ? (
-                following.map(p => renderProfileItem(p, 'following'))
-              ) : (
-                <p>No sigues a nadie todavía.</p>
-              )
-            ) : (
-              <p>Inicia sesión para ver a quién sigues.</p>
-            )}
-          </div>
-        )}
         </div>
 
-        {/* Right Sidebar (Desktop only) */}
-        <div className="sidebar-right">
-          {announcements.length > 0 && (
-            <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', padding: '20px', borderRadius: '12px' }}>
-              <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Anuncio
-              </h4>
-              <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5' }}>{announcements[0].message}</p>
-              {announcements[0].link && (
-                <a href={announcements[0].link} style={{ display: 'inline-block', marginTop: '12px', color: '#4338ca', fontWeight: 'bold', fontSize: '14px', textDecoration: 'none' }}>Saber más &rarr;</a>
-              )}
+        {hasBothModes && (
+          <div
+            className={`app-mode-switch hide-on-desktop ${currentMode === "peaks" ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}
+            style={{ marginTop: 10, display: "flex", width: "fit-content" }}
+          >
+            <div className="app-mode-switch__indicator" />
+            <button
+              className={`app-mode-btn ${currentMode === "peaks" ? "active" : ""}`}
+              onClick={() => switchMode("peaks")}
+            >
+              47 Picos
+            </button>
+            <button
+              className={`app-mode-btn ${currentMode === "countries" ? "active" : ""}`}
+              onClick={() => switchMode("countries")}
+            >
+              196 Países
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* ── Main Feed Section (Centered, without redundant sidebars/buttons) ── */}
+      <section className="page-container" style={{ paddingTop: '14px', paddingBottom: '70px', paddingLeft: '16px', paddingRight: '16px' }}>
+        <div style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>
+          {/* Feed Controls: Search pill & Following button (Left) and Experiences pill (Right, aligned with posts on Desktop) */}
+          <div className="social-feed-controls">
+            <div className="social-feed-controls-left">
+              <div className="social-search-box">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="social-search-icon"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  type="search"
+                  placeholder={
+                    currentMode === "peaks"
+                      ? "Usuario, picos, fecha..."
+                      : isExp
+                        ? "Usuario, experiencia, fecha..."
+                        : "Usuario, país, fecha..."
+                  }
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="social-search-input"
+                  aria-label="Buscar en el feed social"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="social-search-clear"
+                    onClick={() => setSearchQuery("")}
+                    title="Limpiar búsqueda"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className={`social-following-btn ${followingOnly ? "social-following-btn--active" : ""}`}
+                onClick={() => {
+                  if (!session) {
+                    setAuthOpen("login");
+                    return;
+                  }
+                  setFollowingOnly((prev) => !prev);
+                }}
+                title={followingOnly ? "Ver todas las publicaciones" : "Ver solo a quienes sigues"}
+                aria-pressed={followingOnly}
+              >
+                <UserRoundCheck size={14} className="social-following-icon" />
+                <span>Siguiendo</span>
+              </button>
             </div>
-          )}
+
+            {currentMode === "countries" && enableExperiences && (
+              <div className="diff-toggle-wrap">
+                <button
+                  type="button"
+                  className={`diff-toggle diff-toggle--compact ${experiencesMode ? "diff-toggle--active" : ""}`}
+                  onClick={() => {
+                    const next = !experiencesMode;
+                    setExperiencesMode(next);
+                    if (typeof window !== "undefined") {
+                      const url = new URL(window.location.href);
+                      if (next) {
+                        url.searchParams.set("view", "experiences");
+                      } else {
+                        url.searchParams.delete("view");
+                      }
+                      window.history.replaceState(null, "", url.toString());
+                    }
+                  }}
+                  title={experiencesMode ? "Ocultar experiencias" : "Ver experiencias"}
+                >
+                  <svg
+                    className="diff-toggle-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="6" />
+                    <circle cx="12" cy="12" r="2" />
+                  </svg>
+                  Experiencias
+                </button>
+              </div>
+            )}
+          </div>
+
+          <FeedTab
+            session={session}
+            isActive={isActive}
+            onAuthRequired={() => setAuthOpen("login")}
+            mode={currentMode}
+            experiencesMode={experiencesMode}
+            searchQuery={searchQuery}
+            onClearSearch={() => setSearchQuery("")}
+            followingOnly={followingOnly}
+            followingUserIds={followingUserIds}
+            onDisableFollowingOnly={() => setFollowingOnly(false)}
+          />
         </div>
       </section>
+
+      {/* ── Followers & Following Modal ────────────────── */}
+      {connectionsModal && (
+        <div
+          className="lightbox-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            background: 'rgba(0,0,0,0.5)',
+          }}
+          onClick={() => setConnectionsModal(null)}
+        >
+          <div
+            className="connections-modal-card"
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              maxWidth: '460px',
+              width: '100%',
+              maxHeight: '82vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              className="connections-modal-header"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 18px',
+                borderBottom: '1px solid var(--line)',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className={`connections-modal-tab ${connectionsModal === 'followers' ? 'active' : ''}`}
+                  style={{
+                    border: 'none',
+                    background: connectionsModal === 'followers' ? 'var(--pine)' : 'rgba(0,0,0,0.05)',
+                    color: connectionsModal === 'followers' ? 'white' : 'var(--ink)',
+                    borderRadius: '20px',
+                    padding: '6px 14px',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onClick={() => setConnectionsModal('followers')}
+                >
+                  Seguidores ({acceptedFollowers.length})
+                </button>
+                <button
+                  type="button"
+                  className={`connections-modal-tab ${connectionsModal === 'following' ? 'active' : ''}`}
+                  style={{
+                    border: 'none',
+                    background: connectionsModal === 'following' ? 'var(--pine)' : 'rgba(0,0,0,0.05)',
+                    color: connectionsModal === 'following' ? 'white' : 'var(--ink)',
+                    borderRadius: '20px',
+                    padding: '6px 14px',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onClick={() => setConnectionsModal('following')}
+                >
+                  Siguiendo ({following.length})
+                </button>
+              </div>
+              <button
+                type="button"
+                className="connections-modal-close"
+                onClick={() => setConnectionsModal(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  color: 'var(--muted)',
+                  padding: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div
+              style={{
+                padding: '16px 18px',
+                overflowY: 'auto',
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              {connectionsModal === 'followers' ? (
+                <>
+                  {pendingFollowers.length > 0 && (
+                    <div className="connections-pending-block" style={{ marginBottom: '14px' }}>
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.6px',
+                          color: '#e53e3e',
+                          marginBottom: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#e53e3e', display: 'inline-block' }} />
+                        Solicitudes pendientes ({pendingFollowers.length})
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {pendingFollowers.map((p) => renderProfileItem(p, 'followers'))}
+                      </div>
+                      <div style={{ borderBottom: '1px solid var(--line)', marginTop: '14px', marginBottom: '10px' }} />
+                    </div>
+                  )}
+
+                  {acceptedFollowers.length > 0 && pendingFollowers.length > 0 && (
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.6px',
+                        color: 'var(--muted)',
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Seguidores ({acceptedFollowers.length})
+                    </div>
+                  )}
+
+                  {acceptedFollowers.length === 0 && pendingFollowers.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--muted)', fontSize: '14px' }}>
+                      Aún no tienes seguidores.
+                    </div>
+                  ) : (
+                    acceptedFollowers.map((p) => renderProfileItem(p, 'followers'))
+                  )}
+                </>
+              ) : (
+                following.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--muted)', fontSize: '14px' }}>
+                    No sigues a nadie todavía.
+                  </div>
+                ) : (
+                  following.map((p) => renderProfileItem(p, 'following'))
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       
       {authOpen && <AuthDialog onClose={() => setAuthOpen(false)} initialTab={authOpen === "login" ? "login" : "register"} />}
       {profileOpen && session && (

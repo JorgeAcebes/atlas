@@ -16,9 +16,9 @@ import * as ReactDOMServer from "react-dom/server";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { countries, resolveCountryFromFeature, type Country } from "@/data/countries";
-import { regionsByCountryIsoA2 } from "@/data/regions";
 import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
+import { X } from "lucide-react";
 
 // Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
 L.Canvas.prototype.options.padding = 0.5;
@@ -26,14 +26,11 @@ L.Canvas.prototype.options.padding = 0.5;
 const WORLD_TOPO_URL = "/world-countries.topo.json";
 const WORLD_TOPO_FALLBACK_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
-const WORLD_REGIONS_TOPO_URL = "/world-regions.topo.json";
 
 // ── Module-level GeoJSON cache ────────────
 const expIconCache = new Map<string, L.DivIcon>();
 let _worldGeoCache: FeatureCollection | null = null;
 let _worldGeoPromise: Promise<FeatureCollection> | null = null;
-let _regionsGeoCache: FeatureCollection | null = null;
-let _regionsGeoPromise: Promise<FeatureCollection> | null = null;
 
 function fetchWorldGeo(): Promise<FeatureCollection> {
   if (_worldGeoCache) return Promise.resolve(_worldGeoCache);
@@ -66,27 +63,6 @@ function fetchWorldGeo(): Promise<FeatureCollection> {
   return _worldGeoPromise;
 }
 
-function fetchWorldRegionsGeo(): Promise<FeatureCollection> {
-  if (_regionsGeoCache) return Promise.resolve(_regionsGeoCache);
-  if (!_regionsGeoPromise) {
-    _regionsGeoPromise = fetch(WORLD_REGIONS_TOPO_URL)
-      .then((response) => response.json())
-      .then((topology: Topology) => {
-        const regionsGeo = feature(
-          topology,
-          topology.objects.regions as any,
-        ) as unknown as FeatureCollection;
-        fixAntimeridian(regionsGeo);
-        _regionsGeoCache = regionsGeo;
-        return regionsGeo;
-      })
-      .catch((err) => {
-        _regionsGeoPromise = null;
-        throw err;
-      });
-  }
-  return _regionsGeoPromise;
-}
 
 function fixAntimeridian(geo: FeatureCollection) {
   const fixRing = (ring: Position[]) => {
@@ -119,9 +95,6 @@ type Props = {
   diffOnlyViewer?: Set<string>;
   diffOnlyTarget?: Set<string>;
   diffBoth?: Set<string>;
-  regionsMode?: boolean;
-  completedRegions?: Set<string>;
-  onRegionInformation?: (regionId: string, name: string, isoA2: string) => void;
   activeId?: string;
   experiencesMode?: boolean;
   experienceRecords?: any[];
@@ -131,6 +104,7 @@ type Props = {
   onExperienceClick?: (record: any) => void;
   onAddExperience?: () => void;
   panelOpen?: boolean;
+  hasCompareButton?: boolean;
 };
 
 function FitWorld() {
@@ -364,9 +338,8 @@ function getLargestPolygonBounds(feature: any) {
 
 import { getIconComponent } from "./icons";
 
-export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformation, onRegionInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, regionsMode, completedRegions, activeId, experiencesMode, experienceRecords, selectingLocation, onMapClick, onCancelSelectingLocation, onExperienceClick, onAddExperience, panelOpen }: Props) {
+export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, experiencesMode, experienceRecords, selectingLocation, onMapClick, onCancelSelectingLocation, onExperienceClick, onAddExperience, panelOpen, hasCompareButton }: Props) {
   const [geo, setGeo] = useState<FeatureCollection | null>(_worldGeoCache);
-  const [regionsGeo, setRegionsGeo] = useState<FeatureCollection | null>(_regionsGeoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scanFrameRef = useRef<number | null>(null);
@@ -378,14 +351,10 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
   const diffOnlyViewerRef = useRef(diffOnlyViewer);
   const diffOnlyTargetRef = useRef(diffOnlyTarget);
   const diffBothRef = useRef(diffBoth);
-  const regionsModeRef = useRef(regionsMode);
-  const completedRegionsRef = useRef(completedRegions);
   const onInformationRef = useRef(onInformation);
-  const onRegionInformationRef = useRef(onRegionInformation);
   const selectingLocationRef = useRef(selectingLocation);
   const experiencesModeRef = useRef(experiencesMode);
   const layerRefs = useRef(new Map<string, L.Path>());
-  const regionLayerRefs = useRef(new Map<string, L.Path>());
 
   completedRef.current = completed;
   wishlistRef.current = wishlist;
@@ -393,14 +362,9 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
   diffOnlyViewerRef.current = diffOnlyViewer;
   diffOnlyTargetRef.current = diffOnlyTarget;
   diffBothRef.current = diffBoth;
-  regionsModeRef.current = regionsMode;
-  completedRegionsRef.current = completedRegions;
   onInformationRef.current = onInformation;
-  onRegionInformationRef.current = onRegionInformation;
   selectingLocationRef.current = selectingLocation;
   experiencesModeRef.current = experiencesMode;
-
-
 
   useEffect(() => {
     if (!_worldGeoCache) {
@@ -409,45 +373,36 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
   }, []);
 
   useEffect(() => {
-    if (regionsMode && !_regionsGeoCache) {
-      fetchWorldRegionsGeo().then(setRegionsGeo).catch(() => setRegionsGeo(null));
-    } else if (regionsMode && _regionsGeoCache) {
-      setRegionsGeo(_regionsGeoCache);
-    }
-  }, [regionsMode]);
+    if (!selectingLocation) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (onCancelSelectingLocation) onCancelSelectingLocation();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectingLocation, onCancelSelectingLocation]);
 
   const searchItems = useMemo<SearchItem[]>(() => {
-    if (regionsMode && regionsGeo) {
-      return regionsGeo.features.map((f: any) => ({
-        id: f.properties?.id || "",
-        name: f.properties?.name || "",
-        nameLocal: f.properties?.name_local || "",
-        type: "region",
-        bounds: getLargestPolygonBounds(f),
-        originalFeature: f
-      }));
-    } else if (!regionsMode) {
-      return countriesWithCoords.map(c => {
-        let bounds: any;
-        if (geo) {
-          const feature = geo.features.find((f: any) => resolveCountryFromFeature(f)?.id === c.id);
-          if (feature) {
-            bounds = getLargestPolygonBounds(feature);
-          }
+    return countriesWithCoords.map(c => {
+      let bounds: any;
+      if (geo) {
+        const feature = geo.features.find((f: any) => resolveCountryFromFeature(f)?.id === c.id);
+        if (feature) {
+          bounds = getLargestPolygonBounds(feature);
         }
-        return {
-          id: c.id,
-          name: c.name,
-          nameLocal: c.name,
-          type: "country",
-          coordinates: c.coordinates,
-          bounds,
-          originalData: c
-        };
-      });
-    }
-    return [];
-  }, [regionsMode, regionsGeo, geo]);
+      }
+      return {
+        id: c.id,
+        name: c.name,
+        nameLocal: c.name,
+        type: "country",
+        coordinates: c.coordinates,
+        bounds,
+        originalData: c
+      };
+    });
+  }, [geo]);
 
   const handleSearchSelect = useCallback((item: SearchItem) => {
     if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
@@ -542,7 +497,7 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
   useEffect(() => {
     const oldId = activeIdRef.current;
     if (oldId && oldId !== activeId) {
-      const layer = layerRefs.current.get(oldId) || regionLayerRefs.current.get(oldId);
+      const layer = layerRefs.current.get(oldId);
       if (layer) {
         if (diffModeRef.current) {
           const ds = getDiffGeoStyleRef(oldId);
@@ -555,16 +510,12 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
               fillOpacity: completedRef.current.has(oldId) ? 0.83 : isWishlist ? 0.83 : 0.55,
             });
           }
-          if (regionLayerRefs.current.has(oldId)) {
-            const isDone = completedRegionsRef.current?.has(oldId);
-            (layer as Path).setStyle({ fillOpacity: isDone ? 0.83 : 0.55, weight: 1.5 });
-          }
         }
       }
     }
 
     if (activeId) {
-      const layer = layerRefs.current.get(activeId) || regionLayerRefs.current.get(activeId);
+      const layer = layerRefs.current.get(activeId);
       if (layer) {
         if (diffModeRef.current) {
           (layer as Path).setStyle({ weight: 2.5, fillOpacity: 0.9 });
@@ -576,30 +527,16 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
               fillOpacity: completedRef.current.has(activeId) ? 0.9 : isWishlist ? 0.9 : 0.75,
             });
           }
-          if (regionLayerRefs.current.has(activeId)) {
-            (layer as Path).setStyle({ fillOpacity: 0.9, weight: 2.5 });
-          }
         }
       }
     }
     activeIdRef.current = activeId || null;
   }, [activeId, getDiffGeoStyleRef]);
 
-
   // ── Memoized style functions ──
   const geoStyle = useCallback(
     (f: any) => {
       const country = f ? resolveCountryFromFeature(f as any) : undefined;
-      
-      if (regionsMode) {
-        // En modo regiones, las fronteras de los países son overlay grueso
-        return {
-          color: "#4a2878", // Fronteras de países bien visibles
-          weight: 2.5,
-          fill: false,      // Sin relleno para que se vean las regiones
-          interactive: false // Para no bloquear clicks a las regiones
-        };
-      }
 
       if (diffMode && country) return getDiffGeoStyleRef(country.id);
       const isDone = country ? completed.has(country.id) : false;
@@ -611,28 +548,7 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         fillOpacity: isDone ? 0.83 : isWishlist ? 0.83 : 0.55
       };
     },
-    [completed, wishlist, diffMode, regionsMode, getDiffGeoStyleRef],
-  );
-
-  const regionStyle = useCallback(
-    (f: any) => {
-      const regionId = f?.properties?.id;
-      if (diffMode && regionId) {
-        const ds = getDiffGeoStyleRef(regionId);
-        return {
-          ...ds,
-          weight: 1.5,
-        };
-      }
-      const isDone = completedRegions?.has(regionId);
-      return {
-        color: "#a69f93", // Fronteras un poco más marcadas
-        weight: 1.5,
-        fillColor: isDone ? "#7b52ab" : "#ece5f3",
-        fillOpacity: isDone ? 0.83 : 0.55
-      };
-    },
-    [completedRegions, diffMode, getDiffGeoStyleRef],
+    [completed, wishlist, diffMode, getDiffGeoStyleRef],
   );
 
   // ── Reactively update layer styles without remounting GeoJSON ──
@@ -645,20 +561,9 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
     });
   }, [geoStyle]);
 
-  useEffect(() => {
-    regionLayerRefs.current.forEach((layer) => {
-      const feature = (layer as any).feature;
-      if (feature) {
-        layer.setStyle(regionStyle(feature));
-      }
-    });
-  }, [regionStyle]);
-
   // ── Stable onEachFeature (uses refs) ──
   const onEachFeature = useCallback(
     (f: any, layer: L.Layer) => {
-      if (regionsModeRef.current) return; // Las interacciones se manejan en regionsGeo si está activo
-
       const country = resolveCountryFromFeature(f as any);
       if (country) {
         layerRefs.current.set(country.id, layer as Path);
@@ -696,45 +601,6 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
               weight: 1.15,
               fillOpacity: completedRef.current.has(country.id) ? 0.83 : isWishlist ? 0.83 : 0.55,
             });
-          }
-        });
-      }
-    },
-    [getDiffGeoStyleRef],
-  );
-
-  const onEachRegion = useCallback(
-    (f: any, layer: L.Layer) => {
-      const name = f?.properties?.name;
-      const isoA2 = f?.properties?.iso_a2;
-      if (name) {
-        const regionId = f.properties.id;
-        regionLayerRefs.current.set(regionId, layer as Path);
-        const isDone = completedRegionsRef.current?.has(regionId);
-        const statusClass = isDone ? "tooltip-done" : "tooltip-todo";
-        layer.bindTooltip(name, { 
-          sticky: true,
-          className: `summit-tooltip ${statusClass}`,
-        });
-
-        layer.on("click", () => {
-          if (onRegionInformationRef.current) {
-            onRegionInformationRef.current(regionId, name, isoA2);
-          }
-        });
-
-        // Hover effect for region
-        layer.on("mouseover", () => {
-          (layer as Path).setStyle({ fillOpacity: 0.9, weight: 2.5 });
-        });
-        layer.on("mouseout", () => {
-          if (regionId === activeIdRef.current) return;
-          if (diffModeRef.current) {
-            const ds = getDiffGeoStyleRef(regionId);
-            (layer as Path).setStyle({ fillOpacity: ds.fillOpacity, weight: 1.5 });
-          } else {
-            const isDone = completedRegionsRef.current?.has(regionId);
-            (layer as Path).setStyle({ fillOpacity: isDone ? 0.83 : 0.55, weight: 1.5 });
           }
         });
       }
@@ -804,9 +670,9 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
       <MapInvalidator panelOpen={panelOpen} />
       <MapZoomListener />
       <MapClickListener onMapClick={onMapClick} selectingLocation={selectingLocation} />
-      <SweepOverlay searchedId={searchedId} layerRefs={layerRefs} regionLayerRefs={regionLayerRefs} />
+      <SweepOverlay searchedId={searchedId} layerRefs={layerRefs} />
 
-      {experiencesMode && onAddExperience && (
+      {experiencesMode && onAddExperience && !selectingLocation && (
         <div
           className="leaflet-control"
           style={{
@@ -845,28 +711,74 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
       {selectingLocation && (
         <div className="leaflet-control-container">
           <div className="leaflet-top leaflet-center" style={{ pointerEvents: 'none', zIndex: 1000, width: '100%', display: 'flex', justifyContent: 'center', marginTop: 16 }}>
-            <div className="leaflet-control" ref={(el) => {
-              if (el) {
-                L.DomEvent.disableClickPropagation(el);
-                L.DomEvent.disableScrollPropagation(el);
-              }
-            }} style={{ 
-              pointerEvents: 'auto', background: 'var(--pine)', color: '#fff', 
-              padding: '12px 16px', borderRadius: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', 
-              display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12, 
-              fontWeight: 500, fontSize: '0.9rem', maxWidth: 360, width: '90%', textAlign: 'center',
-              cursor: 'pointer'
-            }} onClick={(e) => {
-              e.stopPropagation();
-              if (onCancelSelectingLocation) onCancelSelectingLocation();
-            }}>
+            <div 
+              className="leaflet-control selecting-location-banner" 
+              ref={(el) => {
+                if (el) {
+                  L.DomEvent.disableClickPropagation(el);
+                  L.DomEvent.disableScrollPropagation(el);
+                }
+              }} 
+              style={{ 
+                position: 'relative',
+                pointerEvents: 'auto', 
+                background: 'var(--pine)', 
+                color: '#fff', 
+                padding: '12px 42px 12px 20px', 
+                borderRadius: 16, 
+                boxShadow: '0 4px 14px rgba(0,0,0,0.2)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontWeight: 500, 
+                fontSize: '0.9rem', 
+                maxWidth: 420, 
+                width: '90%', 
+                textAlign: 'center',
+              }}
+            >
               <span style={{ display: 'inline', lineHeight: 1.4, fontSize: '14px' }}>
                 Haz clic en el mapa para situar la experiencia o busca el lugar aquí
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, display: 'inline-block', verticalAlign: 'text-bottom', marginLeft: 4, opacity: 0.8 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, display: 'inline-block', verticalAlign: 'text-bottom', marginLeft: 4, opacity: 0.85 }}>
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
               </span>
+              <button
+                type="button"
+                className="selecting-location-cancel-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onCancelSelectingLocation) onCancelSelectingLocation();
+                }}
+                aria-label="Cerrar solicitud de ubicación"
+                title="Cerrar solicitud de ubicación"
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  right: 8,
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(255, 255, 255, 0.18)',
+                  border: 'none',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.35)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.18)';
+                }}
+              >
+                <X size={16} strokeWidth={2.5} />
+              </button>
             </div>
           </div>
         </div>
@@ -875,7 +787,8 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         <MapSearchControl 
           items={searchItems} 
           onSelect={handleSearchSelect} 
-          placeholder={regionsMode ? "Buscar región..." : "Buscar país..."} 
+          placeholder="Buscar país..." 
+          offsetDown={hasCompareButton}
         />
       )}
       <TileLayer
@@ -886,25 +799,16 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         updateWhenIdle={true}
         updateWhenZooming={false}
       />
-      {regionsMode && regionsGeo && (
-        <GeoJSON
-          key="regions"
-          data={regionsGeo}
-          style={regionStyle}
-          onEachFeature={onEachRegion}
-        />
-      )}
       {geo && (
         <GeoJSON
-          key={`countries-${regionsMode ? "overlay" : "normal"}`}
+          key="countries"
           data={geo}
           style={geoStyle}
           onEachFeature={onEachFeature}
-          interactive={!regionsMode} // Make non-interactive in regions mode so region tooltips work
         />
       )}
       <CountryMarkersLayer
-        showCountryMarkers={!regionsMode || Boolean(diffMode)}
+        showCountryMarkers={true}
         countriesWithCoords={countriesWithCoords}
         diffMode={diffMode}
         getDiffIcon={getDiffIcon}

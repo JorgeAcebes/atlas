@@ -77,13 +77,14 @@ Los estilos principales residen en `app/globals.css`. Las variables se declaran 
 
 ## 3. Sistema Tipográfico
 
-La aplicación importa tres fuentes canónicas de Google Fonts:
+La aplicación importa cuatro fuentes canónicas de Google Fonts:
 
 | Rol | Familia | Uso Canónico | Ejemplos |
 | :--- | :--- | :--- | :--- |
-| **Titular & Cifras** | `Playfair Display` | Encabezados `h1`, `h2`, recuentos numéricos de impacto (`.hero-stat strong`) | `h1`: 44px - 70px, cursiva para el remate (*Déjalo escrito.*), números `54px` |
+| **Titulares** | `Playfair Display` | Encabezados editoriales `h1`, `h2` | `h1`: 44px - 70px, cursiva para el remate (*Déjalo escrito.*) |
+| **Cifras Elegantes & Ranking** | `Fraunces` | Posiciones del ranking (`.ranking-rank-num`), recuentos hero (`.hero-stat strong`), altitudes | Puestos del ranking `1.7rem`, números `54px`, tabular-nums |
 | **Interfaz & Cuerpo** | `DM Sans` | Texto corrido, enlaces de navegación, botones, inputs | 13px - 15px, `font-weight: 400, 500, 600` |
-| **Metadatos & Eyebrows** | `DM Mono` | Sobretítulos (eyebrows), códigos de provincia, etiquetas técnicas, horas y altitudes | 10px - 11px, `letter-spacing: 0.13em`, `text-transform: uppercase` |
+| **Metadatos & Eyebrows** | `DM Mono` | Sobretítulos (eyebrows), códigos de provincia, etiquetas técnicas y fechas | 10px - 11px, `letter-spacing: 0.13em`, `text-transform: uppercase` |
 
 ---
 
@@ -148,7 +149,8 @@ Para lograr coherencia integral (100% Atlas):
 1. **Unificación Tipográfica**:
    - Encabezados de Ranking y Social en `Playfair Display`.
    - Nombres de usuario y textos en `DM Sans`.
-   - Rangos numéricos (#01, #02), fechas y etiquetas en `DM Mono`.
+   - Números de posición del ranking y cifras elegantes en `Fraunces`.
+   - Fechas y etiquetas de metadatos en `DM Mono`.
 2. **Adopción de Tokens Globales**:
    - Sustituir cualquier marrón o dorado ajeno por `--paper`, `--sand`, `--line`, `--ink`, `--pine` y `--sage`.
    - Respetar la alternancia dinámica verde/púrpura según el modo seleccionado (Picos vs. Países).

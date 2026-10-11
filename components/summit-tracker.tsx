@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useAuth } from "./auth-context";
 import {
   ChangeEvent,
@@ -22,13 +23,13 @@ import {
   CustomExperience,
   ExperienceCategory,
 } from "@/data/experiences";
-import { regionsByCountryIsoA2, type Region } from "@/data/regions";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { AuthDialog } from "./auth-dialog";
 import { ProfileSettings } from "./profile-settings";
 import { InstallPrompt } from "./install-prompt";
 import { ConfirmModal } from "./confirm-modal";
 import PhotoEditor from "./photo-editor";
+import { PhotoLightbox } from "./photo-lightbox";
 import { getIconComponent } from "./icons";
 import { LocationSearch } from "./location-search";
 import {
@@ -44,9 +45,13 @@ import {
   Triangle,
   Diamond,
   X,
+  UserRoundPlus,
+  UserRoundCheck,
+  UserRoundMinus,
+  UserRoundArrowLeft,
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
-import { compressImage } from "@/lib/image-utils";
+import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { MarqueeText } from "./marquee-text";
 
@@ -98,7 +103,7 @@ export type SelectedItem = {
   note: string;
   iconName?: string;
   subItems?: any;
-  itemType?: 'peak' | 'country' | 'region' | 'experience';
+  itemType?: 'peak' | 'country' | 'experience';
 };
 
 export type SummitPhoto = {
@@ -109,6 +114,7 @@ export type SummitPhoto = {
   caption: string | null;
   created_at: string;
   storage_path: string;
+  shot_at?: string | null;
 };
 
 export type HiddenItem = {
@@ -143,6 +149,7 @@ type TargetProfile = {
   username: string;
   enable_peaks?: boolean;
   enable_countries?: boolean;
+  is_public?: boolean;
 };
 
 type Props = {
@@ -174,17 +181,6 @@ function countryToItem(country: Country): SelectedItem {
     subtitle: "",
     detail: "",
     note: "",
-  };
-}
-
-function regionToItem(region: Region, country: Country): SelectedItem {
-  return {
-    id: region.id,
-    label: country.name,
-    title: region.name,
-    subtitle: country.name,
-    detail: "Región",
-    note: `${region.name} · ${country.name}`,
   };
 }
 
@@ -221,6 +217,7 @@ function renderRecordLink(link?: string | null, linkName?: string | null) {
   else if (urlStr.includes("linkedin.com")) Icon = Briefcase;
   else if (
     urlStr.includes("strava.com") ||
+    urlStr.includes("strava.app.link") ||
     urlStr.includes("wikiloc.com") ||
     urlStr.includes("komoot.com") ||
     urlStr.includes("alltrails.com") ||
@@ -251,7 +248,7 @@ function renderRecordLink(link?: string | null, linkName?: string | null) {
             ? "Ver en mapa"
             : urlStr.includes("wikiloc.com")
               ? "Ruta en Wikiloc"
-              : urlStr.includes("strava.com")
+              : urlStr.includes("strava.com") || urlStr.includes("strava.app.link")
                 ? "Actividad en Strava"
                 : urlStr.includes("komoot.com")
                   ? "Ruta en Komoot"
@@ -672,7 +669,6 @@ export function SummitTracker({
   const [myProfile, setMyProfile] = useState<{
     username: string;
     avatar_url: string | null;
-    enable_regions?: boolean;
     enable_experiences?: boolean;
     enable_peaks?: boolean;
     enable_countries?: boolean;
@@ -789,7 +785,6 @@ export function SummitTracker({
   const [notice, setNotice] = useState("");
   const [showTrashModal, setShowTrashModal] = useState(false);
   const [lightboxPhoto, setLightboxPhoto] = useState<SummitPhoto | null>(null);
-  const [lightboxMenuOpen, setLightboxMenuOpen] = useState(false);
   const [lightboxCaptionModalOpen, setLightboxCaptionModalOpen] =
     useState(false);
   const [lightboxDateModalOpen, setLightboxDateModalOpen] = useState(false);
@@ -870,6 +865,7 @@ export function SummitTracker({
   const [selectingLocationForExp, setSelectingLocationForExp] = useState<
     string | null
   >(null);
+  const selectingFromRecordRef = useRef(false);
   const [selectingCategoryForNewExp, setSelectingCategoryForNewExp] =
     useState(false);
   const [expSelectorOpen, setExpSelectorOpen] = useState(false);
@@ -888,12 +884,68 @@ export function SummitTracker({
   const [assignToRecordModalOpen, setAssignToRecordModalOpen] = useState(false);
   const [editorPhoto, setEditorPhoto] = useState<SummitPhoto | null>(null);
   const [diffMode, setDiffMode] = useState(false);
-  const [regionsMode, setRegionsMode] = useState(false);
   const [experiencesMode, setExperiencesMode] = useState(
     initialExperiencesMode || false,
   );
   const [isEditingExperiences, setIsEditingExperiences] = useState(false);
   const [iconDropdownOpen, setIconDropdownOpen] = useState(false);
+
+  const [targetConnStatus, setTargetConnStatus] = useState<"pending" | "accepted" | null>(null);
+  const [targetConnLoading, setTargetConnLoading] = useState(false);
+
+  useEffect(() => {
+    if (!targetProfile || !session?.user?.id || !supabase) return;
+    if (session.user.id === targetProfile.id) return;
+
+    supabase
+      .from("connections")
+      .select("status")
+      .eq("follower_id", session.user.id)
+      .eq("following_id", targetProfile.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setTargetConnStatus(data.status as "pending" | "accepted");
+        } else {
+          setTargetConnStatus(null);
+        }
+      });
+  }, [targetProfile?.id, session?.user?.id]);
+
+  async function handleFollowTarget() {
+    if (!session || !supabase) {
+      setAuthOpen("login");
+      return;
+    }
+    if (!targetProfile || targetConnLoading) return;
+    setTargetConnLoading(true);
+    const newStatus = targetProfile.is_public !== false ? "accepted" : "pending";
+    const { error } = await supabase
+      .from("connections")
+      .insert({
+        follower_id: session.user.id,
+        following_id: targetProfile.id,
+        status: newStatus,
+      });
+    setTargetConnLoading(false);
+    if (!error) {
+      setTargetConnStatus(newStatus);
+    }
+  }
+
+  async function handleUnfollowTarget() {
+    if (!session || !supabase || !targetProfile || targetConnLoading) return;
+    setTargetConnLoading(true);
+    const { error } = await supabase
+      .from("connections")
+      .delete()
+      .eq("follower_id", session.user.id)
+      .eq("following_id", targetProfile.id);
+    setTargetConnLoading(false);
+    if (!error) {
+      setTargetConnStatus(null);
+    }
+  }
 
   useEffect(() => {
     if (!mounted) return;
@@ -904,9 +956,8 @@ export function SummitTracker({
     }
     if (!canShowCountries) {
       if (experiencesMode) setExperiencesMode(false);
-      if (regionsMode) setRegionsMode(false);
     }
-  }, [mounted, canShowPeaks, canShowCountries, currentMode, experiencesMode, regionsMode]);
+  }, [mounted, canShowPeaks, canShowCountries, currentMode, experiencesMode]);
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -923,7 +974,39 @@ export function SummitTracker({
     (isMobile && !!selected) ||
     !!recordOpen ||
     !!lightboxPhoto ||
-    !!editorPhoto;
+    !!editorPhoto ||
+    !!lightboxCaptionModalOpen ||
+    !!expSelectorOpen ||
+    !!assignToRecordModalOpen ||
+    !!showTrashModal ||
+    !!editingCustomCategory ||
+    !!selectingCategoryForNewExp ||
+    !!editingCustomExp ||
+    !!confirmAction ||
+    !!selectingLocationForExp;
+
+  useEffect(() => {
+    if (selectingLocationForExp) {
+      const isMobileScreen = typeof window !== "undefined" && (window.innerWidth <= 768 || isMobile);
+      if (isMobileScreen) {
+        window.scrollTo({
+          top: 0,
+          behavior: "instant" as ScrollBehavior,
+        });
+      } else {
+        const mapaEl = document.getElementById("mapa");
+        if (mapaEl) {
+          const topbar = document.querySelector(".topbar") as HTMLElement | null;
+          const topbarHeight = topbar ? topbar.getBoundingClientRect().height : 76;
+          const mapaTop = mapaEl.getBoundingClientRect().top + window.scrollY;
+          window.scrollTo({
+            top: Math.max(0, Math.round(mapaTop - topbarHeight - 6)),
+            behavior: "instant" as ScrollBehavior,
+          });
+        }
+      }
+    }
+  }, [selectingLocationForExp, isMobile]);
 
   useEffect(() => {
     if (isScrollLocked) {
@@ -942,8 +1025,6 @@ export function SummitTracker({
     } else if (!isReadOnly) {
       const savedExp = localStorage.getItem("myExperiencesMode");
       if (savedExp === "true") setExperiencesMode(true);
-      const savedReg = localStorage.getItem("myRegionsMode");
-      if (savedReg === "true") setRegionsMode(true);
     }
   }, [isReadOnly, initialExperiencesMode]);
 
@@ -952,12 +1033,6 @@ export function SummitTracker({
       localStorage.setItem("myExperiencesMode", experiencesMode.toString());
     }
   }, [experiencesMode, isReadOnly]);
-
-  useEffect(() => {
-    if (!isReadOnly) {
-      localStorage.setItem("myRegionsMode", regionsMode.toString());
-    }
-  }, [regionsMode, isReadOnly]);
   const [expandedCountryId, setExpandedCountryId] = useState<string | null>(
     null,
   );
@@ -970,11 +1045,17 @@ export function SummitTracker({
 
   const currentPhotoGroup = useMemo(() => {
     if (!lightboxPhoto || !selected) return [];
-    const registeredDates = new Set(
-      ascents
+    const registeredDates = new Set([
+      ...ascents
         .filter((a) => a.summit_id === selected.id && !a.is_wishlist)
         .map((a) => a.achieved_on),
-    );
+      ...experienceRecords
+        .filter(
+          (r) =>
+            r.experience_id === selected.id || r.sub_item_id === selected.id,
+        )
+        .map((r) => r.achieved_on),
+    ]);
     const isRegistered = registeredDates.has(lightboxPhoto.taken_on);
 
     if (isRegistered) {
@@ -987,61 +1068,17 @@ export function SummitTracker({
         (p) => p.summit_id === selected.id && !registeredDates.has(p.taken_on),
       );
     }
-  }, [lightboxPhoto, selected, ascents, photos]);
+  }, [lightboxPhoto, selected, ascents, experienceRecords, photos]);
 
   const lightboxIndex = lightboxPhoto
     ? currentPhotoGroup.findIndex((p) => p.id === lightboxPhoto.id)
     : -1;
-  const hasPrevPhoto = lightboxIndex > 0;
-  const hasNextPhoto =
-    lightboxIndex !== -1 && lightboxIndex < currentPhotoGroup.length - 1;
-
-  const showPrevPhoto = useCallback(() => {
-    if (hasPrevPhoto) {
-      setLightboxPhoto(currentPhotoGroup[lightboxIndex - 1]);
-    }
-  }, [hasPrevPhoto, currentPhotoGroup, lightboxIndex]);
-
-  const showNextPhoto = useCallback(() => {
-    if (hasNextPhoto) {
-      setLightboxPhoto(currentPhotoGroup[lightboxIndex + 1]);
-    }
-  }, [hasNextPhoto, currentPhotoGroup, lightboxIndex]);
-
-  useEffect(() => {
-    if (!lightboxPhoto || !isActive) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") showPrevPhoto();
-      else if (e.key === "ArrowRight") showNextPhoto();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxPhoto, showPrevPhoto, showNextPhoto, isActive]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.changedTouches[0].clientX;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const distance = touchStartX.current - touchEndX;
-
-    const minSwipeDistance = 50;
-
-    if (distance > minSwipeDistance) {
-      showNextPhoto();
-    } else if (distance < -minSwipeDistance) {
-      showPrevPhoto();
-    }
-    touchStartX.current = null;
-  };
 
   useEffect(() => {
     if (session) {
       supabase
         ?.from("profiles")
-        .select("username, avatar_url, enable_regions, enable_experiences, enable_peaks, enable_countries")
+        .select("username, avatar_url, enable_experiences, enable_peaks, enable_countries")
         .eq("id", session.user.id)
         .single()
         .then(({ data }) => {
@@ -1132,18 +1169,14 @@ export function SummitTracker({
     const visiblePredefined = predefinedCategories
       .filter((cat) => !hiddenCategoryIds.has(cat.id))
       .map((cat) => {
-        const override = customCategories.find((c) => c.static_id === cat.id);
-        const name = override ? override.name : cat.name;
-        const iconName = override ? override.icon_name : cat.iconName;
-
         const linkedCustomExps = customExperiences
           .filter((ce) => ce.static_category_id === cat.id)
           .map((ce) => ({ id: ce.id, name: ce.name, subItems: ce.sub_items }));
 
         return {
           ...cat,
-          name,
-          iconName,
+          name: cat.name,
+          iconName: cat.iconName,
           experiences: [
             ...cat.experiences.filter(
               (exp) => !hiddenExperienceIds.has(exp.id),
@@ -1261,13 +1294,8 @@ export function SummitTracker({
   // IDs válidos para este modo (para filtrar ascents de Supabase)
   const validIds = useMemo(() => {
     const ids = new Set(allItems.map((i) => i.id));
-    if (!isPeaks) {
-      Object.values(regionsByCountryIsoA2)
-        .flat()
-        .forEach((r) => ids.add(r.id));
-      if (isExp) {
-        countries.forEach((c) => ids.add(c.id));
-      }
+    if (!isPeaks && isExp) {
+      countries.forEach((c) => ids.add(c.id));
     }
     return ids;
   }, [allItems, isPeaks, isExp]);
@@ -1349,20 +1377,6 @@ export function SummitTracker({
         let item: SelectedItem | undefined = allItems.find(
           (i) => i.id === baseId || i.id === id,
         );
-        if (!item && !isPeaks) {
-          for (const [countryId, regions] of Object.entries(
-            regionsByCountryIsoA2,
-          )) {
-            const region = regions.find((r) => r.id === baseId);
-            if (region) {
-              const country = countries.find((c) => c.iso_a2 === countryId);
-              if (country) {
-                item = regionToItem(region, country);
-                break;
-              }
-            }
-          }
-        }
         if (item) {
           let selectedItem: SelectedItem = item;
           if (subItemId) {
@@ -1439,8 +1453,7 @@ export function SummitTracker({
         w
           .filter(
             (a) =>
-              !a.summit_id.startsWith("country-") &&
-              !a.summit_id.startsWith("region-"),
+              !a.summit_id.startsWith("country-"),
           )
           .map(
             (a) => a.summit_id + (a.sub_item_id ? `::${a.sub_item_id}` : ""),
@@ -1523,9 +1536,10 @@ export function SummitTracker({
     if (!session || !lightboxPhoto) return;
 
     setSaving(true);
+    const trimmedCaption = lightboxNewCaption.trim();
     const { error } = await supabase!
       .from("summit_photos")
-      .update({ caption: lightboxNewCaption || null })
+      .update({ caption: trimmedCaption || null })
       .eq("id", lightboxPhoto.id)
       .eq("user_id", session.user.id);
 
@@ -1535,12 +1549,12 @@ export function SummitTracker({
       setPhotos((prev) =>
         prev.map((p) =>
           p.id === lightboxPhoto.id
-            ? { ...p, caption: lightboxNewCaption || null }
+            ? { ...p, caption: trimmedCaption || null }
             : p,
         ),
       );
       setLightboxPhoto((prev) =>
-        prev ? { ...prev, caption: lightboxNewCaption || null } : null,
+        prev ? { ...prev, caption: trimmedCaption || null } : null,
       );
       setLightboxCaptionModalOpen(false);
       setNotice("Descripción guardada correctamente.");
@@ -1560,13 +1574,79 @@ export function SummitTracker({
         }
         return;
       }
+
+      // Check if viewing a private profile where the viewer is not an accepted follower
+      const isPrivateTarget = Boolean(
+        isReadOnly && targetProfile && targetProfile.is_public === false && session?.user?.id !== targetProfile.id
+      );
+
+      let effectiveConnStatus = targetConnStatus;
+      if (isPrivateTarget && targetProfile && session?.user?.id && effectiveConnStatus === null) {
+        const { data: conn } = await supabase
+          .from("connections")
+          .select("status")
+          .eq("follower_id", session.user.id)
+          .eq("following_id", targetProfile.id)
+          .maybeSingle();
+        if (conn) {
+          effectiveConnStatus = conn.status as "pending" | "accepted";
+          setTargetConnStatus(effectiveConnStatus);
+        }
+      }
+
+      const isPrivateRestricted = isPrivateTarget && effectiveConnStatus !== "accepted";
+
+      if (isPrivateRestricted) {
+        const { data: completedSummits } = await supabase.rpc(
+          "get_user_completed_summits",
+          { p_user_id: targetId }
+        );
+
+        const syntheticAscents: Ascent[] = (completedSummits || []).map(
+          (row: { summit_id: string }) => ({
+            summit_id: row.summit_id,
+            achieved_on: "1900-01-01",
+            end_date: null,
+            notes: null,
+            is_wishlist: false,
+            link: null,
+            link_name: null,
+            link_2: null,
+            link_name_2: null,
+          })
+        );
+
+        setAscents(syntheticAscents);
+        cachedAscentsByUser[targetId] = syntheticAscents;
+        setStoredTrackerData("ascents", targetId, syntheticAscents);
+        setPhotos([]);
+        cachedPhotosByUser[targetId] = [];
+        setStoredTrackerData("photos", targetId, []);
+        setExperienceRecords([]);
+        setCustomExperiences([]);
+        setCustomCategories([]);
+        setHiddenItems([]);
+        cachedTrackerLastFetched[targetId] = Date.now();
+
+        // Load viewer's own ascents for diff comparison
+        if (isReadOnly && session) {
+          const { data: myData } = await supabase
+            .from("ascents")
+            .select("summit_id, achieved_on, end_date, notes, is_wishlist, link, link_name, link_2, link_name_2")
+            .eq("user_id", session.user.id);
+          if (myData && !areRecordsEqual(myAscents, myData)) setMyAscents(myData as Ascent[]);
+        }
+        return;
+      }
+
       const now = Date.now();
-      const isFresh = targetId && cachedAscentsByUser[targetId] && (now - (cachedTrackerLastFetched[targetId] || 0) < TRACKER_CACHE_TTL);
+      const hadSyntheticCache = cachedAscentsByUser[targetId]?.some((a) => a.achieved_on === "1900-01-01");
+      const isFresh = !hadSyntheticCache && targetId && cachedAscentsByUser[targetId] && (now - (cachedTrackerLastFetched[targetId] || 0) < TRACKER_CACHE_TTL);
       if (isFresh) {
         if (!isReadOnly && !profileOpen && session && !myProfile) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("username, avatar_url, enable_regions, enable_experiences, enable_peaks, enable_countries")
+            .select("username, avatar_url, enable_experiences, enable_peaks, enable_countries")
             .eq("id", session.user.id)
             .single();
           if (profile) setMyProfile(profile);
@@ -1590,10 +1670,11 @@ export function SummitTracker({
         supabase!
           .from("summit_photos")
           .select(
-            "id, summit_id, public_url, taken_on, caption, created_at, storage_path",
+            "id, summit_id, public_url, taken_on, caption, created_at, storage_path, shot_at",
           )
           .eq("user_id", targetId)
-          .order("taken_on", { ascending: false }),
+          .order("taken_on", { ascending: false })
+          .order("created_at", { ascending: true }),
         supabase!
           .from("experience_records")
           .select("*")
@@ -1617,7 +1698,7 @@ export function SummitTracker({
         setStoredTrackerData("ascents", targetId, nextData);
       }
       if (photoResult.data) {
-        const nextData = photoResult.data as SummitPhoto[];
+        const nextData = sortPhotosByTime(photoResult.data as SummitPhoto[]);
         if (!areRecordsEqual(cachedPhotosByUser[targetId], nextData)) {
           setPhotos(nextData);
         }
@@ -1663,7 +1744,7 @@ export function SummitTracker({
         if (session && !myProfile) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("username, avatar_url, enable_regions, enable_experiences, enable_peaks, enable_countries")
+            .select("username, avatar_url, enable_experiences, enable_peaks, enable_countries")
             .eq("id", session.user.id)
             .single();
           if (profile) setMyProfile(profile);
@@ -1680,7 +1761,7 @@ export function SummitTracker({
       }
     }
     loadProgress();
-  }, [session, profileOpen, isReadOnly, targetProfile, authLoading, authProfile?.id]);
+  }, [session, profileOpen, isReadOnly, targetProfile, authLoading, authProfile?.id, targetConnStatus]);
 
   /* ── Derived state ────────────────────── */
   // Completed set for SpainMap (province codes)
@@ -1722,16 +1803,6 @@ export function SummitTracker({
       new Set(
         ascents
           .filter((a) => a.summit_id.startsWith("country-") && a.is_wishlist)
-          .map((a) => a.summit_id),
-      ),
-    [ascents],
-  );
-
-  const completedRegionIds = useMemo(
-    () =>
-      new Set(
-        ascents
-          .filter((a) => a.summit_id.startsWith("region-") && !a.is_wishlist)
           .map((a) => a.summit_id),
       ),
     [ascents],
@@ -1954,13 +2025,14 @@ export function SummitTracker({
     }
 
     const remainingSlots = Math.max(0, 4 - existingPhotos.length);
-    const filesToUpload = nextFiles.slice(0, remainingSlots);
+    const sortedFilesWithTime = await sortFilesByCaptureTime(nextFiles, ascent.achieved_on);
+    const filesToUpload = sortedFilesWithTime.slice(0, remainingSlots);
 
     setSaving(true);
     setNotice("Subiendo fotos...");
 
     const uploaded: SummitPhoto[] = [];
-    for (const file of filesToUpload) {
+    for (const { file, shotAt } of filesToUpload) {
       if (!file.type.startsWith("image/")) continue;
       const compressedBlob = await compressImage(file);
       const path = `${session.user.id}/${selected.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
@@ -1984,6 +2056,7 @@ export function SummitTracker({
           storage_path: path,
           public_url: data.publicUrl,
           taken_on: ascent.achieved_on,
+          shot_at: shotAt,
         })
         .select()
         .single();
@@ -1991,7 +2064,7 @@ export function SummitTracker({
       if (photoResult.data) uploaded.push(photoResult.data as SummitPhoto);
     }
 
-    if (uploaded.length) setPhotos((prev) => [...uploaded, ...prev]);
+    if (uploaded.length) setPhotos((prev) => sortPhotosByTime([...prev, ...uploaded]));
     event.target.value = "";
     setSaving(false);
     setNotice(
@@ -2015,51 +2088,47 @@ export function SummitTracker({
     [openInformation],
   );
 
-  const handleRegionInformation = useCallback(
-    (regionId: string, regionName: string, isoA2: string) => {
-      const country = countries.find((c) => c.iso_a2 === isoA2);
-      if (!country) return;
-      const region: Region = { id: regionId, name: regionName };
-      const item = regionToItem(region, country);
-      openInformation(item);
-    },
-    [openInformation],
-  );
-
   function handleCancelSelectingLocationForExp() {
     if (!selectingLocationForExp) return;
 
-    const [expId, subItemId] = selectingLocationForExp.split("::");
-    let category = dynamicCategories.find((c) =>
-      c.experiences.some((e) => e.id === expId),
-    );
-    let exp = category?.experiences.find((e) => e.id === expId);
+    if (selectingFromRecordRef.current) {
+      selectingFromRecordRef.current = false;
+      const [expId, subItemId] = selectingLocationForExp.split("::");
+      let category = dynamicCategories.find((c) =>
+        c.experiences.some((e) => e.id === expId),
+      );
+      let exp = category?.experiences.find((e) => e.id === expId);
 
-    if (exp && category) {
-      const title = exp.name;
-      const item: SelectedItem = {
-        id: expId,
-        sub_item_id: subItemId,
-        title: title,
-        subtitle: category.name,
-        label: "",
-        detail: category.name,
-        note: "",
-        iconName: category.iconName,
-        subItems: exp.subItems,
-        itemType: 'experience' as const,
-      };
-      setSelectingLocationForExp(null);
-      setSelected(item);
-      setRecordOpen(true);
-      setEditingExpRecordId(null);
-      const targetHash = `#panel=${encodeURIComponent(expId)}`;
-      if (window.location.hash !== targetHash) {
-        window.history.replaceState({ hasPanel: true }, "", targetHash);
+      if (exp && category) {
+        const title = exp.name;
+        const item: SelectedItem = {
+          id: expId,
+          sub_item_id: subItemId,
+          title: title,
+          subtitle: category.name,
+          label: "",
+          detail: category.name,
+          note: "",
+          iconName: category.iconName,
+          subItems: exp.subItems,
+          itemType: 'experience' as const,
+        };
+        setSelectingLocationForExp(null);
+        setSelected(item);
+        setRecordOpen(true);
+        setEditingExpRecordId(null);
+        const targetHash = `#panel=${encodeURIComponent(expId)}`;
+        if (window.location.hash !== targetHash) {
+          window.history.replaceState({ hasPanel: true }, "", targetHash);
+        }
+        return;
       }
-    } else {
-      setSelectingLocationForExp(null);
     }
+
+    selectingFromRecordRef.current = false;
+    setSelectingLocationForExp(null);
+    setSelected(null);
+    setRecordOpen(false);
   }
 
   async function handleMapClickForExp(
@@ -2113,6 +2182,7 @@ export function SummitTracker({
         }
       }
 
+      selectingFromRecordRef.current = false;
       setSelectingLocationForExp(null);
       setSelectedLatLng({ lat, lng });
       setLocationName(placeName || "");
@@ -2148,7 +2218,7 @@ export function SummitTracker({
     } else if (itemType === "experience") {
       shareText = `Mi experiencia en ${item.title} el ${dateRange}`;
     } else {
-      // country or region
+      // country
       shareText = `Mi visita a ${item.title} el ${dateRange}`;
     }
 
@@ -2667,9 +2737,10 @@ export function SummitTracker({
       0,
       4 - (existingRecordPhotos.length + galleryPhotosToAdd.length),
     );
-    const filesToUpload = files.slice(0, availableSlots);
+    const sortedFilesWithTime = await sortFilesByCaptureTime(files, finalDate);
+    const filesToUpload = sortedFilesWithTime.slice(0, availableSlots);
     const uploaded: SummitPhoto[] = [];
-    for (const file of filesToUpload) {
+    for (const { file, shotAt } of filesToUpload) {
       if (!file.type.startsWith("image/")) continue;
       const compressedBlob = await compressImage(file);
       const path = `${session.user.id}/${selected.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
@@ -2695,6 +2766,7 @@ export function SummitTracker({
           storage_path: path,
           public_url: data.publicUrl,
           taken_on: finalDate,
+          shot_at: shotAt,
         })
         .select()
         .single();
@@ -2736,7 +2808,7 @@ export function SummitTracker({
       });
     }
 
-    if (uploaded.length) setPhotos((previous) => [...uploaded, ...previous]);
+    if (uploaded.length) setPhotos((previous) => sortPhotosByTime([...previous, ...uploaded]));
     if (galleryPhotosToAdd.length > 0) {
       const galleryIds = galleryPhotosToAdd.map((p) => p.id);
       await supabase
@@ -2905,16 +2977,24 @@ export function SummitTracker({
     if (!supabase || !session) return;
     setSaving(true);
 
-    if (
-      editingCustomCategory.id === "new" ||
-      editingCustomCategory.id.startsWith("cat-")
-    ) {
-      const isOverride = editingCustomCategory.id.startsWith("cat-");
+    const isPredefined =
+      typeof editingCustomCategory.id === "string" &&
+      (predefinedCategories.some((c) => c.id === editingCustomCategory.id) ||
+        (editingCustomCategory.id.startsWith("cat-") &&
+          !editingCustomCategory.id.startsWith("cat-custom-")));
+
+    if (isPredefined) {
+      setNotice("Las categorías por defecto no se pueden modificar.");
+      setSaving(false);
+      setEditingCustomCategory(null);
+      return;
+    }
+
+    if (editingCustomCategory.id === "new") {
       const newCat = {
         user_id: session.user.id,
         name: editingCustomCategory.name.trim(),
         icon_name: editingCustomCategory.icon_name || "star",
-        ...(isOverride ? { static_id: editingCustomCategory.id } : {}),
       };
       const { data, error } = await supabase
         .from("custom_experience_categories")
@@ -2957,10 +3037,14 @@ export function SummitTracker({
           : null;
     if (!targetId) return;
 
-    const catToDelete = customCategories.find((c) => c.id === targetId);
-    const itemToHide = catToDelete?.static_id
-      ? catToDelete.static_id
-      : targetId;
+    const isPredefined = predefinedCategories.some((c) => c.id === targetId);
+    if (isPredefined) {
+      handleHideItem(targetId, "category");
+      if (editingCustomCategory && editingCustomCategory.id === targetId) {
+        setEditingCustomCategory(null);
+      }
+      return;
+    }
 
     setConfirmAction({
       message:
@@ -2968,19 +3052,17 @@ export function SummitTracker({
       onConfirm: async () => {
         if (!supabase || !session) return;
         setSaving(true);
-        const { data, error } = await supabase
-          .from("hidden_items")
-          .insert({
-            user_id: session.user.id,
-            item_id: itemToHide,
-            item_type: "category",
-          })
-          .select()
-          .single();
+        const { error } = await supabase
+          .from("custom_experience_categories")
+          .delete()
+          .eq("id", targetId);
         if (error) {
           setNotice(error.message);
-        } else if (data) {
-          setHiddenItems((prev) => [...prev, data as HiddenItem]);
+        } else {
+          setCustomCategories((prev) => prev.filter((c) => c.id !== targetId));
+          setCustomExperiences((prev) =>
+            prev.filter((c) => c.category_id !== targetId),
+          );
           if (editingCustomCategory && editingCustomCategory.id === targetId) {
             setEditingCustomCategory(null);
           }
@@ -3096,15 +3178,9 @@ export function SummitTracker({
               .from("custom_experience_categories")
               .delete()
               .eq("id", item.item_id);
-            await supabase
-              .from("custom_experience_categories")
-              .delete()
-              .eq("static_id", item.item_id);
 
             setCustomCategories((prev) =>
-              prev.filter(
-                (c) => c.id !== item.item_id && c.static_id !== item.item_id,
-              ),
+              prev.filter((c) => c.id !== item.item_id),
             );
             setCustomExperiences((prev) =>
               prev.filter((c) => c.category_id !== item.item_id),
@@ -3279,6 +3355,9 @@ export function SummitTracker({
 
     setPhotos((previous) => previous.filter((p) => p.id !== photo.id));
     setLightboxPhoto(null);
+    if (typeof window !== "undefined" && window.location.hash === "#lightbox") {
+      window.history.back();
+    }
     setSaving(false);
     setNotice("Foto eliminada correctamente.");
   }
@@ -3583,6 +3662,10 @@ export function SummitTracker({
     recordOpenedFromPanelRef.current = false;
 
     setCurrentMode(target);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("last_active_mode", target);
+      localStorage.setItem("last_map_path", target === "peaks" ? "/picos" : "/");
+    }
 
     if (onSwitchMode) {
       onSwitchMode(target);
@@ -3722,10 +3805,12 @@ export function SummitTracker({
     const expectedSummitId = ascent.sub_item_id
       ? `${selected.id}::${ascent.sub_item_id}`
       : selected.id;
-    const ascentPhotos = selectedPhotos.filter(
-      (p) =>
-        p.taken_on === ascent.achieved_on &&
-        (p.summit_id === expectedSummitId || p.summit_id === selected.id),
+    const ascentPhotos = sortPhotosByTime(
+      selectedPhotos.filter(
+        (p) =>
+          p.taken_on === ascent.achieved_on &&
+          (p.summit_id === expectedSummitId || p.summit_id === selected.id),
+      ),
     );
     return (
       <div key={ascent.id} className="completed-card">
@@ -3850,7 +3935,7 @@ export function SummitTracker({
           </div>
         )}
         {ascent.notes && (
-          <p style={{ marginTop: "4px" }}>&ldquo;{ascent.notes}&rdquo;</p>
+          <p style={{ marginTop: "4px", marginBottom: 0 }}>&ldquo;{ascent.notes}&rdquo;</p>
         )}
         {(ascent.link || (ascent as any).link_2) && (
           <div
@@ -3858,12 +3943,7 @@ export function SummitTracker({
               display: "flex",
               flexWrap: "wrap",
               gap: 8,
-              marginTop:
-                Boolean(ascent.notes) &&
-                (isVideoLink(ascent.link, (ascent as any).link_name) ||
-                 isVideoLink((ascent as any).link_2, (ascent as any).link_name_2))
-                  ? 14
-                  : 8,
+              marginTop: Boolean(ascent.notes) ? 4 : 8,
             }}
           >
             {renderRecordLink(ascent.link, (ascent as any).link_name)}
@@ -3891,6 +3971,11 @@ export function SummitTracker({
                       alt="Foto de la experiencia"
                       loading="lazy"
                     />
+                    {photo.caption && (
+                      <figcaption>
+                        {photo.caption}
+                      </figcaption>
+                    )}
                   </figure>
                 );
               })}
@@ -4043,7 +4128,7 @@ export function SummitTracker({
               <Link
                 href="/"
                 prefetch={true}
-                className="topbar-nav-link topbar-nav-link--mapa"
+                className="topbar-nav-link topbar-nav-link--mapa topbar-nav-link--active"
                 onClick={(e) => {
                   if (onNavigate) {
                     e.preventDefault();
@@ -4058,7 +4143,7 @@ export function SummitTracker({
             <>
               <a
                 href="#mapa"
-                className="topbar-nav-link topbar-nav-link--mapa"
+                className="topbar-nav-link topbar-nav-link--mapa topbar-nav-link--active"
                 onClick={(e) => {
                   if (onNavigate) {
                     e.preventDefault();
@@ -4074,14 +4159,14 @@ export function SummitTracker({
           )}
 
           <Link
-            href="/social"
+            href={`/social?challenge=${isPeaks ? "peaks" : "countries"}`}
             prefetch={true}
             className="topbar-nav-link topbar-nav-link--social"
             style={{ position: "relative" }}
             onClick={(e) => {
               if (onNavigate) {
                 e.preventDefault();
-                onNavigate("/social");
+                onNavigate(`/social?challenge=${isPeaks ? "peaks" : "countries"}`);
               }
             }}
           >
@@ -4101,13 +4186,13 @@ export function SummitTracker({
             ) : null}
           </Link>
           <Link
-            href="/ranking"
+            href={`/ranking?challenge=${isPeaks ? "peaks" : "countries"}`}
             prefetch={true}
             className="topbar-nav-link topbar-nav-link--ranking"
             onClick={(e) => {
               if (onNavigate) {
                 e.preventDefault();
-                onNavigate("/ranking");
+                onNavigate(`/ranking?challenge=${isPeaks ? "peaks" : "countries"}`);
               }
             }}
           >
@@ -4159,8 +4244,16 @@ export function SummitTracker({
         onTouchStart={handleSwipeTouchStart}
         onTouchEnd={handleSwipeTouchEnd}
       >
-        <div className="hero-main">
-          <div className="hero-title-wrap">
+        <div
+          className={`hero-main ${
+            !targetProfile
+              ? "hero-main--motto"
+              : targetProfile && session?.user?.id !== targetProfile.id
+              ? "hero-main--with-follow"
+              : ""
+          }`}
+        >
+          <div className={`hero-title-wrap ${!targetProfile ? "hero-title-wrap--motto hide-on-mobile" : ""}`}>
             <h1>
               {targetProfile ? (
                 <>
@@ -4188,6 +4281,80 @@ export function SummitTracker({
               )}
             </h1>
           </div>
+
+          {targetProfile && session?.user?.id !== targetProfile.id && (
+            <div className="hero-target-follow-center">
+              <button
+                type="button"
+                className={`hero-center-follow-btn ${
+                  targetConnStatus === "accepted"
+                    ? "hero-center-follow-btn--following"
+                    : targetConnStatus === "pending"
+                    ? "hero-center-follow-btn--pending"
+                    : "hero-center-follow-btn--connect"
+                }`}
+                disabled={targetConnLoading}
+                onClick={targetConnStatus ? handleUnfollowTarget : handleFollowTarget}
+                title={
+                  targetConnStatus === "accepted"
+                    ? "Siguiendo (clic para dejar de seguir)"
+                    : targetConnStatus === "pending"
+                    ? "Solicitud pendiente (clic para cancelar)"
+                    : `Seguir a @${targetProfile.username}`
+                }
+                aria-label={
+                  targetConnStatus === "accepted"
+                    ? "Dejar de seguir"
+                    : targetConnStatus === "pending"
+                    ? "Cancelar solicitud"
+                    : "Seguir"
+                }
+              >
+                {targetConnStatus === "accepted" ? (
+                  <>
+                    <UserRoundCheck
+                      className="hero-center-follow-icon hero-center-follow-icon--check"
+                      size={18}
+                      strokeWidth={2.2}
+                    />
+                    <UserRoundMinus
+                      className="hero-center-follow-icon hero-center-follow-icon--minus"
+                      size={18}
+                      strokeWidth={2.2}
+                    />
+                  </>
+                ) : targetConnStatus === "pending" ? (
+                  <UserRoundArrowLeft
+                    className="hero-center-follow-icon"
+                    size={18}
+                    strokeWidth={2.2}
+                  />
+                ) : (
+                  <UserRoundPlus
+                    className="hero-center-follow-icon"
+                    size={18}
+                    strokeWidth={2.2}
+                  />
+                )}
+              </button>
+              <span
+                className={`hero-center-follow-label ${
+                  targetConnStatus === "accepted"
+                    ? "hero-center-follow-label--following"
+                    : targetConnStatus === "pending"
+                    ? "hero-center-follow-label--pending"
+                    : "hero-center-follow-label--connect"
+                }`}
+                onClick={targetConnLoading ? undefined : (targetConnStatus ? handleUnfollowTarget : handleFollowTarget)}
+              >
+                {targetConnStatus === "accepted"
+                  ? "Siguiendo"
+                  : targetConnStatus === "pending"
+                  ? "pendiente"
+                  : "Seguir"}
+              </span>
+            </div>
+          )}
           <aside className="hero-stat" suppressHydrationWarning>
             <strong suppressHydrationWarning>
               <span suppressHydrationWarning>{achievedCount}</span>
@@ -4284,52 +4451,6 @@ export function SummitTracker({
             )}
 
             <div className="diff-toggle-wrap">
-              {isReadOnly && session && (
-                <button
-                  className={`diff-toggle diff-toggle--compact ${diffMode ? "diff-toggle--active" : ""}`}
-                  onClick={() => setDiffMode(!diffMode)}
-                  title="Compara tu progreso con el suyo"
-                >
-                  <svg
-                    className="diff-toggle-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="16" />
-                    <line x1="8" y1="12" x2="16" y2="12" />
-                  </svg>
-                  {diffMode ? "Comparando" : "Comparar conmigo"}
-                </button>
-              )}
-
-              {!isPeaks && canShowCountries && (mounted && myProfile?.enable_regions) && (
-                <button
-                  className={`diff-toggle diff-toggle--compact ${regionsMode ? "diff-toggle--active" : ""}`}
-                  onClick={() => setRegionsMode(!regionsMode)}
-                  title="Ver divisiones territoriales"
-                >
-                  <svg
-                    className="diff-toggle-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <line x1="3" y1="9" x2="21" y2="9" />
-                    <line x1="9" y1="21" x2="9" y2="9" />
-                  </svg>
-                  Regiones
-                </button>
-              )}
-
               {!isPeaks &&
                 canShowCountries &&
                 (experiencesMode || (mounted && myProfile?.enable_experiences)) && (
@@ -4365,6 +4486,33 @@ export function SummitTracker({
             zIndex: 1,
           }}
         >
+          {isReadOnly && session && (
+            <div className="map-floating-controls">
+              <button
+                type="button"
+                className={`diff-toggle diff-toggle--compact map-floating-btn ${diffMode ? "diff-toggle--active map-floating-btn--active" : ""}`}
+                onClick={() => setDiffMode(!diffMode)}
+                title={diffMode ? "Desactivar comparativa" : "Comparar con mi mapa"}
+              >
+                <svg
+                  className="diff-toggle-icon"
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="16" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+                <span>{diffMode ? "Comparando" : "Comparar"}</span>
+              </button>
+            </div>
+          )}
           {isPeaks ? (
             <SpainMap
               completed={completedPeakCodes}
@@ -4377,6 +4525,7 @@ export function SummitTracker({
               diffBoth={diffPeakBoth}
               activeId={selected?.id}
               panelOpen={!!selected}
+              hasCompareButton={Boolean(isReadOnly && session)}
             />
           ) : (
             <>
@@ -4384,14 +4533,11 @@ export function SummitTracker({
                 completed={completedCountryIds}
                 wishlist={wishlistCountryIds}
                 onInformation={openCountryInformation}
-                onRegionInformation={handleRegionInformation}
                 onComplete={openCountryRecord}
                 diffMode={diffMode}
                 diffOnlyViewer={diffItemOnlyViewer}
                 diffOnlyTarget={diffItemOnlyTarget}
                 diffBoth={diffItemBoth}
-                regionsMode={regionsMode}
-                completedRegions={completedRegionIds}
                 activeId={selected?.id}
                 experiencesMode={experiencesMode}
                 experienceRecords={
@@ -4408,8 +4554,9 @@ export function SummitTracker({
                 onMapClick={handleMapClickForExp}
                 onCancelSelectingLocation={handleCancelSelectingLocationForExp}
                 onExperienceClick={handleExperienceClick}
-                onAddExperience={!isReadOnly ? () => setExpSelectorOpen(true) : undefined}
+                onAddExperience={!isReadOnly && !selectingLocationForExp ? () => setExpSelectorOpen(true) : undefined}
                 panelOpen={!!selected}
+                hasCompareButton={Boolean(isReadOnly && session)}
               />
             </>
           )}
@@ -4456,9 +4603,10 @@ export function SummitTracker({
           {isExp ? (
             <>
               {dynamicCategories.map((cat) => {
-                const isCustomCat =
-                  cat.id.startsWith("cat-custom-") ||
-                  customCategories.some((c) => c.id === cat.id);
+                const isPredefinedCat = predefinedCategories.some(
+                  (c) => c.id === cat.id,
+                );
+                const isCustomCat = !isPredefinedCat;
                 return (
                   <div key={cat.id} style={{ position: "relative" }}>
                     <button
@@ -4485,46 +4633,42 @@ export function SummitTracker({
                       </span>
                       {cat.name}
                     </button>
-                    <button
-                      className={`edit-action-btn ${isEditingExperiences ? "is-active" : ""}`}
-                      title="Editar categoría"
-                      style={{
-                        position: "absolute",
-                        top: "-6px",
-                        right: "14px",
-                        background: "var(--pine)",
-                        color: "white",
-                        width: "16px",
-                        height: "16px",
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        zIndex: 10,
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // If it's a predefined category, customCategories.find might match on static_id
-                        const existingOverride = customCategories.find(
-                          (c) => c.static_id === cat.id || c.id === cat.id,
-                        );
-                        setEditingCustomCategory(
-                          existingOverride || {
+                    {isCustomCat && (
+                      <button
+                        className={`edit-action-btn ${isEditingExperiences ? "is-active" : ""}`}
+                        title="Editar categoría"
+                        style={{
+                          position: "absolute",
+                          top: "-6px",
+                          right: "14px",
+                          background: "var(--pine)",
+                          color: "white",
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 0,
+                          zIndex: 10,
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCustomCategory({
                             id: cat.id,
                             name: cat.name,
                             icon_name: cat.iconName,
-                          },
-                        );
-                      }}
-                    >
-                      <IconEdit
-                        style={{ width: 10, height: 10 }}
-                        strokeWidth={2.5}
-                      />
-                    </button>
+                          });
+                        }}
+                      >
+                        <IconEdit
+                          style={{ width: 10, height: 10 }}
+                          strokeWidth={2.5}
+                        />
+                      </button>
+                    )}
                     <button
                       className={`edit-action-btn ${isEditingExperiences ? "is-active" : ""}`}
                       title="Eliminar categoría"
@@ -5163,10 +5307,12 @@ export function SummitTracker({
                             const subItemRegisteredDates = new Set(
                               records.map((a) => a.achieved_on),
                             );
-                            const subItemOtherPhotos = selectedPhotos.filter(
-                              (p) =>
-                                p.summit_id === subItemKey &&
-                                !subItemRegisteredDates.has(p.taken_on),
+                            const subItemOtherPhotos = sortPhotosByTime(
+                              selectedPhotos.filter(
+                                (p) =>
+                                  p.summit_id === subItemKey &&
+                                  !subItemRegisteredDates.has(p.taken_on),
+                              ),
                             );
 
                             const isOpenable =
@@ -5594,8 +5740,10 @@ export function SummitTracker({
 
                 {selectedAscents.length > 0 ? (
                   selectedAscents.map((ascent) => {
-                    const ascentPhotos = selectedPhotos.filter(
-                      (p) => p.taken_on === ascent.achieved_on,
+                    const ascentPhotos = sortPhotosByTime(
+                      selectedPhotos.filter(
+                        (p) => p.taken_on === ascent.achieved_on,
+                      ),
                     );
                     return (
                       <div key={ascent.achieved_on} className="completed-card">
@@ -5741,7 +5889,7 @@ export function SummitTracker({
                           </div>
                         )}
                         {ascent.notes && (
-                          <p style={{ marginTop: "4px" }}>
+                          <p style={{ marginTop: "4px", marginBottom: 0 }}>
                             &ldquo;{ascent.notes}&rdquo;
                           </p>
                         )}
@@ -5751,12 +5899,7 @@ export function SummitTracker({
                               display: "flex",
                               flexWrap: "wrap",
                               gap: 8,
-                              marginTop:
-                                Boolean(ascent.notes) &&
-                                (isVideoLink(ascent.link, (ascent as any).link_name) ||
-                                 isVideoLink((ascent as any).link_2, (ascent as any).link_name_2))
-                                  ? 14
-                                  : 8,
+                              marginTop: Boolean(ascent.notes) ? 4 : 8,
                             }}
                           >
                             {renderRecordLink(ascent.link, (ascent as any).link_name)}
@@ -5849,8 +5992,10 @@ export function SummitTracker({
                   const registeredDates = new Set(
                     selectedAscents.map((a) => a.achieved_on),
                   );
-                  const otherPhotos = selectedPhotos.filter(
-                    (p) => !registeredDates.has(p.taken_on),
+                  const otherPhotos = sortPhotosByTime(
+                    selectedPhotos.filter(
+                      (p) => !registeredDates.has(p.taken_on),
+                    ),
                   );
                   if (otherPhotos.length === 0) return null;
                   return (
@@ -5971,10 +6116,12 @@ export function SummitTracker({
                   selectedExperienceRecords.map((a) => a.achieved_on),
                 );
                 // Only show photos that belong to the parent (not a specific sub-item) and whose date is not registered
-                const otherPhotos = selectedPhotos.filter(
-                  (p) =>
-                    !registeredDates.has(p.taken_on) &&
-                    p.summit_id === selected.id,
+                const otherPhotos = sortPhotosByTime(
+                  selectedPhotos.filter(
+                    (p) =>
+                      !registeredDates.has(p.taken_on) &&
+                      p.summit_id === selected.id,
+                  ),
                 );
                 if (otherPhotos.length === 0) return null;
                 return (
@@ -6099,6 +6246,7 @@ export function SummitTracker({
                     type="button"
                     className="button button--quiet button--small"
                     onClick={() => {
+                      selectingFromRecordRef.current = true;
                       setSelectingLocationForExp(
                         selected.sub_item_id
                           ? `${selected.id}::${selected.sub_item_id}`
@@ -6798,251 +6946,186 @@ export function SummitTracker({
 
       {/* ── Lightbox ────────────────────── */}
       {lightboxPhoto && (
-        <div
-          className="lightbox-backdrop"
-          onClick={() => window.history.back()}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onWheel={(e) => e.stopPropagation()}
-        >
-          {hasPrevPhoto && (
-            <button
-              className="lightbox-nav lightbox-nav--prev"
-              onClick={(e) => {
-                e.stopPropagation();
-                showPrevPhoto();
-              }}
-              aria-label="Foto anterior"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="32"
-                height="32"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="15 18 9 12 15 6"></polyline>
-              </svg>
-            </button>
-          )}
-          {hasNextPhoto && (
-            <button
-              className="lightbox-nav lightbox-nav--next"
-              onClick={(e) => {
-                e.stopPropagation();
-                showNextPhoto();
-              }}
-              aria-label="Foto siguiente"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="32"
-                height="32"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-          )}
-          <button
-            className="lightbox-close"
-            onClick={(e) => {
-              e.stopPropagation();
+        <>
+          <PhotoLightbox
+            photos={currentPhotoGroup}
+            currentIndex={lightboxIndex !== -1 ? lightboxIndex : 0}
+            onIndexChange={(idx) => {
+              if (currentPhotoGroup[idx]) {
+                setLightboxPhoto(currentPhotoGroup[idx]);
+              }
+            }}
+            onClose={() => {
               window.history.back();
             }}
-            aria-label="Cerrar imagen"
-          >
-            <IconClose />
-          </button>
-          {!isReadOnly && (
-            <>
-              <button
-                className="lightbox-menu-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxMenuOpen(!lightboxMenuOpen);
-                }}
-                aria-label="Opciones"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="24"
-                  height="24"
-                  fill="currentColor"
-                >
-                  <circle cx="12" cy="5" r="2"></circle>
-                  <circle cx="12" cy="12" r="2"></circle>
-                  <circle cx="12" cy="19" r="2"></circle>
-                </svg>
-              </button>
-              {lightboxMenuOpen && (
-                <div className="lightbox-dropdown">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLightboxMenuOpen(false);
-                      setEditorPhoto(lightboxPhoto);
-                      window.history.pushState(null, "", "#editor");
-                    }}
-                  >
-                    Editar foto
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLightboxMenuOpen(false);
-                      setLightboxNewCaption(lightboxPhoto.caption || "");
-                      setLightboxCaptionModalOpen(true);
-                    }}
-                  >
-                    Descripción
-                  </button>
-
-                  <button
-                    className="danger"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLightboxMenuOpen(false);
-                      deletePhoto(lightboxPhoto);
-                    }}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-          <img
-            key={lightboxPhoto.id}
-            className="lightbox-image"
-            src={lightboxPhoto.public_url}
-            alt={`${isPeaks ? "Ascensión a" : "Visita a"} ${selected?.title}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxMenuOpen(false);
+            title={selected?.title || ""}
+            canEdit={!isReadOnly}
+            onEditPhoto={(photo) => {
+              setEditorPhoto(photo as any);
+              window.history.pushState(null, "", "#editor");
+            }}
+            onEditCaption={(photo) => {
+              setLightboxNewCaption(photo.caption || "");
+              setLightboxCaptionModalOpen(true);
+            }}
+            onDeletePhoto={(photo) => {
+              deletePhoto(photo as any);
             }}
           />
-          <div
-            style={{
-              position: "fixed",
-              bottom: "24px",
-              left: 0,
-              width: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "14px",
-              zIndex: 10002,
-            }}
-          >
-            <span
-              className="lightbox-caption"
-              style={{
-                position: "relative",
-                bottom: "auto",
-                left: "auto",
-                transform: "none",
-                width: "90%",
-                textAlign: "center",
-                zIndex: 10001,
-              }}
-            >
-              {lightboxPhoto.caption && (
-                <strong
-                  style={{
-                    display: "block",
-                    fontSize: "15px",
-                    marginBottom: "2px",
-                    color: "white",
-                  }}
-                >
-                  {lightboxPhoto.caption}
-                </strong>
-              )}
-              <span style={{ opacity: lightboxPhoto.caption ? 0.7 : 1 }}>
-                {selected?.title}
-              </span>
-            </span>
 
-            {currentPhotoGroup.length > 1 && (
-              <div style={{ display: "flex", gap: "8px" }}>
-                {currentPhotoGroup.map((photo: any, idx: number) => (
-                  <div
-                    key={photo.id || idx}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLightboxPhoto(photo);
-                    }}
-                    style={{
-                      width: idx === lightboxIndex ? "18px" : "8px",
-                      height: "8px",
-                      borderRadius: "4px",
-                      backgroundColor:
-                        idx === lightboxIndex
-                          ? "white"
-                          : "rgba(255,255,255,0.4)",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {lightboxCaptionModalOpen && (
-            <div
-              className="lightbox-date-modal"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold" }}>
-                Añadir descripción
-              </h3>
-
-              <div style={{ marginTop: 12 }}>
-                <textarea
-                  placeholder="Añade una descripción..."
-                  value={lightboxNewCaption}
-                  onChange={(e) => setLightboxNewCaption(e.target.value)}
+          {lightboxCaptionModalOpen &&
+            typeof document !== "undefined" &&
+            createPortal(
+              <div
+                className="modal-backdrop"
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  zIndex: 100050,
+                  backgroundColor: "rgba(0, 0, 0, 0.75)",
+                  backdropFilter: "blur(4px)",
+                  WebkitBackdropFilter: "blur(4px)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "16px",
+                }}
+                onClick={() => setLightboxCaptionModalOpen(false)}
+                onWheel={(e) => e.stopPropagation()}
+              >
+                <div
+                  className="record-dialog"
+                  role="dialog"
+                  aria-modal="true"
                   style={{
                     width: "100%",
-                    padding: "8px 12px",
-                    borderRadius: "4px",
-                    border: "1px solid #dce4da",
-                    minHeight: "100px",
-                    resize: "vertical",
+                    maxWidth: "460px",
+                    padding: "24px",
+                    background: "#ffffff",
+                    borderRadius: "16px",
+                    boxShadow: "0 12px 40px rgba(0, 0, 0, 0.4)",
+                    color: "#1c2b24",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "16px",
+                    overscrollBehavior: "contain",
                   }}
-                />
-              </div>
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontSize: "18px",
+                        fontWeight: "bold",
+                        fontFamily: "var(--font-playfair, serif)",
+                      }}
+                    >
+                      {lightboxPhoto?.caption
+                        ? "Editar descripción"
+                        : "Añadir descripción"}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setLightboxCaptionModalOpen(false)}
+                      aria-label="Cerrar modal"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#666",
+                        padding: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <IconClose style={{ width: 18, height: 18 }} />
+                    </button>
+                  </div>
 
-              <div
-                className="lightbox-date-modal-actions"
-                style={{ marginTop: 16 }}
-              >
-                <button
-                  className="cancel"
-                  onClick={() => setLightboxCaptionModalOpen(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className="save"
-                  onClick={handleSaveCaption}
-                  disabled={saving}
-                >
-                  {saving ? "Guardando..." : "Guardar"}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "13px",
+                      color: "var(--muted, #666)",
+                    }}
+                  >
+                    Escribe un pie de foto o recuerdo para esta fotografía.
+                  </p>
+
+                  <textarea
+                    autoFocus
+                    placeholder="Añade una descripción..."
+                    value={lightboxNewCaption}
+                    onChange={(e) => setLightboxNewCaption(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        handleSaveCaption();
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setLightboxCaptionModalOpen(false);
+                      }
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border, #dce4da)",
+                      minHeight: "110px",
+                      resize: "vertical",
+                      fontSize: "14px",
+                      fontFamily: "inherit",
+                      color: "inherit",
+                      boxSizing: "border-box",
+                      outline: "none",
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: "10px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="button button--quiet"
+                      onClick={() => setLightboxCaptionModalOpen(false)}
+                      disabled={saving}
+                      style={{ minWidth: "90px" }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="button"
+                      style={{
+                        backgroundColor: "var(--pine, #2E5C4B)",
+                        color: "#ffffff",
+                        minWidth: "100px",
+                      }}
+                      onClick={handleSaveCaption}
+                      disabled={saving}
+                    >
+                      {saving ? "Guardando..." : "Guardar"}
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            )}
+        </>
       )}
 
       {selectedPhotosForEdit.length > 0 && (
@@ -7115,9 +7198,10 @@ export function SummitTracker({
         <div
           className="modal-backdrop"
           onClick={() => setAssignToRecordModalOpen(false)}
+          onWheel={(e) => e.stopPropagation()}
           style={{ zIndex: 200 }}
         >
-          <div className="auth-dialog" onClick={(e) => e.stopPropagation()}>
+          <div className="auth-dialog" onClick={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} style={{ overscrollBehavior: "contain" }}>
             <h2>Asignar a registro</h2>
             <p
               style={{
@@ -7199,7 +7283,6 @@ export function SummitTracker({
           onProfileUpdate={(p) => {
             setMyProfile((prev) => ({ ...prev, ...p }));
             refreshProfile();
-            if (p.enable_regions === false) setRegionsMode(false);
             if (p.enable_experiences === false) setExperiencesMode(false);
             if (p.enable_peaks === false && currentMode === "peaks") {
               switchMode("countries");
@@ -7228,11 +7311,13 @@ export function SummitTracker({
         <div
           className="modal-backdrop"
           onClick={() => setExpSelectorOpen(false)}
+          onWheel={(e) => e.stopPropagation()}
         >
           <div
             className="auth-dialog"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 500, padding: 0 }}
+            onWheel={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 500, padding: 0, overscrollBehavior: "contain" }}
           >
             <div
               className="modal-header"
@@ -7257,6 +7342,7 @@ export function SummitTracker({
               style={{
                 maxHeight: "60vh",
                 overflowY: "auto",
+                overscrollBehavior: "contain",
                 padding: "0 24px 20px 24px",
                 display: "flex",
                 flexDirection: "column",
@@ -7347,6 +7433,7 @@ export function SummitTracker({
                                           "0 2px 4px rgba(0,0,0,0.02)";
                                       }}
                                       onClick={() => {
+                                        selectingFromRecordRef.current = false;
                                         setSelectingLocationForExp(
                                           `${exp.id}::`,
                                         );
@@ -7423,6 +7510,7 @@ export function SummitTracker({
                                             transition: "all 0.2s",
                                           }}
                                           onClick={() => {
+                                            selectingFromRecordRef.current = false;
                                             setSelectingLocationForExp(
                                               `${exp.id}::${item.id}`,
                                             );
@@ -7453,11 +7541,13 @@ export function SummitTracker({
         <div
           className="modal-backdrop"
           onClick={() => setShowTrashModal(false)}
+          onWheel={(e) => e.stopPropagation()}
         >
           <div
             className="auth-dialog"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 500, padding: 0 }}
+            onWheel={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 500, padding: 0, overscrollBehavior: "contain" }}
           >
             <div
               className="modal-header"
@@ -7502,20 +7592,19 @@ export function SummitTracker({
                       (c) => c.id === item.item_id,
                     );
                     const customCat = customCategories.find(
-                      (c) =>
-                        c.id === item.item_id || c.static_id === item.item_id,
+                      (c) => c.id === item.item_id,
                     );
-                    if (staticCat) isStatic = true;
-                    name = customCat
-                      ? customCat.name
-                      : staticCat
-                        ? staticCat.name
-                        : item.item_id;
-                    icon = customCat
-                      ? customCat.icon_name
-                      : staticCat
-                        ? staticCat.iconName
-                        : "star";
+                    if (staticCat) {
+                      isStatic = true;
+                      name = staticCat.name;
+                      icon = staticCat.iconName;
+                    } else if (customCat) {
+                      name = customCat.name;
+                      icon = customCat.icon_name;
+                    } else {
+                      name = item.item_id;
+                      icon = "star";
+                    }
                   } else {
                     const customExp = customExperiences.find(
                       (e) => e.id === item.item_id,
@@ -7627,11 +7716,13 @@ export function SummitTracker({
           onClick={() => {
             setEditingCustomCategory(null);
           }}
+          onWheel={(e) => e.stopPropagation()}
         >
           <div
             className="auth-dialog"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 400, padding: 0 }}
+            onWheel={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 400, padding: 0, overscrollBehavior: "contain" }}
           >
             <div
               className="modal-header"
@@ -7846,11 +7937,13 @@ export function SummitTracker({
         <div
           className="modal-backdrop"
           onClick={() => setSelectingCategoryForNewExp(false)}
+          onWheel={(e) => e.stopPropagation()}
         >
           <div
             className="auth-dialog"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 400, padding: 0 }}
+            onWheel={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 400, padding: 0, overscrollBehavior: "contain" }}
           >
             <div
               className="modal-header"
@@ -7926,11 +8019,13 @@ export function SummitTracker({
           onClick={() => {
             setEditingCustomExp(null);
           }}
+          onWheel={(e) => e.stopPropagation()}
         >
           <div
             className="auth-dialog"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 400, padding: 0 }}
+            onWheel={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 400, padding: 0, overscrollBehavior: "contain" }}
           >
             <div
               className="modal-header"
@@ -8271,11 +8366,16 @@ export function SummitTracker({
       )}
 
       {confirmAction && (
-        <div className="modal-backdrop" onClick={() => setConfirmAction(null)}>
+        <div
+          className="modal-backdrop"
+          onClick={() => setConfirmAction(null)}
+          onWheel={(e) => e.stopPropagation()}
+        >
           <div
             className="auth-dialog"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 400, padding: 0 }}
+            onWheel={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 400, padding: 0, overscrollBehavior: "contain" }}
           >
             <div
               className="modal-header"

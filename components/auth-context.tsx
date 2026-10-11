@@ -15,7 +15,6 @@ export type UserProfile = {
   username: string;
   avatar_url: string | null;
   is_public: boolean;
-  enable_regions?: boolean;
   enable_experiences?: boolean;
   enable_peaks?: boolean;
   enable_countries?: boolean;
@@ -106,7 +105,6 @@ export function persistProfileCookie(p: UserProfile | null) {
         id: p.id,
         username: p.username,
         avatar_url: p.avatar_url,
-        enable_regions: p.enable_regions,
         enable_experiences: p.enable_experiences,
         enable_peaks: p.enable_peaks,
         enable_countries: p.enable_countries,
@@ -156,7 +154,7 @@ export function AuthProvider({
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, username, avatar_url, is_public, enable_regions, enable_experiences, enable_peaks, enable_countries, share_photos, share_notes")
+        .select("id, username, avatar_url, is_public, enable_experiences, enable_peaks, enable_countries, share_photos, share_notes")
         .eq("id", s.user.id)
         .single();
 

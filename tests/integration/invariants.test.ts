@@ -238,6 +238,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
       const trackerContent = fs.readFileSync(trackerPath, "utf-8");
       expect(trackerContent).toContain("Footprints");
       expect(trackerContent).toMatch(/strava\.com[\s\S]*?Icon\s*=\s*Footprints/);
+      expect(trackerContent).toMatch(/strava\.app\.link[\s\S]*?Icon\s*=\s*Footprints/);
       expect(trackerContent).toMatch(/wikiloc\.com[\s\S]*?Icon\s*=\s*Footprints/);
       expect(trackerContent).toContain('placeholder="Ej: Restaurante favorito"');
 
@@ -245,6 +246,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
       const feedContent = fs.readFileSync(feedPath, "utf-8");
       expect(feedContent).toContain("Footprints");
       expect(feedContent).toMatch(/strava\.com[\s\S]*?Icon\s*=\s*Footprints/);
+      expect(feedContent).toMatch(/strava\.app\.link[\s\S]*?Icon\s*=\s*Footprints/);
       expect(feedContent).toMatch(/wikiloc\.com[\s\S]*?Icon\s*=\s*Footprints/);
     });
 
@@ -428,24 +430,21 @@ describe("Project Critical Invariants (No Regressions)", () => {
       }
     });
 
-    it("Invariant 11.2: profile-settings.tsx must freeze experiences and regions when countries mode is disabled", () => {
+    it("Invariant 11.2: profile-settings.tsx must freeze experiences when countries mode is disabled", () => {
       const settingsPath = path.join(rootDir, "components/profile-settings.tsx");
       const content = fs.readFileSync(settingsPath, "utf-8");
 
       expect(content).toContain("setEnableExperiences(false)");
-      expect(content).toContain("setEnableRegions(false)");
-      expect(content).toContain("enable_regions: enableCountries ? enableRegions : false");
       expect(content).toContain("enable_experiences: enableCountries ? enableExperiences : false");
       expect(content).toContain("disabled={!enableCountries}");
     });
 
-    it("Invariant 11.3: summit-tracker.tsx must force experiencesMode and regionsMode to false if canShowCountries is false", () => {
+    it("Invariant 11.3: summit-tracker.tsx must force experiencesMode to false if canShowCountries is false", () => {
       const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
       const content = fs.readFileSync(trackerPath, "utf-8");
 
       expect(content).toContain("if (!canShowCountries) {");
       expect(content).toContain("if (experiencesMode) setExperiencesMode(false)");
-      expect(content).toContain("if (regionsMode) setRegionsMode(false)");
     });
 
     it("Invariant 11.4: globals.css must style mountain-art with 160px for both countries and experiences modes", () => {
@@ -566,6 +565,339 @@ describe("Project Critical Invariants (No Regressions)", () => {
       const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
       expect(rankingContent).toContain('<Link href={mapLink} prefetch={true} className="topbar-nav-link topbar-nav-link--mapa">Mapa</Link>');
     });
+
+    it("Invariant 11.13: Topbar mode toggle and nav links must maintain consistent coordinates without bold layout shifts", () => {
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toMatch(/\.topbar\s+\.app-mode-switch\s*\{[^}]*top:\s*50%;[^}]*transform:\s*translate\(-50%,\s*-50%\);/);
+      expect(globalsCss).toContain(".topbar-nav-link--active");
+
+      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      expect(socialContent).not.toContain("fontWeight: 'bold'");
+      expect(socialContent).toContain("topbar-nav-link--social topbar-nav-link--active");
+
+      const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
+      expect(rankingContent).not.toContain("fontWeight: 'bold'");
+      expect(rankingContent).toContain("topbar-nav-link--ranking topbar-nav-link--active");
+    });
+
+    it("Invariant 11.14: Social tab vertebral bar must place profile on left and single category ratio on right", () => {
+      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      expect(socialContent).toContain("hero-profile-wrap");
+      expect(socialContent).toContain("activeAchieved");
+      expect(socialContent).toContain("activeTotal");
+      expect(socialContent).toContain("activeUnit");
+      expect(socialContent).toContain("activeCompletion");
+
+      // Verify that profile is on left and hero-stat is on right inside hero-main--social
+      const heroSection = socialContent.slice(socialContent.indexOf('hero-main--social'), socialContent.indexOf('hide-on-desktop'));
+      const profilePos = heroSection.indexOf('hero-profile-wrap');
+      const statPos = heroSection.indexOf('hero-stat');
+      expect(profilePos).toBeGreaterThan(-1);
+      expect(statPos).toBeGreaterThan(-1);
+      expect(profilePos).toBeLessThan(statPos);
+
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toMatch(/\.hero-main--social\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    });
+
+    it("Invariant 11.15: Social tab must include search pill on left and experiences toggle on right aligned with post column", () => {
+      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      expect(socialContent).toContain('social-feed-controls');
+      expect(socialContent).toContain('social-search-box');
+      expect(socialContent).toContain('social-search-input');
+      expect(socialContent).toContain('diff-toggle-wrap');
+      expect(socialContent).toContain("maxWidth: '680px'");
+
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toContain('.social-feed-controls');
+      expect(globalsCss).toContain('.social-search-box');
+      expect(globalsCss).toContain('.social-search-input');
+    });
+
+    it("Invariant 11.16: Vertebral bar in Social tab must lower profile and lock mobile layout in fixed grid to prevent mode-switching shifts", () => {
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toMatch(/\.hero-main--social\s+\.hero-profile-wrap\s*\{[^}]*margin-top:\s*4px/);
+      expect(globalsCss).toMatch(/@media\s*\(max-width:\s*700px\)[\s\S]*?\.hero-main--social\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*1fr\s+1fr/);
+      expect(globalsCss).toMatch(/@media\s*\(max-width:\s*700px\)[\s\S]*?\.hero-main--social\s+\.hero-profile-wrap\s*\{[^}]*padding-left:\s*6px/);
+    });
+
+    it("Invariant 11.17: Hero mottos must be strictly hidden on mobile and tablet viewports (<= 1023px)", () => {
+      const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+      expect(trackerContent).toMatch(/hero-title-wrap--motto\s+hide-on-mobile/);
+
+      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      expect(socialContent).toContain('hero-title-wrap hide-on-mobile');
+
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toMatch(/@media\s*\(max-width:\s*1023px\)[\s\S]*?\.hero-title-wrap--motto\s*\{[^}]*display:\s*none\s*!important/);
+    });
+
+    it("Invariant 11.18: feed-tab.tsx must support multi-field search filtering by username, location and date", () => {
+      const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+      expect(feedContent).toContain('searchQuery = ""');
+      expect(feedContent).toContain('searchQuery.trim()');
+      expect(feedContent).toContain('tokens.every');
+      expect(feedContent).toContain('formatRecordDateRange');
+      expect(feedContent).toContain('No se encontraron actividades para');
+    });
+
+    it("Invariant 11.19: Social and ranking search inputs must hide native cancel buttons to avoid duplicate cross buttons", () => {
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toMatch(/\.social-search-input::-webkit-search-cancel-button[\s\S]*?display:\s*none\s*!important/);
+
+      const rankingCss = fs.readFileSync(path.join(rootDir, "components/ranking.css"), "utf-8");
+      expect(rankingCss).toMatch(/\.ranking-search-input::-webkit-search-cancel-button[\s\S]*?display:\s*none/);
+    });
+
+    it("Invariant 11.20: Experiences mode in Social tab must trigger dark theme across feed, cards, links, numbers and search", () => {
+      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      expect(socialContent).toContain('main className={isPeaks ? "" : isExp ? "mode-experiences" : "mode-countries"}');
+      expect(socialContent).toContain('document.body.classList.add("mode-experiences")');
+
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toContain('.mode-experiences .feed-card');
+      expect(globalsCss).toContain('.mode-experiences .social-search-input');
+      expect(globalsCss).toContain('.mode-experiences .feed-link');
+      expect(globalsCss).toContain('.mode-experiences .hero-stat strong');
+    });
+
+    it("Invariant 11.21: Experiences mode in Social tab must strictly filter feed to experiences only and exclude countries", () => {
+      const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+      expect(feedContent).toMatch(/if\s*\(\s*experiencesMode\s*&&\s*enableExperiences\s*\)\s*\{\s*return\s+isExperience;\s*\}/);
+      expect(feedContent).toMatch(/return\s+isCountry;/);
+    });
+
+    it("Invariant 11.22: Target profile central follow button must render UserRound icons and state labels", () => {
+      const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+      expect(trackerContent).toContain("UserRoundPlus");
+      expect(trackerContent).toContain("UserRoundCheck");
+      expect(trackerContent).toContain("UserRoundMinus");
+      expect(trackerContent).toContain("UserRoundArrowLeft");
+      expect(trackerContent).toContain('"Seguir"');
+      expect(trackerContent).toContain('"Siguiendo"');
+      expect(trackerContent).toContain('"pendiente"');
+      expect(trackerContent).toContain("hero-target-follow-center");
+      expect(trackerContent).toContain("hero-center-follow-label");
+
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toContain(".hero-center-follow-icon--minus");
+      expect(globalsCss).toContain(".hero-center-follow-icon--check");
+      expect(globalsCss).toContain(".hero-center-follow-label");
+      expect(globalsCss).toMatch(/\.hero-center-follow-btn--following:hover\s*\.hero-center-follow-icon--minus/);
+    });
+
+    it("Invariant 11.23: Social tab search placeholder must omit 'Buscar por' and controls must provide a Following filter button on the left", () => {
+      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      // Search placeholder should omit 'Buscar por'
+      expect(socialContent).not.toContain("Buscar por @usuario");
+      expect(socialContent).toContain('currentMode === "peaks"');
+      expect(socialContent).toContain('"Usuario, picos, fecha..."');
+      expect(socialContent).toContain('"Usuario, experiencia, fecha..."');
+      expect(socialContent).toContain('"Usuario, país, fecha..."');
+
+      // Following filter button in social-feed-controls-left
+      expect(socialContent).toContain("social-feed-controls-left");
+      expect(socialContent).toContain("social-following-btn");
+      expect(socialContent).toContain("social-following-icon");
+      expect(socialContent).toContain("followingOnly");
+      expect(socialContent).toContain("followingUserIds");
+
+      // feed-tab.tsx receives and processes followingOnly
+      const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+      expect(feedContent).toContain("followingOnly = false");
+      expect(feedContent).toContain("followingUserIds");
+      expect(feedContent).toContain("followingUserIdsSet");
+      expect(feedContent).toContain("if (followingOnly)");
+
+      // globals.css defines styles for left grouping, following button, and active states
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toContain(".social-feed-controls-left");
+      expect(globalsCss).toContain(".social-following-btn");
+      expect(globalsCss).toContain(".social-following-btn--active");
+      expect(globalsCss).toContain(".feed-empty-link");
+    });
+
+    it("Invariant 11.16: Ranking participants count must strictly count users with at least 1 registered item and never raw profiles", () => {
+      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
+      const rankingContent = fs.readFileSync(rankingPath, "utf-8");
+
+      // Must not query total profiles table for ranking participant count
+      expect(rankingContent).not.toContain("supabase.from('profiles').select('*', { count: 'exact'");
+      expect(rankingContent).not.toContain("cachedTotalUsersCount");
+
+      // Must compute count strictly from registered ranking participants
+      expect(rankingContent).toContain("entries.length");
+      expect(rankingContent).toContain('mode === "peaks" ? "escaladores en el ranking" : "exploradores en el ranking"');
+    });
+
+    it("Invariant 11.17: Map search control (lupa) is only offset down when compare button is present", () => {
+      const mapSearchPath = path.join(rootDir, "components/map-search.tsx");
+      const mapSearchContent = fs.readFileSync(mapSearchPath, "utf-8");
+      expect(mapSearchContent).toContain("offsetDown?: boolean");
+      expect(mapSearchContent).toContain('map-search-control--offset');
+
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      // Default position is top
+      expect(globalsCss).toMatch(/\.map-search-control\s*\{[^}]*top:\s*10px;/);
+      // Offset position is 48px
+      expect(globalsCss).toMatch(/\.map-search-control\.map-search-control--offset\s*\{[^}]*top:\s*48px;/);
+
+      // SummitTracker passes hasCompareButton strictly when isReadOnly and session
+      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
+      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      expect(trackerContent).toContain("hasCompareButton={Boolean(isReadOnly && session)}");
+
+      // CollectiveMap uses standard top position without displacement
+      const collectivePath = path.join(rootDir, "components/collective-map.tsx");
+      const collectiveContent = fs.readFileSync(collectivePath, "utf-8");
+      expect(collectiveContent).toContain("<MapSearchControl");
+      expect(collectiveContent).not.toContain("offsetDown={true}");
+    });
+
+    it("Invariant 11.24: Ranking tab controls (search box & following pill) and container layout must strictly align with Social tab", () => {
+      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
+      const rankingContent = fs.readFileSync(rankingPath, "utf-8");
+      const socialPath = path.join(rootDir, "components/social-tab.tsx");
+      const socialContent = fs.readFileSync(socialPath, "utf-8");
+
+      // Outer section padding and inner max-width container must match exactly (14px desktop to align with map-section legend)
+      expect(rankingContent).toContain('className="page-container ranking-main-container" style={{ paddingTop: \'14px\', paddingBottom: \'70px\', paddingLeft: \'16px\', paddingRight: \'16px\' }}');
+      expect(socialContent).toContain('className="page-container" style={{ paddingTop: \'14px\', paddingBottom: \'70px\', paddingLeft: \'16px\', paddingRight: \'16px\' }}');
+      expect(rankingContent).toContain("<div style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>");
+      expect(socialContent).toContain("<div style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>");
+
+      // Controls structure must be identical
+      expect(rankingContent).toContain('className="social-feed-controls"');
+      expect(rankingContent).toContain('className="social-feed-controls-left"');
+      expect(rankingContent).toContain('className="social-search-box ranking-search-box"');
+      expect(rankingContent).toContain('social-following-btn');
+
+      // Ranking CSS must harmonize ranking-search-box and ranking-main-container
+      const rankingCss = fs.readFileSync(path.join(rootDir, "components/ranking.css"), "utf-8");
+      expect(rankingCss).toMatch(/\.ranking-search-box\s*\{[^}]*flex:\s*0\s*1\s*190px/);
+      expect(rankingCss).toMatch(/\.ranking-main-container\s*\{[^}]*box-sizing:\s*border-box;/);
+      expect(rankingContent).toContain('className="ranking-feed-controls-right"');
+      expect(rankingContent).toContain('className="collective-map-ethereal-btn"');
+    });
+
+    it("Invariant 11.25: Collective map UI layout, following filter button, and typography alignment", () => {
+      const collectivePath = path.join(rootDir, "components/collective-map.tsx");
+      const collectiveContent = fs.readFileSync(collectivePath, "utf-8");
+
+      // Following filter button in collective map uses canonical .social-following-btn with UserRoundCheck
+      expect(collectiveContent).toContain("UserRoundCheck");
+      expect(collectiveContent).toContain("social-following-btn");
+      expect(collectiveContent).toContain("social-following-icon");
+      expect(collectiveContent).toContain("Siguiendo");
+      // Must not have the old dual global/following pill markup
+      expect(collectiveContent).not.toContain("list-filter-pill");
+
+      // Ranking CSS positions collective-visitors-panel at bottom-right so it doesn't obstruct top-right controls
+      const rankingCss = fs.readFileSync(path.join(rootDir, "components/ranking.css"), "utf-8");
+      expect(rankingCss).toMatch(/\.collective-visitors-panel\s*\{[^}]*bottom:\s*24px;/);
+      expect(rankingCss).toMatch(/\.collective-visitors-panel\s*\{[^}]*right:\s*24px;/);
+
+      // Collective map overlay and panel use canonical fonts DM Sans and Playfair Display
+      expect(rankingCss).toMatch(/\.collective-map-overlay\s*\{[^}]*font-family:\s*['"]DM Sans['"]/);
+      expect(rankingCss).toMatch(/\.collective-map-header h2\s*\{[^}]*font-family:\s*['"]Playfair Display['"]/);
+      expect(rankingCss).toMatch(/\.collective-visitors-header h3\s*\{[^}]*font-family:\s*['"]Playfair Display['"]/);
+      expect(rankingCss).toMatch(/\.collective-visitors-panel\s*\{[^}]*font-family:\s*['"]DM Sans['"]/);
+
+      // Bidirectional scope synchronization between RankingTab and CollectiveMap
+      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
+      const rankingContent = fs.readFileSync(rankingPath, "utf-8");
+      expect(rankingContent).toContain("scope={scope}");
+      expect(rankingContent).toContain("onScopeChange={handleScopeChange}");
+      expect(collectiveContent).toContain("scope?: \"all\" | \"following\"");
+      expect(collectiveContent).toContain("onScopeChange?: (scope: \"all\" | \"following\") => void");
+      expect(collectiveContent).toContain("onScopeChange(next)");
+    });
+
+    it("Invariant 11.26: Map concentric circles button (add experience) must be hidden when selecting location", () => {
+      const worldMapPath = path.join(rootDir, "components/world-map.tsx");
+      const worldMapContent = fs.readFileSync(worldMapPath, "utf-8");
+
+      // The concentric circles button on the map must not be displayed when selectingLocation is true
+      expect(worldMapContent).toContain("experiencesMode && onAddExperience && !selectingLocation");
+
+      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
+      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      expect(trackerContent).toContain("onAddExperience={!isReadOnly && !selectingLocationForExp");
+    });
+
+    it("Invariant 11.27: Experience selector modal must lock body scroll and contain overscroll", () => {
+      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
+      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+
+      // isScrollLocked must include expSelectorOpen
+      expect(trackerContent).toContain("!!expSelectorOpen");
+      // expSelectorOpen backdrop must stop wheel propagation and contain overscroll
+      expect(trackerContent).toContain("{expSelectorOpen && (");
+      const expSelectorSlice = trackerContent.slice(trackerContent.indexOf("{expSelectorOpen && ("));
+      expect(expSelectorSlice).toContain('className="modal-backdrop"');
+      expect(expSelectorSlice).toContain("onWheel={(e) => e.stopPropagation()}");
+    });
+
+    it("Invariant 11.28: Selecting location on map must pin viewport to map, lock window scroll, and provide cancel cross button", () => {
+      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
+      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+
+      // isScrollLocked must include selectingLocationForExp
+      expect(trackerContent).toContain("!!selectingLocationForExp");
+      // Must scroll to top: 0 on mobile and snap to map on desktop when selectingLocationForExp is active
+      expect(trackerContent).toContain("if (selectingLocationForExp)");
+      expect(trackerContent).toMatch(/isMobileScreen[\s\S]*?scrollTo\(\{\s*top:\s*0/);
+      expect(trackerContent).toContain('document.getElementById("mapa")');
+
+      const worldMapPath = path.join(rootDir, "components/world-map.tsx");
+      const worldMapContent = fs.readFileSync(worldMapPath, "utf-8");
+
+      // Banner must include cancel cross button at top-right
+      expect(worldMapContent).toContain("selecting-location-cancel-btn");
+      expect(worldMapContent).toContain("onCancelSelectingLocation();");
+      // Escape key listener for cancelling
+      expect(worldMapContent).toMatch(/e\.key\s*===\s*["']Escape["']/);
+    });
+
+    it("Invariant 11.29: Compare button (.map-floating-btn) must not change color when switching to experiences mode", () => {
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+
+      // .mode-experiences .diff-toggle must exclude .map-floating-btn to prevent dark mode styling on compare button
+      expect(globalsCss).toContain(".mode-experiences .diff-toggle:not(.map-floating-btn)");
+
+      // .mode-experiences .map-floating-btn must preserve white background and dark visible text color (#2a1f3d)
+      expect(globalsCss).toMatch(/\.mode-experiences\s+\.map-floating-btn\s*\{[^}]*background:\s*white/);
+      expect(globalsCss).toMatch(/\.mode-experiences\s+\.map-floating-btn\s*\{[^}]*color:\s*#2a1f3d/);
+
+      // Hover and active states in .mode-experiences must match .mode-countries
+      expect(globalsCss).toMatch(/\.mode-experiences\s+\.map-floating-btn:hover/);
+      expect(globalsCss).toMatch(/\.mode-experiences\s+\.map-floating-btn--active/);
+      expect(globalsCss).toMatch(/\.mode-experiences\s+\.map-floating-btn--active:hover/);
+    });
+
+    it("Invariant 11.30: Photo editor toolbar buttons in mobile must display labels strictly in a single line (white-space: nowrap) without breaking Espejo H/V", () => {
+      const editorPath = path.join(rootDir, "components/photo-editor.tsx");
+      const editorContent = fs.readFileSync(editorPath, "utf-8");
+
+      // photo-editor must contain photo-editor-toolbar and photo-editor-btn-label
+      expect(editorContent).toContain("photo-editor-toolbar");
+      expect(editorContent).toContain("photo-editor-btn-label");
+
+      // Button labels for Espejo H and Espejo V must use non-breaking space and nowrap
+      expect(editorContent).toContain('{"Espejo\\u00A0H"}');
+      expect(editorContent).toContain('{"Espejo\\u00A0V"}');
+
+      // globals.css must define .photo-editor-btn-label with white-space: nowrap !important
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      expect(globalsCss).toContain(".photo-editor-btn-label");
+      expect(globalsCss).toMatch(/\.photo-editor-btn-label\s*\{[^}]*white-space:\s*nowrap\s*!important;/);
+
+      // Mobile media query (max-width: 768px) must enforce nowrap and tight padding
+      expect(globalsCss).toMatch(/@media\s*\(max-width:\s*768px\)[\s\S]*?\.photo-editor-btn-label\s*\{[^}]*white-space:\s*nowrap\s*!important;/);
+    });
   });
 });
+
+
+
 

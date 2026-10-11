@@ -116,5 +116,27 @@ describe("Experience Modification Safety & Action Buttons Invariants", () => {
     expect(globalsCss).toContain(".peak-list-item .item-info");
     expect(globalsCss).toMatch(/\.peak-list-item\s*\{[^}]*overflow:\s*hidden/);
   });
+
+  it("should guard summit-tracker.tsx so only custom categories show the edit button and predefined categories cannot be modified", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const trackerContent = fs.readFileSync(
+      path.resolve(__dirname, "../../components/summit-tracker.tsx"),
+      "utf-8"
+    );
+
+    // Edit button must be conditioned on isCustomCat
+    expect(trackerContent).toMatch(
+      /\{isCustomCat\s*&&\s*\(\s*<button[\s\S]*?title="Editar categoría"/
+    );
+
+    // Predefined category check in handleSaveCustomCategory
+    expect(trackerContent).toContain("Las categorías por defecto no se pueden modificar.");
+    expect(trackerContent).toMatch(/predefinedCategories\.some\(\s*\(c\)\s*=>\s*c\.id\s*===\s*editingCustomCategory\.id\s*\)/);
+
+    // Predefined categories in dynamicCategories keep their original name and icon
+    expect(trackerContent).toMatch(/name:\s*cat\.name/);
+    expect(trackerContent).toMatch(/iconName:\s*cat\.iconName/);
+  });
 });
 
