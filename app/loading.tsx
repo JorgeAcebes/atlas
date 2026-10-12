@@ -27,7 +27,7 @@ export default function Loading() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#ffffff",
+        backgroundColor: "var(--paper, #faf8f1)",
         color: "var(--muted, #62716b)",
         fontFamily: "'DM Sans', sans-serif",
         gap: "1.25rem",

@@ -28,12 +28,16 @@
     align-items: center !important;
     justify-content: center !important;
     width: 100% !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
     margin: 0 auto !important;
     gap: 0 !important;
   }
 
   .hero-main--ranking .ranking-hero-aside {
     width: 100% !important;
+    height: 100% !important;
     margin: 0 auto !important;
     align-items: center !important;
     justify-content: center !important;
@@ -564,6 +568,45 @@ h1.ranking-hero-title em {
   width: 100% !important;
 }
 
+.collective-exp-toggle-control {
+  position: absolute;
+  top: 56px;
+  right: 10px;
+  z-index: 1001;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  border: none;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.collective-exp-toggle-control:hover {
+  background-color: #f8f9fa;
+}
+
+.collective-exp-toggle-control--active {
+  background-color: #cba6f7 !important;
+  color: #11111b !important;
+}
+
+.collective-exp-toggle-control--active:hover {
+  background-color: #b48bf2 !important;
+  color: #11111b !important;
+}
+
+@media (max-width: 768px) {
+  .collective-exp-toggle-control {
+    top: 52px !important;
+    right: 8px !important;
+  }
+}
+
 .collective-map-loading {
   display: flex;
   flex-direction: column;
@@ -626,6 +669,16 @@ h1.ranking-hero-title em {
 .collective-legend-dot--2 { background: #c5b3da; }
 .collective-legend-dot--1 { background: #c75a3a; }
 .collective-legend-dot--none { background: #e8e4df; }
+
+.collective-map-overlay.mode-peaks .collective-legend-dot--3plus,
+.mode-peaks .collective-legend-dot--3plus {
+  background: #5c9b7d;
+}
+
+.collective-map-overlay.mode-peaks .collective-legend-dot--2,
+.mode-peaks .collective-legend-dot--2 {
+  background: #bcd4c8;
+}
 
 /* Visitors panel */
 .collective-visitors-panel {
@@ -876,6 +929,8 @@ h1.ranking-hero-title em {
 @media (max-width: 700px) {
   .ranking-hero-aside {
     gap: 4px;
+    height: 100%;
+    justify-content: center;
   }
   .ranking-hero-rank-btn strong {
     font-size: 30px;

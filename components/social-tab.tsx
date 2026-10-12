@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { AuthDialog } from "./auth-dialog";
@@ -121,6 +121,88 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
       setCurrentMode("peaks");
     }
   }, [enablePeaks, enableCountries, currentMode]);
+
+  const swipeStartXRef = useRef<number | null>(null);
+  const swipeStartYRef = useRef<number | null>(null);
+
+  const handleSwipeTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      swipeStartXRef.current = e.touches[0].clientX;
+      swipeStartYRef.current = e.touches[0].clientY;
+    }
+  }, []);
+
+  const handleSwipeTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const diffX = endX - swipeStartXRef.current;
+    const diffY = endY - swipeStartYRef.current;
+
+    // Minimum swipe distance 35px, predominantly horizontal
+    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY) * 1.25) {
+      if (diffX < 0) {
+        // Swipe left -> go to 196 Países
+        if (currentMode === "peaks" && enableCountries) {
+          switchMode("countries");
+        }
+      } else {
+        // Swipe right -> go to 47 Picos
+        if (currentMode === "countries" && enablePeaks) {
+          switchMode("peaks");
+        }
+      }
+    }
+    swipeStartXRef.current = null;
+    swipeStartYRef.current = null;
+  }, [currentMode, enablePeaks, enableCountries]);
+
+  useEffect(() => {
+    const handleGlobalTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.leaflet-container, input, textarea, select, .info-panel, .record-dialog, .auth-dialog, button, a')) {
+        return;
+      }
+      if (e.touches.length === 1) {
+        swipeStartXRef.current = e.touches[0].clientX;
+        swipeStartYRef.current = e.touches[0].clientY;
+      }
+    };
+
+    const handleGlobalTouchEnd = (e: TouchEvent) => {
+      if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const diffX = endX - swipeStartXRef.current;
+      const diffY = endY - swipeStartYRef.current;
+
+      if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY) * 1.25) {
+        if (diffX < 0) {
+          if (currentMode === "peaks" && enableCountries) switchMode("countries");
+        } else {
+          if (currentMode === "countries" && enablePeaks) switchMode("peaks");
+        }
+      }
+      swipeStartXRef.current = null;
+      swipeStartYRef.current = null;
+    };
+
+    window.addEventListener("touchstart", handleGlobalTouchStart, { passive: true });
+    window.addEventListener("touchend", handleGlobalTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", handleGlobalTouchStart);
+      window.removeEventListener("touchend", handleGlobalTouchEnd);
+    };
+  }, [currentMode, enablePeaks, enableCountries]);
+
+  useEffect(() => {
+    // Precarga dinámicamente en segundo plano los módulos del mapa para navegación instantánea sin flash blanco
+    const timer = setTimeout(() => {
+      import("./world-map").catch(() => {});
+      import("./spain-map").catch(() => {});
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -785,7 +867,12 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
       </header>
 
       {/* ── Franja Vertebral (Hero) ────────────────── */}
-      <section id="inicio" className="hero">
+      <section
+        id="inicio"
+        className="hero"
+        onTouchStart={handleSwipeTouchStart}
+        onTouchEnd={handleSwipeTouchEnd}
+      >
         <div className="hero-main hero-main--social">
           {session && myProfile ? (
             <>
@@ -863,6 +950,8 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
           <div
             className={`app-mode-switch hide-on-desktop ${currentMode === "peaks" ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}
             style={{ marginTop: 10, display: "flex", width: "fit-content" }}
+            onTouchStart={handleSwipeTouchStart}
+            onTouchEnd={handleSwipeTouchEnd}
           >
             <div className="app-mode-switch__indicator" />
             <button

@@ -259,7 +259,20 @@ img {
   max-width: 100%;
 }
 
+main {
+  animation: pageFadeIn 0.2s ease-out;
+}
+
 /* ── Keyframes ──────────────────────────── */
+@keyframes pageFadeIn {
+  from {
+    opacity: 0.88;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes slideInRight {
   from {
     transform: translateX(100%);
@@ -906,7 +919,7 @@ nav a:hover::after {
   height: min(68vh, 660px);
   min-height: 460px;
   width: 100%;
-  border: 1px solid #ccd9ce;
+  border: none;
   background: #dce8e4;
   z-index: 1;
   border-radius: 2px;
@@ -927,6 +940,15 @@ nav a:hover::after {
 /* ── Leaflet overrides ──────────────────── */
 .leaflet-container {
   font-family: "DM Sans", sans-serif;
+  background-color: #dce8e4;
+}
+
+.mode-countries .leaflet-container {
+  background-color: #e0dce8;
+}
+
+.mode-experiences .leaflet-container {
+  background-color: #1a1824;
 }
 
 /* Evita que aparezca un rectángulo al clicar (focus) en los vectores (países, regiones, cimas) */
@@ -1138,8 +1160,27 @@ nav a:hover::after {
 }
 
 /* Ensure collective map experiences are always visible regardless of global mode */
+.collective-map-overlay.mode-countries .experience-hitbox,
+.collective-map-overlay .experience-hitbox {
+  display: block !important;
+  pointer-events: auto !important;
+}
+
+.collective-map-overlay.mode-countries .summit-pin--experience,
 .collective-map-overlay .summit-pin--experience {
   display: inline-flex !important;
+  opacity: 0.9 !important;
+  pointer-events: auto !important;
+  transform: scale(0.9) !important;
+  background: #cba6f7 !important;
+  border-color: #b48bf2 !important;
+  color: #11111b !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+.collective-map-overlay .experience-hitbox:hover .summit-pin--experience {
+  opacity: 1 !important;
+  transform: scale(1.15) !important;
 }
 
 /* Experiences specific zooms: always visible from zoom 1 upwards in experiences mode */
@@ -1167,6 +1208,7 @@ nav a:hover::after {
 }
 
 /* Ensure collective map experiences are correctly scaled and visible across zooms */
+.collective-map-overlay .map[data-zoom="0"] .summit-pin--experience,
 .collective-map-overlay .map[data-zoom="1"] .summit-pin--experience,
 .collective-map-overlay .map[data-zoom="2"] .summit-pin--experience,
 .collective-map-overlay .map[data-zoom="3"] .summit-pin--experience,
@@ -2908,7 +2950,7 @@ textarea:focus {
 }
 
 .mode-countries .map {
-  border-color: #ccc4d9;
+  border: none;
   background: #e0dce8;
 }
 
@@ -4165,6 +4207,11 @@ textarea:focus {
   .hero h1 {
     font-size: clamp(22px, 2.6vw, 28px) !important;
   }
+  .hero-title--user,
+  .hero-main--with-follow h1 {
+    font-size: clamp(25px, 2.9vw, 31px) !important;
+    line-height: 1.08 !important;
+  }
   .hero-stat strong {
     font-size: 34px !important;
   }
@@ -4205,8 +4252,16 @@ textarea:focus {
     align-items: center !important;
     justify-content: center !important;
     width: 100% !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
     margin: 0 auto !important;
     gap: 0 !important;
+  }
+  .hero-main--ranking {
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
   }
   .hero-main--motto .hero-stat {
     width: 100% !important;
@@ -4296,6 +4351,11 @@ textarea:focus {
   }
   .hero h1 {
     font-size: 15.5px !important;
+  }
+  .hero-title--user,
+  .hero-main--with-follow h1 {
+    font-size: 17px !important;
+    line-height: 1.1 !important;
   }
   .hero .app-mode-switch {
     min-width: 148px !important;
@@ -4499,7 +4559,16 @@ textarea:focus {
   gap: 16px !important;
 }
 
+/* User map title ("El mapa de @user") font sizing balanced with ratio */
+.hero-title--user,
+.hero-main--with-follow h1 {
+  font-size: clamp(30px, 3.4vw, 40px) !important;
+  line-height: 1.08 !important;
+}
+
+.hero-title--user em,
 .hero-main--with-follow h1 em {
+  display: inline-block;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4549,15 +4618,6 @@ textarea:focus {
   border-color: #5b3a8c;
 }
 
-.hero-center-follow-btn--connect:hover {
-  transform: scale(1.08);
-  box-shadow: 0 4px 12px rgba(36, 95, 82, 0.28);
-}
-
-.mode-countries .hero-center-follow-btn--connect:hover {
-  box-shadow: 0 4px 12px rgba(91, 58, 140, 0.28);
-}
-
 .hero-center-follow-btn--following {
   background: #ffffff;
   color: var(--pine);
@@ -4576,36 +4636,10 @@ textarea:focus {
   display: block !important;
 }
 
-.hero-center-follow-btn--following:hover,
-.hero-target-follow-center:hover .hero-center-follow-btn--following {
-  background: #fff5f5;
-  color: #e53e3e;
-  border-color: #feb2b2;
-  transform: scale(1.08);
-}
-
-.hero-center-follow-btn--following:hover .hero-center-follow-icon--check,
-.hero-target-follow-center:hover .hero-center-follow-btn--following .hero-center-follow-icon--check {
-  display: none !important;
-}
-
-.hero-center-follow-btn--following:hover .hero-center-follow-icon--minus,
-.hero-target-follow-center:hover .hero-center-follow-btn--following .hero-center-follow-icon--minus {
-  display: block !important;
-}
-
 .hero-center-follow-btn--pending {
   background: #ffffff;
   color: #b7791f;
   border-color: var(--line);
-}
-
-.hero-center-follow-btn--pending:hover,
-.hero-target-follow-center:hover .hero-center-follow-btn--pending {
-  background: #fff5f5;
-  color: #e53e3e;
-  border-color: #feb2b2;
-  transform: scale(1.08);
 }
 
 .hero-center-follow-label {
@@ -4623,22 +4657,13 @@ textarea:focus {
 .hero-center-follow-label--connect {
   color: var(--muted);
 }
-.hero-target-follow-center:hover .hero-center-follow-label--connect {
-  color: var(--ink);
-}
 
 .hero-center-follow-label--following {
   color: var(--muted);
 }
-.hero-target-follow-center:hover .hero-center-follow-label--following {
-  color: #e53e3e;
-}
 
 .hero-center-follow-label--pending {
   color: #b7791f;
-}
-.hero-target-follow-center:hover .hero-center-follow-label--pending {
-  color: #e53e3e;
 }
 
 .mode-experiences .hero-center-follow-btn--following {
@@ -4651,9 +4676,6 @@ textarea:focus {
   color: #11111b;
   border-color: #cba6f7;
 }
-.mode-experiences .hero-center-follow-btn--connect:hover {
-  box-shadow: 0 4px 12px rgba(203, 166, 247, 0.28);
-}
 .mode-experiences .hero-center-follow-btn--pending {
   background: #1e1e2e;
   color: #f9e2af;
@@ -4662,12 +4684,134 @@ textarea:focus {
 .mode-experiences .hero-center-follow-label {
   color: #a6adc8;
 }
-.mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--connect {
-  color: #cba6f7;
+
+/* Hover styles for fine pointer devices (mouse/trackpad) to prevent sticky hover on touch */
+@media (hover: hover) and (pointer: fine) {
+  .hero-center-follow-btn--connect:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 12px rgba(36, 95, 82, 0.28);
+  }
+
+  .mode-countries .hero-center-follow-btn--connect:hover {
+    box-shadow: 0 4px 12px rgba(91, 58, 140, 0.28);
+  }
+
+  .mode-experiences .hero-center-follow-btn--connect:hover {
+    box-shadow: 0 4px 12px rgba(203, 166, 247, 0.28);
+  }
+
+  .hero-center-follow-btn--following:hover,
+  .hero-target-follow-center:hover .hero-center-follow-btn--following {
+    background: #fff5f5;
+    color: #e53e3e;
+    border-color: #feb2b2;
+    transform: scale(1.08);
+  }
+
+  .hero-center-follow-btn--following:hover .hero-center-follow-icon--check,
+  .hero-target-follow-center:hover .hero-center-follow-btn--following .hero-center-follow-icon--check {
+    display: none !important;
+  }
+
+  .hero-center-follow-btn--following:hover .hero-center-follow-icon--minus,
+  .hero-target-follow-center:hover .hero-center-follow-btn--following .hero-center-follow-icon--minus {
+    display: block !important;
+  }
+
+  .hero-center-follow-btn--pending:hover,
+  .hero-target-follow-center:hover .hero-center-follow-btn--pending {
+    background: #fff5f5;
+    color: #e53e3e;
+    border-color: #feb2b2;
+    transform: scale(1.08);
+  }
+
+  .hero-target-follow-center:hover .hero-center-follow-label--connect {
+    color: var(--ink);
+  }
+
+  .hero-target-follow-center:hover .hero-center-follow-label--following {
+    color: #e53e3e;
+  }
+
+  .hero-target-follow-center:hover .hero-center-follow-label--pending {
+    color: #e53e3e;
+  }
+
+  .mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--connect {
+    color: #cba6f7;
+  }
+
+  .mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--following,
+  .mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--pending {
+    color: #f38ba8;
+  }
 }
-.mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--following,
-.mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--pending {
-  color: #f38ba8;
+
+/* Touch hold / touch unfollow indication on mobile touch screens */
+.hero-center-follow-btn--following.hero-center-follow-btn--touch-unfollow,
+.hero-target-follow-center--touch-unfollow .hero-center-follow-btn--following {
+  background: #fff5f5 !important;
+  color: #e53e3e !important;
+  border-color: #feb2b2 !important;
+  transform: scale(1.08) !important;
+}
+
+.hero-center-follow-btn--following.hero-center-follow-btn--touch-unfollow .hero-center-follow-icon--check,
+.hero-target-follow-center--touch-unfollow .hero-center-follow-btn--following .hero-center-follow-icon--check {
+  display: none !important;
+}
+
+.hero-center-follow-btn--following.hero-center-follow-btn--touch-unfollow .hero-center-follow-icon--minus,
+.hero-target-follow-center--touch-unfollow .hero-center-follow-btn--following .hero-center-follow-icon--minus {
+  display: block !important;
+}
+
+.hero-target-follow-center--touch-unfollow .hero-center-follow-label--following {
+  color: #e53e3e !important;
+}
+
+.mode-experiences .hero-target-follow-center--touch-unfollow .hero-center-follow-label--following {
+  color: #f38ba8 !important;
+}
+
+/* Clean stable 'Siguiendo' immediately after follow (suppresses hover until pointer leaves or touch resets) */
+.hero-center-follow-btn--just-followed,
+.hero-target-follow-center--just-followed .hero-center-follow-btn--following {
+  background: #ffffff !important;
+  color: var(--pine) !important;
+  border-color: var(--line) !important;
+  transform: none !important;
+}
+
+.mode-countries .hero-center-follow-btn--just-followed,
+.mode-countries .hero-target-follow-center--just-followed .hero-center-follow-btn--following {
+  color: #5b3a8c !important;
+}
+
+.mode-experiences .hero-center-follow-btn--just-followed,
+.mode-experiences .hero-target-follow-center--just-followed .hero-center-follow-btn--following {
+  background: #1e1e2e !important;
+  color: #cba6f7 !important;
+  border-color: #45475a !important;
+}
+
+.hero-center-follow-btn--just-followed .hero-center-follow-icon--minus,
+.hero-target-follow-center--just-followed .hero-center-follow-btn--following .hero-center-follow-icon--minus {
+  display: none !important;
+}
+
+.hero-center-follow-btn--just-followed .hero-center-follow-icon--check,
+.hero-target-follow-center--just-followed .hero-center-follow-btn--following .hero-center-follow-icon--check {
+  display: block !important;
+}
+
+.hero-target-follow-center--just-followed .hero-center-follow-label--following {
+  color: var(--muted) !important;
+}
+
+.mode-experiences .hero-target-follow-center--just-followed .hero-center-follow-label--following {
+  color: #a6adc8 !important;
 }
 
 @media (max-width: 700px) {
@@ -4676,8 +4820,10 @@ textarea:focus {
     gap: 8px !important;
   }
 
+  .hero-title--user,
   .hero-main--with-follow h1 {
-    font-size: clamp(15px, 4vw, 19px) !important;
+    font-size: clamp(19px, 5.2vw, 24px) !important;
+    line-height: 1.1 !important;
   }
 
   .hero-center-follow-btn {
@@ -4858,6 +5004,9 @@ textarea:focus {
     justify-items: center !important;
     width: 100% !important;
     max-width: 380px !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
     margin: 0 auto !important;
     gap: 8px !important;
   }

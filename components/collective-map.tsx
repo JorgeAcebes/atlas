@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { countries, resolveCountryFromFeature, type Country } from "@/data/countries";
+import { peakByCode, type Peak } from "@/data/peaks";
 import * as ReactDOMServer from "react-dom/server";
 import { getIconComponent } from "./icons";
 import { predefinedCategories } from "@/data/experiences";
@@ -32,11 +33,16 @@ L.Canvas.prototype.options.padding = 0.5;
 
 const WORLD_TOPO_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
+const PROVINCES_URL = "/provincias_spain.geojson";
+const PROVINCES_FALLBACK_URL =
+  "https://gist.githubusercontent.com/josemamira/3af52a4698d42b3f676fbc23f807a605/raw/cc5e247b63b05520c167639ed51d61acd560b1c1/provincias_spain.geojson";
 
 // ── Module-level GeoJSON cache ────────────
 const expIconCache = new Map<string, L.DivIcon>();
 let _worldGeoCache: FeatureCollection | null = null;
 let _worldGeoPromise: Promise<FeatureCollection> | null = null;
+let _spainGeoCache: FeatureCollection | null = null;
+let _spainGeoPromise: Promise<FeatureCollection> | null = null;
 
 function fetchWorldGeo(): Promise<FeatureCollection> {
   if (_worldGeoCache) return Promise.resolve(_worldGeoCache);
@@ -54,6 +60,32 @@ function fetchWorldGeo(): Promise<FeatureCollection> {
       });
   }
   return _worldGeoPromise;
+}
+
+function fetchProvinces(): Promise<FeatureCollection> {
+  if (_spainGeoCache) return Promise.resolve(_spainGeoCache);
+  if (!_spainGeoPromise) {
+    _spainGeoPromise = fetch(PROVINCES_URL)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .catch(() => {
+        return fetch(PROVINCES_FALLBACK_URL).then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        });
+      })
+      .then((data: FeatureCollection) => {
+        _spainGeoCache = data;
+        return data;
+      })
+      .catch((err) => {
+        _spainGeoPromise = null;
+        throw err;
+      });
+  }
+  return _spainGeoPromise;
 }
 
 function fixAntimeridian(geo: FeatureCollection) {
@@ -111,8 +143,19 @@ function FitWorld() {
   return null;
 }
 
-
-
+function FitSpain() {
+  const map = useMap();
+  useEffect(() => {
+    map.fitBounds(
+      [
+        [27.55, -18.65],
+        [43.95, 4.95],
+      ],
+      { padding: [12, 12] },
+    );
+  }, [map]);
+  return null;
+}
 
 function MapZoomListener() {
   const map = useMapEvents({
@@ -145,11 +188,63 @@ type Props = {
   onClose: () => void;
   scope?: "all" | "following";
   onScopeChange?: (scope: "all" | "following") => void;
+  mode?: "countries" | "peaks";
 };
 
-function ExperiencesToggleControl({ showExperiences, setShowExperiences, experienceMarkersCount }: { showExperiences: boolean, setShowExperiences: (v: boolean) => void, experienceMarkersCount: number }) {
+const peakEntries = Object.values(peakByCode);
+
+function getPeakMarkerIcon(count: number) {
+  const path = "M13.73 4a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z";
+  if (count >= 3) {
+    return L.divIcon({
+      className: "",
+      html: `<span class="summit-pin" style="background: #5c9b7d; border-color: #245f52; color: white;"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="${path}"></path></svg></span>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+  } else if (count === 2) {
+    return L.divIcon({
+      className: "",
+      html: `<span class="summit-pin" style="background: #bcd4c8; border-color: #7da894; color: #1b4332;"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="${path}"></path></svg></span>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+  } else if (count === 1) {
+    return L.divIcon({
+      className: "",
+      html: `<span class="summit-pin" style="background: #c75a3a; border-color: #8c3a25; color: white;"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="${path}"></path></svg></span>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+  } else {
+    return L.divIcon({
+      className: "",
+      html: `<span class="summit-pin" style="background: #f0ede8; border-color: #c4bfb6; color: #888;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="${path}"></path></svg></span>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+  }
+}
+
+function ExperiencesToggleControl({
+  showExperiences,
+  setShowExperiences,
+  experienceMarkersCount,
+}: {
+  showExperiences: boolean;
+  setShowExperiences: (v: boolean | ((prev: boolean) => boolean)) => void;
+  experienceMarkersCount: number;
+}) {
   const divRef = useRef<HTMLDivElement>(null);
-  
+  const lastToggleRef = useRef(0);
+
+  const toggle = useCallback(() => {
+    const now = Date.now();
+    if (now - lastToggleRef.current < 200) return;
+    lastToggleRef.current = now;
+    setShowExperiences((prev) => !prev);
+  }, [setShowExperiences]);
+
   useEffect(() => {
     const el = divRef.current;
     if (el) {
@@ -158,49 +253,44 @@ function ExperiencesToggleControl({ showExperiences, setShowExperiences, experie
 
       const handleClick = (e: MouseEvent) => {
         e.stopPropagation();
-        setShowExperiences(!showExperiences);
+        e.preventDefault();
+        toggle();
       };
 
-      el.addEventListener('click', handleClick);
+      el.addEventListener("click", handleClick);
       return () => {
-        el.removeEventListener('click', handleClick);
+        el.removeEventListener("click", handleClick);
       };
     }
-  }, [showExperiences, setShowExperiences]);
+  }, [toggle]);
 
   return (
-    <div 
+    <div
       ref={divRef}
-      className="leaflet-control leaflet-bar"
+      role="button"
+      tabIndex={0}
+      className={`leaflet-control leaflet-bar collective-exp-toggle-control ${showExperiences ? "collective-exp-toggle-control--active" : ""}`}
       style={{
-        position: "absolute",
-        top: 56,
-        right: 10,
-        zIndex: 1001,
-        background: showExperiences ? "#2c7a7b" : "white",
-        color: showExperiences ? "white" : "#666",
-        width: 36,
-        height: 36,
-        borderRadius: "50%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        pointerEvents: "auto",
-        boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
-        border: "none"
+        background: showExperiences ? "#cba6f7" : "white",
+        color: showExperiences ? "#11111b" : "#666",
       }}
-      title="Mostrar experiencias"
+      title={showExperiences ? "Ocultar experiencias" : "Mostrar experiencias"}
+      aria-label={showExperiences ? "Ocultar experiencias" : "Mostrar experiencias"}
+      aria-pressed={showExperiences}
+      onClick={(e) => {
+        e.stopPropagation();
+        toggle();
+      }}
     >
-      <svg 
-        width="18" 
-        height="18" 
-        viewBox="0 0 24 24" 
-        fill="none" 
-        stroke="currentColor" 
-        strokeWidth="2" 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       >
         <circle cx="12" cy="12" r="10" />
         <circle cx="12" cy="12" r="6" />
@@ -210,7 +300,7 @@ function ExperiencesToggleControl({ showExperiences, setShowExperiences, experie
   );
 }
 
-export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Props) {
+export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode = "countries" }: Props) {
   const { session } = useAuth();
   const [internalScope, setInternalScope] = useState<"all" | "following">("all");
   const scope = propScope !== undefined ? propScope : internalScope;
@@ -229,7 +319,9 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
     }
   };
 
+  const isPeaks = mode === "peaks";
   const [worldGeo, setWorldGeo] = useState<FeatureCollection | null>(_worldGeoCache);
+  const [spainGeo, setSpainGeo] = useState<FeatureCollection | null>(_spainGeoCache);
   const [collectiveData, setCollectiveData] = useState<Map<string, CollectiveSummitData>>(new Map());
   const [loading, setLoading] = useState(true);
   
@@ -244,14 +336,20 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
 
   // Fetch GeoJSON
   useEffect(() => {
-    if (!worldGeo) {
-      fetchWorldGeo().then(setWorldGeo).catch(() => setWorldGeo(null));
+    if (isPeaks) {
+      if (!spainGeo) {
+        fetchProvinces().then(setSpainGeo).catch(() => setSpainGeo(null));
+      }
+    } else {
+      if (!worldGeo) {
+        fetchWorldGeo().then(setWorldGeo).catch(() => setWorldGeo(null));
+      }
     }
-  }, [worldGeo]);
+  }, [isPeaks, spainGeo, worldGeo]);
 
-  // Fetch collective data (countries)
+  // Fetch collective data (summits / countries)
   useEffect(() => {
-    async function fetchCountries() {
+    async function fetchSummits() {
       if (!supabase) {
         setLoading(false);
         return;
@@ -262,7 +360,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
       layerRefs.current.clear();
       
       const { data, error } = await supabase.rpc('get_collective_summits', {
-        p_mode: "countries",
+        p_mode: isPeaks ? "peaks" : "countries",
         p_following_only: scope === "following"
       });
       
@@ -280,13 +378,13 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
       setCollectiveData(map);
       setLoading(false);
     }
-    fetchCountries();
-  }, [scope]);
+    fetchSummits();
+  }, [scope, isPeaks]);
 
-  // Fetch experiences
+  // Fetch experiences (only in countries mode)
   useEffect(() => {
     async function fetchExperiences() {
-      if (!showExperiences || !supabase) {
+      if (isPeaks || !showExperiences || !supabase) {
         setExperienceMarkers([]);
         return;
       }
@@ -300,7 +398,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
             .select('following_id')
             .eq('follower_id', session.user.id)
             .eq('status', 'accepted');
-          if (following) {
+          if (following && following.length > 0) {
             allowedUserIds = following.map(f => f.following_id);
             allowedUserIds.push(session.user.id); // Incluirse a uno mismo
           } else {
@@ -310,13 +408,20 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
           allowedUserIds = [];
         }
       }
+
+      if (allowedUserIds !== null && allowedUserIds.length === 0) {
+        setExperienceMarkers([]);
+        return;
+      }
       
       let query = supabase
         .from('experience_records')
-        .select('id, lat, lng, location_name, user_id, experience_id')
-        .not('lat', 'is', null);
+        .select('id, lat, lng, location_name, user_id, experience_id, sub_item_id, is_wishlist')
+        .not('lat', 'is', null)
+        .not('lng', 'is', null)
+        .or('is_wishlist.is.null,is_wishlist.eq.false');
         
-      if (allowedUserIds) {
+      if (allowedUserIds && allowedUserIds.length > 0) {
         query = query.in('user_id', allowedUserIds);
       }
       
@@ -332,11 +437,15 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
         
         let profilesQuery = supabase
           .from('profiles')
-          .select('id, username, avatar_url, is_public')
+          .select('id, username, avatar_url, is_public, is_test')
           .in('id', userIds);
           
         if (scope === 'all') {
-          profilesQuery = profilesQuery.eq('is_public', true);
+          if (session?.user?.id) {
+            profilesQuery = profilesQuery.or(`is_public.eq.true,id.eq.${session.user.id}`);
+          } else {
+            profilesQuery = profilesQuery.eq('is_public', true);
+          }
         }
         
         const { data: profilesData, error: profilesError } = await profilesQuery;
@@ -349,7 +458,9 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
         const profilesMap = new Map();
         if (profilesData) {
           for (const p of profilesData) {
-            profilesMap.set(p.id, p);
+            if (!p.is_test) {
+              profilesMap.set(p.id, p);
+            }
           }
         }
         
@@ -366,7 +477,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
       }
     }
     fetchExperiences();
-  }, [scope, showExperiences, session]);
+  }, [scope, showExperiences, session, isPeaks]);
 
   const getVisitorCount = useCallback((summitId: string) => {
     const data = collectiveData.get(summitId);
@@ -383,25 +494,41 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
     } else if (count === 1) {
       color = "#8c3a25"; weight = 1.5; fillColor = "#c75a3a"; fillOpacity = 0.75;
     } else if (count === 2) {
-      color = "#9583ad"; weight = 1.15; fillColor = "#c5b3da"; fillOpacity = 0.65;
+      if (isPeaks) {
+        color = "#7da894"; weight = 1.15; fillColor = "#bcd4c8"; fillOpacity = 0.65;
+      } else {
+        color = "#9583ad"; weight = 1.15; fillColor = "#c5b3da"; fillOpacity = 0.65;
+      }
     } else {
-      color = "#4a2878"; weight = 1.5; fillColor = "#7b52ab"; fillOpacity = 0.8;
+      if (isPeaks) {
+        color = "#245f52"; weight = 1.5; fillColor = "#5c9b7d"; fillOpacity = 0.8;
+      } else {
+        color = "#4a2878"; weight = 1.5; fillColor = "#7b52ab"; fillOpacity = 0.8;
+      }
     }
 
     return { color, weight, fillColor, fillOpacity };
-  }, [getVisitorCount]);
+  }, [getVisitorCount, isPeaks]);
 
   const geoStyle = useCallback(
     (f: any) => {
-      const country = resolveCountryFromFeature(f as any);
-      const summitId = country ? country.id : "";
+      if (isPeaks) {
+        const peak = peakByCode[String(f?.properties?.Codigo ?? "")];
+        if (!peak) {
+          return { color: "#c4bfb6", weight: 0.8, fillColor: "#e8e4df", fillOpacity: 0.4 };
+        }
+        return getStyle(peak.id);
+      } else {
+        const country = resolveCountryFromFeature(f as any);
+        const summitId = country ? country.id : "";
 
-      if (!summitId) {
-        return { color: "#c4bfb6", weight: 0.8, fillColor: "#e8e4df", fillOpacity: 0.4 };
+        if (!summitId) {
+          return { color: "#c4bfb6", weight: 0.8, fillColor: "#e8e4df", fillOpacity: 0.4 };
+        }
+        return getStyle(summitId);
       }
-      return getStyle(summitId);
     },
-    [getStyle],
+    [isPeaks, getStyle],
   );
 
   // ── Reactively update layer styles without remounting GeoJSON ──
@@ -416,52 +543,128 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
 
   const onEachFeature = useCallback(
     (f: any, layer: L.Layer) => {
-      const country = resolveCountryFromFeature(f as any);
-      if (!country) return;
-      const summitId = country.id;
-      const name = country.name;
+      if (isPeaks) {
+        const peak = peakByCode[String(f?.properties?.Codigo ?? "")];
+        if (!peak) return;
+        const summitId = peak.id;
+        const code = peak.code;
+        const name = `${peak.province}: ${peak.name}`;
 
-      layerRefs.current.set(summitId, layer as Path);
-      const count = getVisitorCount(summitId);
-      const tooltipText = count > 0
-        ? `${name} — ${count} ${count === 1 ? 'visitante' : 'visitantes'}`
-        : name;
+        layerRefs.current.set(code, layer as Path);
+        const count = getVisitorCount(summitId);
+        const tooltipText = count > 0
+          ? `${name} — ${count} ${count === 1 ? 'escalador' : 'escaladores'}`
+          : name;
 
-      const statusClass = count >= 3 ? "tooltip-done" : count > 0 ? "tooltip-wishlist" : "tooltip-todo";
-      layer.bindTooltip(tooltipText, {
-        sticky: true,
-        className: `summit-tooltip ${statusClass}`,
-      });
+        const statusClass = count >= 3 ? "tooltip-done" : count > 0 ? "tooltip-wishlist" : "tooltip-todo";
+        layer.bindTooltip(tooltipText, {
+          sticky: true,
+          className: `summit-tooltip ${statusClass}`,
+        });
 
-      layer.on("click", () => {
-        const data = collectiveData.get(summitId);
-        if (data && data.visitor_usernames.length > 0) {
-          const visitors = data.visitor_usernames.map((username, i) => ({
-            id: data.visitor_ids[i],
-            username,
-            avatar: data.visitor_avatars[i],
-          }));
-          setSelectedSummit({ id: summitId, name, visitors });
-        } else {
-          setSelectedSummit({ id: summitId, name, visitors: [] });
-        }
-      });
+        layer.on("click", () => {
+          const data = collectiveData.get(summitId);
+          if (data && data.visitor_usernames.length > 0) {
+            const visitors = data.visitor_usernames.map((username, i) => ({
+              id: data.visitor_ids[i],
+              username,
+              avatar: data.visitor_avatars[i],
+            }));
+            setSelectedSummit({ id: summitId, name, visitors });
+          } else {
+            setSelectedSummit({ id: summitId, name, visitors: [] });
+          }
+        });
 
-      layer.on("mouseover", () => {
-        if (searchedId === summitId) return;
-        const style = getStyle(summitId);
-        (layer as Path).setStyle({ weight: 2.5, fillOpacity: Math.min(style.fillOpacity + 0.15, 1) });
-      });
-      layer.on("mouseout", () => {
-        if (searchedId === summitId) return;
-        const style = getStyle(summitId);
-        (layer as Path).setStyle({ weight: style.weight, fillOpacity: style.fillOpacity });
-      });
+        layer.on("mouseover", () => {
+          if (searchedId === code) return;
+          const style = getStyle(summitId);
+          (layer as Path).setStyle({ weight: 2.5, fillOpacity: Math.min(style.fillOpacity + 0.15, 1) });
+        });
+        layer.on("mouseout", () => {
+          if (searchedId === code) return;
+          const style = getStyle(summitId);
+          (layer as Path).setStyle({ weight: style.weight, fillOpacity: style.fillOpacity });
+        });
+      } else {
+        const country = resolveCountryFromFeature(f as any);
+        if (!country) return;
+        const summitId = country.id;
+        const name = country.name;
+
+        layerRefs.current.set(summitId, layer as Path);
+        const count = getVisitorCount(summitId);
+        const tooltipText = count > 0
+          ? `${name} — ${count} ${count === 1 ? 'visitante' : 'visitantes'}`
+          : name;
+
+        const statusClass = count >= 3 ? "tooltip-done" : count > 0 ? "tooltip-wishlist" : "tooltip-todo";
+        layer.bindTooltip(tooltipText, {
+          sticky: true,
+          className: `summit-tooltip ${statusClass}`,
+        });
+
+        layer.on("click", () => {
+          const data = collectiveData.get(summitId);
+          if (data && data.visitor_usernames.length > 0) {
+            const visitors = data.visitor_usernames.map((username, i) => ({
+              id: data.visitor_ids[i],
+              username,
+              avatar: data.visitor_avatars[i],
+            }));
+            setSelectedSummit({ id: summitId, name, visitors });
+          } else {
+            setSelectedSummit({ id: summitId, name, visitors: [] });
+          }
+        });
+
+        layer.on("mouseover", () => {
+          if (searchedId === summitId) return;
+          const style = getStyle(summitId);
+          (layer as Path).setStyle({ weight: 2.5, fillOpacity: Math.min(style.fillOpacity + 0.15, 1) });
+        });
+        layer.on("mouseout", () => {
+          if (searchedId === summitId) return;
+          const style = getStyle(summitId);
+          (layer as Path).setStyle({ weight: style.weight, fillOpacity: style.fillOpacity });
+        });
+      }
     },
-    [collectiveData, getVisitorCount, getStyle, searchedId],
+    [isPeaks, collectiveData, getVisitorCount, getStyle, searchedId],
   );
 
   const searchItems = useMemo<SearchItem[]>(() => {
+    if (isPeaks) {
+      return peakEntries.map((peak) => {
+        let bounds: any = undefined;
+        if (spainGeo) {
+          const relatedCodes = peakEntries
+            .filter((p) => p.id === peak.id)
+            .map((p) => p.code);
+
+          const relatedFeatures = spainGeo.features.filter((f) =>
+            relatedCodes.includes(String(f.properties?.Codigo ?? ""))
+          );
+
+          if (relatedFeatures.length > 0) {
+            bounds = L.geoJSON(relatedFeatures as any).getBounds();
+          }
+        }
+        const count = getVisitorCount(peak.id);
+        const st = count >= 3 ? "done" : count > 0 ? "wishlist" : "none";
+
+        return {
+          id: peak.code,
+          name: peak.name,
+          nameLocal: peak.province,
+          status: st,
+          type: "peak",
+          coordinates: peak.coordinates,
+          bounds,
+        };
+      });
+    }
+
     return countries.map((c) => {
       const count = getVisitorCount(c.id);
       const st = count >= 3 ? "done" : count > 0 ? "wishlist" : "none";
@@ -483,7 +686,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
         bounds,
       };
     });
-  }, [getVisitorCount, worldGeo]);
+  }, [isPeaks, getVisitorCount, spainGeo, worldGeo]);
 
   const handleSearchSelect = useCallback((item: SearchItem) => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -496,24 +699,39 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
       layer.bringToFront();
     }
     
-    const data = collectiveData.get(item.id);
-    if (data && data.visitor_usernames.length > 0) {
-      const visitors = data.visitor_usernames.map((username, i) => ({
-        id: data.visitor_ids[i],
-        username,
-        avatar: data.visitor_avatars[i],
-      }));
-      setSelectedSummit({ id: item.id, name: item.name, visitors });
+    if (isPeaks) {
+      const peak = peakByCode[item.id] || peakEntries.find((p) => p.id === item.id);
+      const summitId = peak ? peak.id : item.id;
+      const data = collectiveData.get(summitId);
+      const name = peak ? `${peak.province}: ${peak.name}` : item.name;
+      if (data && data.visitor_usernames.length > 0) {
+        const visitors = data.visitor_usernames.map((username, i) => ({
+          id: data.visitor_ids[i],
+          username,
+          avatar: data.visitor_avatars[i],
+        }));
+        setSelectedSummit({ id: summitId, name, visitors });
+      } else {
+        setSelectedSummit({ id: summitId, name, visitors: [] });
+      }
     } else {
-      setSelectedSummit({ id: item.id, name: item.name, visitors: [] });
+      const data = collectiveData.get(item.id);
+      if (data && data.visitor_usernames.length > 0) {
+        const visitors = data.visitor_usernames.map((username, i) => ({
+          id: data.visitor_ids[i],
+          username,
+          avatar: data.visitor_avatars[i],
+        }));
+        setSelectedSummit({ id: item.id, name: item.name, visitors });
+      } else {
+        setSelectedSummit({ id: item.id, name: item.name, visitors: [] });
+      }
     }
-
-
 
     searchTimeoutRef.current = setTimeout(() => {
       setSearchedId(null);
     }, 1800);
-  }, [collectiveData, getStyle]);
+  }, [isPeaks, collectiveData]);
 
   // Clean up timeout
   useEffect(() => {
@@ -522,6 +740,29 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
       if (scanFrameRef.current) cancelAnimationFrame(scanFrameRef.current);
     };
   }, []);
+
+  // Unique peak markers grouped by physical peak
+  const uniquePeaks = useMemo(() => {
+    if (!isPeaks) return [];
+    const map = new Map<string, { id: string; name: string; provinces: string[]; coordinates: [number, number]; altitude: number }>();
+    for (const p of peakEntries) {
+      const existing = map.get(p.id);
+      if (existing) {
+        if (!existing.provinces.includes(p.province)) {
+          existing.provinces.push(p.province);
+        }
+      } else {
+        map.set(p.id, {
+          id: p.id,
+          name: p.name,
+          provinces: [p.province],
+          coordinates: p.coordinates,
+          altitude: p.altitude,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [isPeaks]);
 
   // Total stats
   const totalVisited = collectiveData.size;
@@ -533,13 +774,19 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
     return set.size;
   }, [collectiveData]);
 
+  const statsText = loading
+    ? "Cargando..."
+    : isPeaks
+      ? `${totalVisited} ${totalVisited === 1 ? 'pico' : 'picos'} · ${allVisitors} ${allVisitors === 1 ? 'escalador' : 'escaladores'}`
+      : `${totalVisited} ${totalVisited === 1 ? 'país' : 'países'} · ${allVisitors} ${allVisitors === 1 ? 'viajero' : 'viajeros'}`;
+
   return (
-    <div className="collective-map-overlay mode-countries">
+    <div className={`collective-map-overlay ${isPeaks ? "mode-peaks" : "mode-countries"}`}>
       <div className="collective-map-header">
         <div className="collective-map-header-left">
           <h2>Mapa Colectivo</h2>
           <span className="collective-map-stats">
-            {loading ? "Cargando..." : `${totalVisited} países · ${allVisitors} viajeros`}
+            {statsText}
           </span>
         </div>
         
@@ -572,18 +819,18 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
           </div>
         ) : (
           <MapContainer
-            key="map-countries"
+            key={isPeaks ? "map-peaks" : "map-countries"}
             className="map"
             scrollWheelZoom={true}
             preferCanvas={true}
-            minZoom={1}
-            maxZoom={12}
-            maxBounds={[[-85, -180], [85, 180]]}
+            minZoom={isPeaks ? 4 : 1}
+            maxZoom={isPeaks ? 10 : 12}
+            maxBounds={isPeaks ? [[24, -22], [46, 8]] : [[-85, -180], [85, 180]]}
             maxBoundsViscosity={0.5}
           >
             <MapZoomListener />
             <SweepOverlay searchedId={searchedId} layerRefs={layerRefs} />
-            <FitWorld />
+            {isPeaks ? <FitSpain /> : <FitWorld />}
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -591,7 +838,15 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
               updateWhenIdle={true}
               updateWhenZooming={false}
             />
-            {worldGeo && (
+            {isPeaks && spainGeo && (
+              <GeoJSON
+                key="collective-spain"
+                data={spainGeo}
+                style={geoStyle}
+                onEachFeature={onEachFeature}
+              />
+            )}
+            {!isPeaks && worldGeo && (
               <GeoJSON
                 key="collective-countries"
                 data={worldGeo}
@@ -600,13 +855,55 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
               />
             )}
             
-            {showExperiences && experienceMarkers.map(marker => {
+            {isPeaks && uniquePeaks.map((peak) => {
+              const count = getVisitorCount(peak.id);
+              const icon = getPeakMarkerIcon(count);
+              const provText = peak.provinces.join(" / ");
+              return (
+                <Marker
+                  key={peak.id}
+                  position={peak.coordinates}
+                  icon={icon}
+                  zIndexOffset={count > 0 ? 500 : 100}
+                  eventHandlers={{
+                    click: () => {
+                      const data = collectiveData.get(peak.id);
+                      const name = `${provText}: ${peak.name} (${peak.altitude}m)`;
+                      if (data && data.visitor_usernames.length > 0) {
+                        const visitors = data.visitor_usernames.map((username, i) => ({
+                          id: data.visitor_ids[i],
+                          username,
+                          avatar: data.visitor_avatars[i],
+                        }));
+                        setSelectedSummit({ id: peak.id, name, visitors });
+                      } else {
+                        setSelectedSummit({ id: peak.id, name, visitors: [] });
+                      }
+                    },
+                  }}
+                >
+                  <Tooltip direction="top" offset={[0, -12]} className="summit-tooltip">
+                    <strong>{peak.name}</strong> ({peak.altitude}m)
+                    <br />
+                    <span style={{ fontSize: "11px", opacity: 0.85 }}>{provText}</span>
+                    <br />
+                    <span style={{ fontSize: "11px", color: count >= 3 ? "#245f52" : count === 2 ? "#5c9b7d" : count === 1 ? "#c75a3a" : "#888" }}>
+                      {count} {count === 1 ? "escalador" : "escaladores"}
+                    </span>
+                  </Tooltip>
+                </Marker>
+              );
+            })}
+
+            {!isPeaks && showExperiences && experienceMarkers.map(marker => {
                // Find icon name
                const cat = predefinedCategories.find(c => c.experiences.some(e => e.id === marker.experience_id));
                const iconName = cat?.iconName || "star";
                
                // Find experience name
-               const expName = cat?.experiences.find(e => e.id === marker.experience_id)?.name || marker.location_name || 'Experiencia';
+               const exp = cat?.experiences.find(e => e.id === marker.experience_id);
+               const subItem = exp?.subItems?.find(s => s.id === marker.sub_item_id);
+               const expName = subItem?.name || exp?.name || marker.location_name || 'Experiencia';
 
                let customIcon = expIconCache.get(iconName);
                if (!customIcon) {
@@ -654,26 +951,28 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
             <MapSearchControl
               items={searchItems}
               onSelect={handleSearchSelect}
-              placeholder="Buscar país..."
+              placeholder={isPeaks ? "Buscar pico o provincia..." : "Buscar país..."}
             />
             
-            <ExperiencesToggleControl showExperiences={showExperiences} setShowExperiences={setShowExperiences} experienceMarkersCount={experienceMarkers.length} />
+            {!isPeaks && (
+              <ExperiencesToggleControl showExperiences={showExperiences} setShowExperiences={setShowExperiences} experienceMarkersCount={experienceMarkers.length} />
+            )}
           </MapContainer>
         )}
 
         {/* Legend */}
         <div className="collective-map-legend">
           <span>
-            <i className="collective-legend-dot collective-legend-dot--3plus" /> 3+ visitantes
+            <i className="collective-legend-dot collective-legend-dot--3plus" /> 3+ {isPeaks ? "escaladores" : "visitantes"}
           </span>
           <span>
-            <i className="collective-legend-dot collective-legend-dot--2" /> 2 visitantes
+            <i className="collective-legend-dot collective-legend-dot--2" /> 2 {isPeaks ? "escaladores" : "visitantes"}
           </span>
           <span>
-            <i className="collective-legend-dot collective-legend-dot--1" /> 1 visitante
+            <i className="collective-legend-dot collective-legend-dot--1" /> 1 {isPeaks ? "escalador" : "visitante"}
           </span>
           <span>
-            <i className="collective-legend-dot collective-legend-dot--none" /> Sin visitar
+            <i className="collective-legend-dot collective-legend-dot--none" /> {isPeaks ? "Sin ascender" : "Sin visitar"}
           </span>
         </div>
 
@@ -692,12 +991,12 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
             {selectedSummit.visitors.length > 0 ? (
               <>
                 <p className="collective-visitors-count">
-                  {selectedSummit.visitors.length} {selectedSummit.visitors.length === 1 ? 'persona ha' : 'personas han'} {(selectedSummit as any).isExperience ? 'vivido esta experiencia' : 'visitado este lugar'}
+                  {selectedSummit.visitors.length} {selectedSummit.visitors.length === 1 ? 'persona ha' : 'personas han'} {(selectedSummit as any).isExperience ? 'vivido esta experiencia' : isPeaks ? 'ascendido esta cumbre' : 'visitado este lugar'}
                 </p>
                 <ul className="collective-visitors-list">
                   {selectedSummit.visitors.map((v) => (
                     <li key={v.id}>
-                      <Link href={`/perfil/${v.username}?challenge=countries`} className="collective-visitor-link" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/perfil/${v.username}?challenge=${isPeaks ? "peaks" : "countries"}`} className="collective-visitor-link" onClick={(e) => e.stopPropagation()}>
                         <div className="collective-visitor-avatar">
                           {v.avatar ? (
                             <img src={v.avatar} alt={v.username} />
@@ -714,8 +1013,8 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange }: Prop
             ) : (
               <p className="collective-visitors-empty">
                 {scope === "following"
-                  ? "Ninguna persona a la que sigues ha visitado este lugar todavía."
-                  : "Nadie ha visitado este lugar todavía."}
+                  ? (isPeaks ? "Ninguna persona a la que sigues ha ascendido esta cumbre todavía." : "Ninguna persona a la que sigues ha visitado este lugar todavía.")
+                  : (isPeaks ? "Nadie ha ascendido esta cumbre todavía." : "Nadie ha visitado este lugar todavía.")}
               </p>
             )}
           </div>

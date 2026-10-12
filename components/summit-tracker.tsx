@@ -892,8 +892,21 @@ export function SummitTracker({
 
   const [targetConnStatus, setTargetConnStatus] = useState<"pending" | "accepted" | null>(null);
   const [targetConnLoading, setTargetConnLoading] = useState(false);
+  const [justFollowed, setJustFollowed] = useState(false);
+  const [touchUnfollowActive, setTouchUnfollowActive] = useState(false);
+  const touchHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const justFollowedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    return () => {
+      if (touchHoldTimerRef.current) clearTimeout(touchHoldTimerRef.current);
+      if (justFollowedTimerRef.current) clearTimeout(justFollowedTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    setJustFollowed(false);
+    setTouchUnfollowActive(false);
     if (!targetProfile || !session?.user?.id || !supabase) return;
     if (session.user.id === targetProfile.id) return;
 
@@ -930,6 +943,9 @@ export function SummitTracker({
     setTargetConnLoading(false);
     if (!error) {
       setTargetConnStatus(newStatus);
+      if (newStatus === "accepted") {
+        setJustFollowed(true);
+      }
     }
   }
 
@@ -944,6 +960,8 @@ export function SummitTracker({
     setTargetConnLoading(false);
     if (!error) {
       setTargetConnStatus(null);
+      setJustFollowed(false);
+      setTouchUnfollowActive(false);
     }
   }
 
@@ -4253,8 +4271,8 @@ export function SummitTracker({
               : ""
           }`}
         >
-          <div className={`hero-title-wrap ${!targetProfile ? "hero-title-wrap--motto hide-on-mobile" : ""}`}>
-            <h1>
+          <div className={`hero-title-wrap ${!targetProfile ? "hero-title-wrap--motto hide-on-mobile" : "hero-title-wrap--user"}`}>
+            <h1 className={targetProfile ? "hero-title--user" : undefined}>
               {targetProfile ? (
                 <>
                   El mapa de <br />
@@ -4283,7 +4301,43 @@ export function SummitTracker({
           </div>
 
           {targetProfile && session?.user?.id !== targetProfile.id && (
-            <div className="hero-target-follow-center">
+            <div
+              className={`hero-target-follow-center ${
+                justFollowed ? "hero-target-follow-center--just-followed" : ""
+              } ${touchUnfollowActive ? "hero-target-follow-center--touch-unfollow" : ""}`}
+              onMouseLeave={() => setJustFollowed(false)}
+              onTouchStart={() => {
+                if (justFollowed) {
+                  setJustFollowed(false);
+                }
+                if (targetConnStatus === "accepted") {
+                  if (touchHoldTimerRef.current) clearTimeout(touchHoldTimerRef.current);
+                  touchHoldTimerRef.current = setTimeout(() => {
+                    setTouchUnfollowActive(true);
+                  }, 120);
+                }
+              }}
+              onTouchEnd={() => {
+                if (touchHoldTimerRef.current) {
+                  clearTimeout(touchHoldTimerRef.current);
+                  touchHoldTimerRef.current = null;
+                }
+                setTouchUnfollowActive(false);
+                if (justFollowed) {
+                  if (justFollowedTimerRef.current) clearTimeout(justFollowedTimerRef.current);
+                  justFollowedTimerRef.current = setTimeout(() => {
+                    setJustFollowed(false);
+                  }, 800);
+                }
+              }}
+              onTouchCancel={() => {
+                if (touchHoldTimerRef.current) {
+                  clearTimeout(touchHoldTimerRef.current);
+                  touchHoldTimerRef.current = null;
+                }
+                setTouchUnfollowActive(false);
+              }}
+            >
               <button
                 type="button"
                 className={`hero-center-follow-btn ${
@@ -4292,9 +4346,12 @@ export function SummitTracker({
                     : targetConnStatus === "pending"
                     ? "hero-center-follow-btn--pending"
                     : "hero-center-follow-btn--connect"
+                } ${justFollowed ? "hero-center-follow-btn--just-followed" : ""} ${
+                  touchUnfollowActive ? "hero-center-follow-btn--touch-unfollow" : ""
                 }`}
                 disabled={targetConnLoading}
                 onClick={targetConnStatus ? handleUnfollowTarget : handleFollowTarget}
+                onMouseLeave={() => setJustFollowed(false)}
                 title={
                   targetConnStatus === "accepted"
                     ? "Siguiendo (clic para dejar de seguir)"

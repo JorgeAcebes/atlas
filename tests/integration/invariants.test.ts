@@ -811,6 +811,14 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(collectiveContent).toContain("scope?: \"all\" | \"following\"");
       expect(collectiveContent).toContain("onScopeChange?: (scope: \"all\" | \"following\") => void");
       expect(collectiveContent).toContain("onScopeChange(next)");
+
+      // Collective map supports both countries and peaks mode with identical controls
+      expect(rankingContent).toContain('((mode === "countries" && enableCountries) || (mode === "peaks" && enablePeaks))');
+      expect(rankingContent).toContain("mode={mode}");
+      expect(collectiveContent).toContain('mode?: "countries" | "peaks"');
+      expect(collectiveContent).toContain("isPeaks ? <FitSpain /> : <FitWorld />");
+      expect(collectiveContent).toContain('placeholder={isPeaks ? "Buscar pico o provincia..." : "Buscar país..."}');
+      expect(collectiveContent).toContain('3+ {isPeaks ? "escaladores" : "visitantes"}');
     });
 
     it("Invariant 11.26: Map concentric circles button (add experience) must be hidden when selecting location", () => {
@@ -894,6 +902,24 @@ describe("Project Critical Invariants (No Regressions)", () => {
 
       // Mobile media query (max-width: 768px) must enforce nowrap and tight padding
       expect(globalsCss).toMatch(/@media\s*\(max-width:\s*768px\)[\s\S]*?\.photo-editor-btn-label\s*\{[^}]*white-space:\s*nowrap\s*!important;/);
+    });
+
+    it("Invariant 11.31: Collective map experiences pins visibility and toggle control", () => {
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      // collective-map-overlay must override mode-countries so experience-hitbox and summit-pin--experience are visible
+      expect(globalsCss).toMatch(/\.collective-map-overlay[\s\S]*?\.experience-hitbox\s*\{[^}]*display:\s*block\s*!important/);
+      expect(globalsCss).toMatch(/\.collective-map-overlay[\s\S]*?\.summit-pin--experience\s*\{[^}]*display:\s*inline-flex\s*!important/);
+      // Pins must use the morado color #cba6f7 matching inverted experiences mode
+      expect(globalsCss).toMatch(/\.collective-map-overlay[\s\S]*?\.summit-pin--experience\s*\{[^}]*background:\s*#cba6f7\s*!important/);
+
+      const collectivePath = path.join(rootDir, "components/collective-map.tsx");
+      const collectiveContent = fs.readFileSync(collectivePath, "utf-8");
+      // Experiences toggle control must exist and toggle experiences
+      expect(collectiveContent).toContain("ExperiencesToggleControl");
+      expect(collectiveContent).toContain("collective-exp-toggle-control");
+      expect(collectiveContent).toContain("#cba6f7");
+      expect(collectiveContent).toContain("showExperiences && experienceMarkers.map");
+      expect(collectiveContent).toContain("subItem?.name || exp?.name || marker.location_name");
     });
   });
 });

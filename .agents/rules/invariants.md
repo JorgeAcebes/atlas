@@ -226,6 +226,9 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 4. **Tipografía Conforme al Sistema de Diseño**:
    - Encabezados principales (`h2`, `h3` del panel): `Playfair Display, Georgia, serif`.
    - Interfaz, recuentos, listas, leyendas y tooltips: `DM Sans, sans-serif`.
+5. **Disponibilidad Dual (Países y Picos)**:
+   - El mapa colectivo está plenamente disponible tanto para 196 Países como para 47 Picos desde la pestaña de Ranking.
+   - En ambas modalidades la barra de búsqueda superior derecha (`MapSearchControl`) y el botón de filtro «Siguiendo» (`.social-following-btn` con `UserRoundCheck`) son estructural y visualmente idénticos, adaptando dinámicamente las estadísticas (`picos` y `escaladores`), los marcadores físicos de cumbres y provincias con sus gradientes de color propios (en picos: verde oscuro `#5c9b7d` para 3+, verde claro `#bcd4c8` para 2, terracota `#c75a3a` para 1, y neutro para 0), la leyenda y la cartografía a la geografía española.
 
 ---
 

@@ -247,16 +247,63 @@ export function RankingTab({
     if (swipeTouchStartX.current === null || swipeTouchStartY.current === null) return;
     const diffX = e.changedTouches[0].clientX - swipeTouchStartX.current;
     const diffY = e.changedTouches[0].clientY - swipeTouchStartY.current;
-    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
-      if (diffX > 0 && mode === "peaks") {
-        switchMode("countries");
-      } else if (diffX < 0 && mode === "countries") {
-        switchMode("peaks");
+    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY) * 1.25) {
+      if (diffX < 0) {
+        if (mode === "peaks" && enableCountries) switchMode("countries");
+      } else {
+        if (mode === "countries" && enablePeaks) switchMode("peaks");
       }
     }
     swipeTouchStartX.current = null;
     swipeTouchStartY.current = null;
   };
+
+  useEffect(() => {
+    const handleGlobalTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.leaflet-container, input, textarea, select, .info-panel, .record-dialog, .auth-dialog, button, a')) {
+        return;
+      }
+      if (e.touches.length === 1) {
+        swipeTouchStartX.current = e.touches[0].clientX;
+        swipeTouchStartY.current = e.touches[0].clientY;
+      }
+    };
+
+    const handleGlobalTouchEnd = (e: TouchEvent) => {
+      if (swipeTouchStartX.current === null || swipeTouchStartY.current === null) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const diffX = endX - swipeTouchStartX.current;
+      const diffY = endY - swipeTouchStartY.current;
+
+      if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY) * 1.25) {
+        if (diffX < 0) {
+          if (mode === "peaks" && enableCountries) switchMode("countries");
+        } else {
+          if (mode === "countries" && enablePeaks) switchMode("peaks");
+        }
+      }
+      swipeTouchStartX.current = null;
+      swipeTouchStartY.current = null;
+    };
+
+    window.addEventListener("touchstart", handleGlobalTouchStart, { passive: true });
+    window.addEventListener("touchend", handleGlobalTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", handleGlobalTouchStart);
+      window.removeEventListener("touchend", handleGlobalTouchEnd);
+    };
+  }, [mode, enablePeaks, enableCountries]);
+
+  useEffect(() => {
+    // Precarga en segundo plano de los módulos del mapa para navegación instantánea sin flash blanco
+    const timer = setTimeout(() => {
+      import("./world-map").catch(() => {});
+      import("./spain-map").catch(() => {});
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const totalPossible = mode === "peaks" ? 47 : 196;
   const unit = mode === "peaks" ? "picos" : "países";
@@ -393,7 +440,12 @@ export function RankingTab({
       </header>
 
       {/* ── Franja Vertebral (Hero) ────────────────── */}
-      <section id="inicio" className="hero">
+      <section
+        id="inicio"
+        className="hero"
+        onTouchStart={handleSwipeTouchStart}
+        onTouchEnd={handleSwipeTouchEnd}
+      >
         <div className="hero-main hero-main--ranking">
           <div className="hero-title-wrap hero-title-wrap--motto hide-on-mobile">
             <h1>
@@ -531,14 +583,14 @@ export function RankingTab({
               </button>
             </div>
 
-            {mode === "countries" && enableCountries && (
+            {((mode === "countries" && enableCountries) || (mode === "peaks" && enablePeaks)) && (
               <div className="ranking-feed-controls-right">
                 <button
                   type="button"
                   className="collective-map-ethereal-btn"
                   onClick={() => setShowCollectiveMap(true)}
-                  title="Abrir mapa colectivo de países"
-                  aria-label="Abrir mapa colectivo de países"
+                  title={mode === "peaks" ? "Abrir mapa colectivo de picos" : "Abrir mapa colectivo de países"}
+                  aria-label={mode === "peaks" ? "Abrir mapa colectivo de picos" : "Abrir mapa colectivo de países"}
                 >
                   <IconCollectiveMap size={14} />
                   <span>Mapa colectivo</span>
@@ -617,6 +669,7 @@ export function RankingTab({
 
       {showCollectiveMap && (
         <CollectiveMap
+          mode={mode}
           scope={scope}
           onScopeChange={handleScopeChange}
           onClose={() => setShowCollectiveMap(false)}

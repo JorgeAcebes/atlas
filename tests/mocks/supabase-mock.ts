@@ -397,6 +397,60 @@ export class MockSupabaseClient {
       return { data: results, error: null };
     }
 
+    if (functionName === "get_collective_summits") {
+      const mode = args?.p_mode || "countries";
+      const followingOnly = args?.p_following_only || false;
+      const profiles = this.store.get("profiles") || [];
+      const connections = this.store.get("connections") || [];
+      const currentUserId = this.currentUser?.id;
+
+      let allowedUserIds = new Set<string>();
+      if (followingOnly) {
+        const followingIds = new Set(
+          connections
+            .filter((c) => c.follower_id === currentUserId && c.status === "accepted")
+            .map((c) => c.following_id)
+        );
+        allowedUserIds = followingIds;
+      } else {
+        allowedUserIds = new Set(
+          profiles
+            .filter((p) => p.is_public === true || p.id === currentUserId)
+            .map((p) => p.id)
+        );
+      }
+
+      const ascents = (this.store.get("ascents") || []).filter(
+        (a) =>
+          allowedUserIds.has(a.user_id) &&
+          a.is_wishlist !== true &&
+          (mode === "countries" ? String(a.summit_id).startsWith("country-") : !String(a.summit_id).startsWith("country-"))
+      );
+
+      const profileMap = new Map(profiles.map((p) => [p.id, p]));
+      const grouped = new Map<string, { visitor_ids: string[]; visitor_usernames: string[]; visitor_avatars: string[] }>();
+
+      for (const a of ascents) {
+        const p = profileMap.get(a.user_id);
+        if (!p) continue;
+        if (!grouped.has(a.summit_id)) {
+          grouped.set(a.summit_id, { visitor_ids: [], visitor_usernames: [], visitor_avatars: [] });
+        }
+        const g = grouped.get(a.summit_id)!;
+        if (!g.visitor_ids.includes(p.id)) {
+          g.visitor_ids.push(p.id);
+          g.visitor_usernames.push(p.username);
+          g.visitor_avatars.push(p.avatar_url || "");
+        }
+      }
+
+      const results = Array.from(grouped.entries()).map(([summit_id, data]) => ({
+        summit_id,
+        ...data,
+      }));
+      return { data: results, error: null };
+    }
+
     if (functionName === "get_user_completed_summits") {
       const targetUserId = args?.p_user_id;
       const ascents = (this.store.get("ascents") || []).filter(
