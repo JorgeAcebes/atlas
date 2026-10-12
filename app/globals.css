@@ -377,6 +377,37 @@ main {
   -webkit-backdrop-filter: blur(10px);
 }
 
+.topbar-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-right: 10px;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.topbar-back-btn:hover {
+  background: var(--sand);
+  color: var(--pine);
+  border-color: var(--pine);
+}
+
+@media (max-width: 700px) {
+  .topbar-back-btn {
+    width: 30px;
+    height: 30px;
+    margin-right: 6px;
+  }
+}
+
 .brand {
   color: var(--ink);
   text-decoration: none;

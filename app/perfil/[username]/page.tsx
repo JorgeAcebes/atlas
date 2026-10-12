@@ -12,6 +12,7 @@ export default async function UserProfilePage({ params, searchParams }: Props) {
   const resolvedSearchParams = await searchParams;
   const username = resolvedParams.username;
   const challenge = resolvedSearchParams?.challenge;
+  const from = (typeof resolvedSearchParams?.from === "string" ? resolvedSearchParams.from : undefined) as "ranking" | "social" | "mapa" | undefined;
   const initialMode = challenge === "peaks" ? "peaks" : "countries";
   const initialExperiences = challenge === "experiences";
 
@@ -27,6 +28,7 @@ export default async function UserProfilePage({ params, searchParams }: Props) {
       username={username}
       initialMode={initialMode}
       initialExperiences={initialExperiences}
+      fromTab={from}
     />
   );
 }

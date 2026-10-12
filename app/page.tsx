@@ -1,5 +1,5 @@
-import { SummitTracker } from "@/components/summit-tracker";
+"use client";
 
 export default function Home() {
-  return <SummitTracker mode="countries" />;
+  return null;
 }

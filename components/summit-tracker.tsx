@@ -30,7 +30,7 @@ import { InstallPrompt } from "./install-prompt";
 import { ConfirmModal } from "./confirm-modal";
 import PhotoEditor from "./photo-editor";
 import { PhotoLightbox } from "./photo-lightbox";
-import { getIconComponent } from "./icons";
+import { getIconComponent, IconLogo } from "./icons";
 import { LocationSearch } from "./location-search";
 import {
   Link as LinkIcon,
@@ -45,6 +45,7 @@ import {
   Triangle,
   Diamond,
   X,
+  ArrowLeft,
   UserRoundPlus,
   UserRoundCheck,
   UserRoundMinus,
@@ -159,6 +160,8 @@ type Props = {
   onNavigate?: (tab: string) => void;
   isActive?: boolean;
   initialExperiencesMode?: boolean;
+  fromTab?: "ranking" | "social" | "mapa";
+  initialTargetConnStatus?: "pending" | "accepted" | null;
 };
 
 function peakToItem(peak: Peak): SelectedItem {
@@ -290,37 +293,6 @@ function renderRecordLink(link?: string | null, linkName?: string | null) {
 }
 
 /* ── SVG icon components ────────────────── */
-function IconLogo({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        className="logo-mountain-1"
-        d="M8 52 L32 12 L44 32 Z"
-        fill="url(#logoGradGreen)"
-      />
-      <path
-        className="logo-mountain-2"
-        d="M20 60 L40.4 26 L56 52 Z"
-        fill="url(#logoGradPurple)"
-      />
-      <defs>
-        <linearGradient id="logoGradGreen" x1="8" y1="12" x2="44" y2="52">
-          <stop stopColor="#5c9b7d" />
-          <stop offset="1" stopColor="#245f52" />
-        </linearGradient>
-        <linearGradient id="logoGradPurple" x1="20" y1="26" x2="56" y2="60">
-          <stop stopColor="#9570c7" />
-          <stop offset="1" stopColor="#5b3a8c" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
 
 function IconMountain({ className }: { className?: string }) {
   return (
@@ -662,6 +634,8 @@ export function SummitTracker({
   onNavigate,
   isActive = true,
   initialExperiencesMode = false,
+  fromTab,
+  initialTargetConnStatus,
 }: Props) {
   const router = useRouter();
   const { session, profile: authProfile, refreshProfile, loading: authLoading } = useAuth();
@@ -699,6 +673,16 @@ export function SummitTracker({
 
   const isPeaks = currentMode === "peaks";
   const hasPendingRequests = usePendingRequests();
+
+  useEffect(() => {
+    if (initialModeProp && initialModeProp !== currentMode) {
+      if (initialModeProp === "peaks" && canShowPeaks) {
+        setCurrentMode("peaks");
+      } else if (initialModeProp === "countries" && canShowCountries) {
+        setCurrentMode("countries");
+      }
+    }
+  }, [initialModeProp, canShowPeaks, canShowCountries, currentMode]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -890,12 +874,20 @@ export function SummitTracker({
   const [isEditingExperiences, setIsEditingExperiences] = useState(false);
   const [iconDropdownOpen, setIconDropdownOpen] = useState(false);
 
-  const [targetConnStatus, setTargetConnStatus] = useState<"pending" | "accepted" | null>(null);
+  const [targetConnStatus, setTargetConnStatus] = useState<"pending" | "accepted" | null>(() => {
+    return initialTargetConnStatus !== undefined ? initialTargetConnStatus : null;
+  });
   const [targetConnLoading, setTargetConnLoading] = useState(false);
   const [justFollowed, setJustFollowed] = useState(false);
   const [touchUnfollowActive, setTouchUnfollowActive] = useState(false);
   const touchHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
   const justFollowedTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (initialTargetConnStatus !== undefined) {
+      setTargetConnStatus(initialTargetConnStatus);
+    }
+  }, [initialTargetConnStatus]);
 
   useEffect(() => {
     return () => {
@@ -3738,7 +3730,11 @@ export function SummitTracker({
   useEffect(() => {
     const handleGlobalTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target?.closest('.leaflet-container, input, textarea, select, .info-panel, .record-dialog, .auth-dialog, button, a')) {
+      if (
+        document.body.classList.contains("lightbox-open") ||
+        document.querySelector(".lightbox-backdrop") ||
+        target?.closest('.lightbox-backdrop, .lightbox-stage, .leaflet-container, input, textarea, select, .info-panel, .record-dialog, .auth-dialog, button, a')
+      ) {
         return;
       }
       if (e.touches.length === 1) {
@@ -3748,6 +3744,14 @@ export function SummitTracker({
     };
 
     const handleGlobalTouchEnd = (e: TouchEvent) => {
+      if (
+        document.body.classList.contains("lightbox-open") ||
+        document.querySelector(".lightbox-backdrop")
+      ) {
+        swipeStartXRef.current = null;
+        swipeStartYRef.current = null;
+        return;
+      }
       if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
       const endX = e.changedTouches[0].clientX;
       const endY = e.changedTouches[0].clientY;
@@ -4078,6 +4082,27 @@ export function SummitTracker({
     >
       {/* ── Topbar ──────────────────────── */}
       <header className="topbar">
+        {isReadOnly && (
+          <button
+            type="button"
+            className="topbar-back-btn"
+            aria-label="Volver"
+            title="Volver"
+            onClick={() => {
+              if (fromTab === "ranking") {
+                router.push(isPeaks ? "/ranking?challenge=peaks" : "/ranking");
+              } else if (fromTab === "social") {
+                router.push(isPeaks ? "/social?challenge=peaks" : "/social");
+              } else if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push(isPeaks ? "/ranking?challenge=peaks" : "/ranking");
+              }
+            }}
+          >
+            <ArrowLeft size={18} strokeWidth={2.2} />
+          </button>
+        )}
         {isReadOnly ? (
           <Link
             className="brand"
@@ -4146,7 +4171,7 @@ export function SummitTracker({
               <Link
                 href="/"
                 prefetch={true}
-                className="topbar-nav-link topbar-nav-link--mapa topbar-nav-link--active"
+                className={`topbar-nav-link topbar-nav-link--mapa ${!fromTab || fromTab === "mapa" ? "topbar-nav-link--active" : ""}`}
                 onClick={(e) => {
                   if (onNavigate) {
                     e.preventDefault();
@@ -4155,6 +4180,46 @@ export function SummitTracker({
                 }}
               >
                 Mapa
+              </Link>
+              <Link
+                href={`/social?challenge=${isPeaks ? "peaks" : "countries"}`}
+                prefetch={true}
+                className={`topbar-nav-link topbar-nav-link--social ${fromTab === "social" ? "topbar-nav-link--active" : ""}`}
+                style={{ position: "relative" }}
+                onClick={(e) => {
+                  if (onNavigate) {
+                    e.preventDefault();
+                    onNavigate(`/social?challenge=${isPeaks ? "peaks" : "countries"}`);
+                  }
+                }}
+              >
+                Social
+                {hasPendingRequests ? (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "-2px",
+                      right: "-6px",
+                      width: "8px",
+                      height: "8px",
+                      backgroundColor: "red",
+                      borderRadius: "50%",
+                    }}
+                  />
+                ) : null}
+              </Link>
+              <Link
+                href={`/ranking?challenge=${isPeaks ? "peaks" : "countries"}`}
+                prefetch={true}
+                className={`topbar-nav-link topbar-nav-link--ranking ${fromTab === "ranking" ? "topbar-nav-link--active" : ""}`}
+                onClick={(e) => {
+                  if (onNavigate) {
+                    e.preventDefault();
+                    onNavigate(`/ranking?challenge=${isPeaks ? "peaks" : "countries"}`);
+                  }
+                }}
+              >
+                Ranking
               </Link>
             </>
           ) : (
@@ -4173,49 +4238,48 @@ export function SummitTracker({
               >
                 Mapa
               </a>
+              <Link
+                href={`/social?challenge=${isPeaks ? "peaks" : "countries"}`}
+                prefetch={true}
+                className="topbar-nav-link topbar-nav-link--social"
+                style={{ position: "relative" }}
+                onClick={(e) => {
+                  if (onNavigate) {
+                    e.preventDefault();
+                    onNavigate(`/social?challenge=${isPeaks ? "peaks" : "countries"}`);
+                  }
+                }}
+              >
+                Social
+                {hasPendingRequests ? (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "-2px",
+                      right: "-6px",
+                      width: "8px",
+                      height: "8px",
+                      backgroundColor: "red",
+                      borderRadius: "50%",
+                    }}
+                  />
+                ) : null}
+              </Link>
+              <Link
+                href={`/ranking?challenge=${isPeaks ? "peaks" : "countries"}`}
+                prefetch={true}
+                className="topbar-nav-link topbar-nav-link--ranking"
+                onClick={(e) => {
+                  if (onNavigate) {
+                    e.preventDefault();
+                    onNavigate(`/ranking?challenge=${isPeaks ? "peaks" : "countries"}`);
+                  }
+                }}
+              >
+                Ranking
+              </Link>
             </>
           )}
-
-          <Link
-            href={`/social?challenge=${isPeaks ? "peaks" : "countries"}`}
-            prefetch={true}
-            className="topbar-nav-link topbar-nav-link--social"
-            style={{ position: "relative" }}
-            onClick={(e) => {
-              if (onNavigate) {
-                e.preventDefault();
-                onNavigate(`/social?challenge=${isPeaks ? "peaks" : "countries"}`);
-              }
-            }}
-          >
-            Social
-            {hasPendingRequests ? (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-2px",
-                  right: "-6px",
-                  width: "8px",
-                  height: "8px",
-                  backgroundColor: "red",
-                  borderRadius: "50%",
-                }}
-              />
-            ) : null}
-          </Link>
-          <Link
-            href={`/ranking?challenge=${isPeaks ? "peaks" : "countries"}`}
-            prefetch={true}
-            className="topbar-nav-link topbar-nav-link--ranking"
-            onClick={(e) => {
-              if (onNavigate) {
-                e.preventDefault();
-                onNavigate(`/ranking?challenge=${isPeaks ? "peaks" : "countries"}`);
-              }
-            }}
-          >
-            Ranking
-          </Link>
           {(myProfile || session) ? (
             <button
               className="account-button"

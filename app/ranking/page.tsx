@@ -1,5 +1,5 @@
-import { RankingTab } from "@/components/ranking-tab";
+"use client";
 
 export default function RankingPage() {
-  return <RankingTab />;
+  return null;
 }

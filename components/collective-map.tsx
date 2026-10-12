@@ -490,18 +490,22 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
     let color, weight, fillColor, fillOpacity;
 
     if (count === 0) {
-      color = "#c4bfb6"; weight = 0.8; fillColor = "#e8e4df"; fillOpacity = 0.4;
+      if (isPeaks) {
+        color = "#6f9488"; weight = 1.25; fillColor = "#ebf2ee"; fillOpacity = 0.55;
+      } else {
+        color = "#c4bfb6"; weight = 0.8; fillColor = "#e8e4df"; fillOpacity = 0.4;
+      }
     } else if (count === 1) {
       color = "#8c3a25"; weight = 1.5; fillColor = "#c75a3a"; fillOpacity = 0.75;
     } else if (count === 2) {
       if (isPeaks) {
-        color = "#7da894"; weight = 1.15; fillColor = "#bcd4c8"; fillOpacity = 0.65;
+        color = "#3d735f"; weight = 1.35; fillColor = "#bcd4c8"; fillOpacity = 0.75;
       } else {
         color = "#9583ad"; weight = 1.15; fillColor = "#c5b3da"; fillOpacity = 0.65;
       }
     } else {
       if (isPeaks) {
-        color = "#245f52"; weight = 1.5; fillColor = "#5c9b7d"; fillOpacity = 0.8;
+        color = "#18342d"; weight = 1.6; fillColor = "#5c9b7d"; fillOpacity = 0.85;
       } else {
         color = "#4a2878"; weight = 1.5; fillColor = "#7b52ab"; fillOpacity = 0.8;
       }
@@ -515,7 +519,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
       if (isPeaks) {
         const peak = peakByCode[String(f?.properties?.Codigo ?? "")];
         if (!peak) {
-          return { color: "#c4bfb6", weight: 0.8, fillColor: "#e8e4df", fillOpacity: 0.4 };
+          return { color: "#6f9488", weight: 1.25, fillColor: "#ebf2ee", fillOpacity: 0.55 };
         }
         return getStyle(peak.id);
       } else {
@@ -996,7 +1000,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
                 <ul className="collective-visitors-list">
                   {selectedSummit.visitors.map((v) => (
                     <li key={v.id}>
-                      <Link href={`/perfil/${v.username}?challenge=${isPeaks ? "peaks" : "countries"}`} className="collective-visitor-link" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/perfil/${v.username}?challenge=${isPeaks ? "peaks" : "countries"}&from=ranking`} className="collective-visitor-link" onClick={(e) => e.stopPropagation()}>
                         <div className="collective-visitor-avatar">
                           {v.avatar ? (
                             <img src={v.avatar} alt={v.username} />

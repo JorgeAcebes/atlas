@@ -1,5 +1,5 @@
-import { SummitTracker } from "@/components/summit-tracker";
+"use client";
 
 export default function PicosPage() {
-  return <SummitTracker mode="peaks" />;
+  return null;
 }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { AppTabsShell } from "@/components/app-tabs-shell";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://atlas-log.vercel.app"),
@@ -67,8 +68,27 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </head>
       <body>
         <Providers initialProfile={initialProfile}>
-          {children}
+          <AppTabsShell>
+            {children}
+          </AppTabsShell>
         </Providers>
+        <svg
+          width="0"
+          height="0"
+          style={{ position: "absolute", width: 0, height: 0, pointerEvents: "none" }}
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="logoGradGreen" x1="8" y1="12" x2="44" y2="52">
+              <stop stopColor="#5c9b7d" />
+              <stop offset="1" stopColor="#245f52" />
+            </linearGradient>
+            <linearGradient id="logoGradPurple" x1="20" y1="26" x2="56" y2="60">
+              <stop stopColor="#9570c7" />
+              <stop offset="1" stopColor="#5b3a8c" />
+            </linearGradient>
+          </defs>
+        </svg>
         <script
           dangerouslySetInnerHTML={{
             __html: `

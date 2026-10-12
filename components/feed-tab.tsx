@@ -263,7 +263,7 @@ function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired
     }
   }
 
-  const profileBaseUrl = username ? `/perfil/${username}?challenge=${recordChallenge}` : "";
+  const profileBaseUrl = username ? `/perfil/${username}?challenge=${recordChallenge}&from=social` : "";
   const recordUrlWithHash = username && recordId ? `${profileBaseUrl}#panel=${encodeURIComponent(recordId)}` : profileBaseUrl;
 
   const handleTitleClick = (e: React.MouseEvent) => {
@@ -328,7 +328,7 @@ function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired
   return (
     <div className="feed-card">
       <div className="feed-card-header">
-        <Link href={`/perfil/${item.profiles?.username}`} style={{ textDecoration: 'none' }}>
+        <Link href={`/perfil/${item.profiles?.username}?challenge=${recordChallenge}&from=social`} style={{ textDecoration: 'none' }}>
           <div className="feed-card-avatar" style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--pine)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'white' }}>
             {item.profiles?.avatar_url ? (
               <img src={item.profiles.avatar_url} alt={item.profiles.username} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
@@ -339,7 +339,7 @@ function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired
         </Link>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: '14px', lineHeight: '1.2' }}>
-            <Link href={`/perfil/${item.profiles?.username}`} style={{ fontWeight: 'bold', textDecoration: 'none', color: 'var(--ink)' }}>
+            <Link href={`/perfil/${item.profiles?.username}?challenge=${recordChallenge}&from=social`} style={{ fontWeight: 'bold', textDecoration: 'none', color: 'var(--ink)' }}>
               {item.profiles?.username}
             </Link>{' '}
             <span style={{ color: 'var(--muted)' }}>{title}</span>

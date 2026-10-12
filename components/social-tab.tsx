@@ -50,7 +50,17 @@ function getStoredProgressData<T>(key: string, userId: string): T[] | null {
   return null;
 }
 
-export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: string) => void, isActive?: boolean }) {
+export function SocialTab({
+  mode: controlledMode,
+  onSwitchMode,
+  onNavigate,
+  isActive = true,
+}: {
+  mode?: "countries" | "peaks";
+  onSwitchMode?: (target: "countries" | "peaks") => void;
+  onNavigate?: (tab: string) => void;
+  isActive?: boolean;
+}) {
   const { session, profile: myProfile, refreshProfile } = useAuth();
   const enablePeaks = !myProfile || myProfile.enable_peaks !== false;
   const enableCountries = !myProfile || myProfile.enable_countries !== false;
@@ -112,7 +122,22 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
       window.history.replaceState(null, "", url.toString());
     }
     setMapLink(target === "peaks" ? "/picos" : "/");
+    if (onSwitchMode) {
+      onSwitchMode(target);
+    }
   }
+
+  useEffect(() => {
+    if (controlledMode && controlledMode !== currentMode) {
+      if (controlledMode === "peaks" && enablePeaks) {
+        setCurrentMode("peaks");
+        setMapLink("/picos");
+      } else if (controlledMode === "countries" && enableCountries) {
+        setCurrentMode("countries");
+        setMapLink("/");
+      }
+    }
+  }, [controlledMode, enablePeaks, enableCountries, currentMode]);
 
   useEffect(() => {
     if (!enablePeaks && currentMode === "peaks") {
@@ -160,7 +185,11 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
   useEffect(() => {
     const handleGlobalTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target?.closest('.leaflet-container, input, textarea, select, .info-panel, .record-dialog, .auth-dialog, button, a')) {
+      if (
+        document.body.classList.contains("lightbox-open") ||
+        document.querySelector(".lightbox-backdrop") ||
+        target?.closest('.lightbox-backdrop, .lightbox-stage, .leaflet-container, input, textarea, select, .info-panel, .record-dialog, .auth-dialog, button, a')
+      ) {
         return;
       }
       if (e.touches.length === 1) {
@@ -170,6 +199,14 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
     };
 
     const handleGlobalTouchEnd = (e: TouchEvent) => {
+      if (
+        document.body.classList.contains("lightbox-open") ||
+        document.querySelector(".lightbox-backdrop")
+      ) {
+        swipeStartXRef.current = null;
+        swipeStartYRef.current = null;
+        return;
+      }
       if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
       const endX = e.changedTouches[0].clientX;
       const endY = e.changedTouches[0].clientY;
@@ -206,12 +243,16 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
 
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [mapLink, setMapLink] = useState("/");
+  const [mapLink, setMapLink] = useState(() => currentMode === "peaks" ? "/picos" : "/");
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setMapLink(currentMode === "peaks" ? "/picos" : "/");
+  }, [currentMode]);
 
   const userId = session?.user.id || myProfile?.id;
   const isCurrentCache = Boolean(userId && cachedDataUserId === userId);
@@ -664,7 +705,7 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
         }}
       >
         <Link
-          href={`/perfil/${profile.username}`}
+          href={`/perfil/${profile.username}?challenge=${currentMode}&from=social`}
           onClick={() => setConnectionsModal(null)}
           style={{
             textDecoration: 'none',
@@ -787,7 +828,18 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
   return (
     <main className={isPeaks ? "" : isExp ? "mode-experiences" : "mode-countries"}>
       <header className="topbar">
-        <Link className="brand" href={mapLink} title="Atlas" aria-label="Atlas">
+        <Link
+          className="brand"
+          href={mapLink}
+          title="Atlas"
+          aria-label="Atlas"
+          onClick={(e) => {
+            if (onNavigate) {
+              e.preventDefault();
+              onNavigate(mapLink);
+            }
+          }}
+        >
           <IconLogo className="brand-icon" />
           <span>
             <b>Atlas</b>
@@ -835,7 +887,19 @@ export function SocialTab({ onNavigate, isActive = true }: { onNavigate?: (tab: 
               />
             ) : null}
           </Link>
-          <Link href={`/ranking?challenge=${currentMode}`} prefetch={true} className="topbar-nav-link topbar-nav-link--ranking">Ranking</Link>
+          <Link
+            href={`/ranking?challenge=${currentMode}`}
+            prefetch={true}
+            className="topbar-nav-link topbar-nav-link--ranking"
+            onClick={(e) => {
+              if (onNavigate) {
+                e.preventDefault();
+                onNavigate(`/ranking?challenge=${currentMode}`);
+              }
+            }}
+          >
+            Ranking
+          </Link>
           {(myProfile || session) ? (
             <button
               className="account-button"

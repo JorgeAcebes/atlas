@@ -35,9 +35,13 @@ const cachedRankingCount: Record<ModeFilter, number | null> = { countries: null,
 const RANKING_CACHE_TTL = 60 * 1000;
 
 export function RankingTab({ 
+  mode: controlledMode,
+  onSwitchMode,
   onNavigate, 
   isActive = true 
 }: { 
+  mode?: ModeFilter;
+  onSwitchMode?: (target: ModeFilter) => void;
   onNavigate?: (tab: string) => void;
   isActive?: boolean;
 }) {
@@ -81,6 +85,22 @@ export function RankingTab({
   }, []);
 
   useEffect(() => {
+    if (controlledMode && controlledMode !== mode) {
+      if (controlledMode === "peaks" && enablePeaks) {
+        setMode("peaks");
+        setMapLink("/picos");
+      } else if (controlledMode === "countries" && enableCountries) {
+        setMode("countries");
+        setMapLink("/");
+      }
+    }
+  }, [controlledMode, enablePeaks, enableCountries, mode]);
+
+  useEffect(() => {
+    setMapLink(mode === "peaks" ? "/picos" : "/");
+  }, [mode]);
+
+  useEffect(() => {
     if (!enablePeaks && mode === "peaks") {
       setMode("countries");
       if (typeof window !== "undefined") localStorage.setItem("ranking_mode", "countries");
@@ -92,13 +112,13 @@ export function RankingTab({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      let stored = localStorage.getItem("last_map_path") || "/";
+      let stored = localStorage.getItem("last_map_path") || (mode === "peaks" ? "/picos" : "/");
       if (!enablePeaks && stored === "/picos") stored = "/";
       if (!enableCountries && stored === "/") stored = "/picos";
       if (stored !== "/" && stored !== "/picos") stored = enablePeaks ? "/picos" : "/";
       setMapLink(stored);
     }
-  }, [enablePeaks, enableCountries]);
+  }, [enablePeaks, enableCountries, mode]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -233,6 +253,9 @@ export function RankingTab({
       } catch { /* ignore */ }
     }
     setMapLink(target === "peaks" ? "/picos" : "/");
+    if (onSwitchMode) {
+      onSwitchMode(target);
+    }
   }
 
   const swipeTouchStartX = useRef<number | null>(null);
@@ -261,7 +284,17 @@ export function RankingTab({
   useEffect(() => {
     const handleGlobalTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target?.closest('.leaflet-container, input, textarea, select, .info-panel, .record-dialog, .auth-dialog, button, a')) {
+      if (
+        document.body.classList.contains("lightbox-open") ||
+        document.querySelector(".lightbox-backdrop") ||
+        target?.closest(".lightbox-backdrop, .leaflet-container, input, textarea, select, .info-panel, .record-dialog, .auth-dialog, button")
+      ) {
+        return;
+      }
+      if (
+        target?.closest("a") &&
+        !target?.closest(".ranking-row, .ranking-podium-card, .ranking-table, .ranking-main-container, .hero-main--ranking")
+      ) {
         return;
       }
       if (e.touches.length === 1) {
@@ -271,6 +304,14 @@ export function RankingTab({
     };
 
     const handleGlobalTouchEnd = (e: TouchEvent) => {
+      if (
+        document.body.classList.contains("lightbox-open") ||
+        document.querySelector(".lightbox-backdrop")
+      ) {
+        swipeTouchStartX.current = null;
+        swipeTouchStartY.current = null;
+        return;
+      }
       if (swipeTouchStartX.current === null || swipeTouchStartY.current === null) return;
       const endX = e.changedTouches[0].clientX;
       const endY = e.changedTouches[0].clientY;
@@ -364,7 +405,18 @@ export function RankingTab({
     <main className={`ranking-theme ${mode === "countries" ? "mode-countries" : ""}`}>
       {/* ── Standard Topbar ────────────────── */}
       <header className="topbar">
-        <Link className="brand" href={mapLink} title="Atlas" aria-label="Atlas">
+        <Link
+          className="brand"
+          href={mapLink}
+          title="Atlas"
+          aria-label="Atlas"
+          onClick={(e) => {
+            if (onNavigate) {
+              e.preventDefault();
+              onNavigate(mapLink);
+            }
+          }}
+        >
           <IconLogo className="brand-icon" />
           <span>
             <b>Atlas</b>
@@ -391,7 +443,18 @@ export function RankingTab({
 
         <nav>
           <Link href={mapLink} prefetch={true} className="topbar-nav-link topbar-nav-link--mapa">Mapa</Link>
-          <Link href={`/social?challenge=${mode}`} prefetch={true} className="topbar-nav-link topbar-nav-link--social" style={{ position: 'relative' }}>
+          <Link
+            href={`/social?challenge=${mode}`}
+            prefetch={true}
+            className="topbar-nav-link topbar-nav-link--social"
+            style={{ position: 'relative' }}
+            onClick={(e) => {
+              if (onNavigate) {
+                e.preventDefault();
+                onNavigate(`/social?challenge=${mode}`);
+              }
+            }}
+          >
             Social
             {hasPendingRequests ? (
               <span 
@@ -633,7 +696,7 @@ export function RankingTab({
                     <Link
                       key={entry.user_id}
                       id={`ranking-row-${entry.user_id}`}
-                      href={`/perfil/${entry.username}?challenge=${mode}`}
+                      href={`/perfil/${entry.username}?challenge=${mode}&from=ranking`}
                       className={`ranking-row${medalClass} ${isMe ? 'ranking-row--me' : ''}`}
                     >
                       <div className="ranking-rank-num">{String(currentRank).padStart(2, '0')}</div>

@@ -44,6 +44,10 @@ export function PhotoLightbox({
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+    document.body.classList.add("lightbox-open");
+    return () => {
+      document.body.classList.remove("lightbox-open");
+    };
   }, []);
 
   // Zoom & Pan state (fully functional in background without visual zoom pill)
@@ -54,6 +58,9 @@ export function PhotoLightbox({
 
   // References for drag/pan and touch gestures
   const stageRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(1);
+  scaleRef.current = scale;
+  const doubleTapTriggeredRef = useRef(false);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const pinchDistRef = useRef<number | null>(null);
@@ -181,25 +188,26 @@ export function PhotoLightbox({
   // Double click / Double tap handler
   const handleDoubleTap = useCallback(
     (clientX: number, clientY: number) => {
-      if (scale > 1.05) {
+      setIsInteracting(false);
+      if (scaleRef.current > 1.05) {
         handleResetZoom();
       } else {
+        const targetScale = 2.5;
         if (stageRef.current) {
           const rect = stageRef.current.getBoundingClientRect();
           const centerX = rect.left + rect.width / 2;
           const centerY = rect.top + rect.height / 2;
           const offsetX = clientX - centerX;
           const offsetY = clientY - centerY;
-          const targetScale = 2.5;
-          const newPan = clampPan(-offsetX * 1.5, -offsetY * 1.5, targetScale);
+          const newPan = clampPan(-offsetX * (targetScale - 1), -offsetY * (targetScale - 1), targetScale);
           setScale(targetScale);
           setPan(newPan);
         } else {
-          setScale(2.5);
+          setScale(targetScale);
         }
       }
     },
-    [scale, clampPan, handleResetZoom]
+    [clampPan, handleResetZoom]
   );
 
   // Mouse pan event handlers
@@ -241,7 +249,7 @@ export function PhotoLightbox({
         e.touches[0].clientY - e.touches[1].clientY
       );
       pinchDistRef.current = dist;
-      pinchScaleRef.current = scale;
+      pinchScaleRef.current = scaleRef.current;
     } else if (e.touches.length === 1) {
       const touch = e.touches[0];
       const now = Date.now();
@@ -249,16 +257,19 @@ export function PhotoLightbox({
       // Check double tap
       if (
         lastTapRef.current &&
-        now - lastTapRef.current.time < 300 &&
-        Math.hypot(touch.clientX - lastTapRef.current.x, touch.clientY - lastTapRef.current.y) < 30
+        now - lastTapRef.current.time < 380 &&
+        Math.hypot(touch.clientX - lastTapRef.current.x, touch.clientY - lastTapRef.current.y) < 45
       ) {
         lastTapRef.current = null;
+        doubleTapTriggeredRef.current = true;
+        touchStartSwipeRef.current = null;
+        isDraggingRef.current = false;
         handleDoubleTap(touch.clientX, touch.clientY);
         return;
       }
       lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
 
-      if (scale > 1) {
+      if (scaleRef.current > 1.05) {
         isDraggingRef.current = true;
         setIsInteracting(true);
         dragStartRef.current = {
@@ -285,11 +296,11 @@ export function PhotoLightbox({
       } else {
         setPan((currentPan) => clampPan(currentPan.x, currentPan.y, nextScale));
       }
-    } else if (e.touches.length === 1 && isDraggingRef.current && scale > 1) {
+    } else if (e.touches.length === 1 && isDraggingRef.current && scaleRef.current > 1.05) {
       const touch = e.touches[0];
       const nextX = touch.clientX - dragStartRef.current.x;
       const nextY = touch.clientY - dragStartRef.current.y;
-      setPan(clampPan(nextX, nextY, scale));
+      setPan(clampPan(nextX, nextY, scaleRef.current));
     }
   };
 
@@ -298,7 +309,13 @@ export function PhotoLightbox({
     pinchDistRef.current = null;
     isDraggingRef.current = false;
 
-    if (scale < 1.05) {
+    if (doubleTapTriggeredRef.current) {
+      doubleTapTriggeredRef.current = false;
+      touchStartSwipeRef.current = null;
+      return;
+    }
+
+    if (scaleRef.current < 1.05) {
       setScale(1);
       setPan({ x: 0, y: 0 });
 

@@ -1,5 +1,5 @@
-import { SocialTab } from "@/components/social-tab";
+"use client";
 
 export default function SocialPage() {
-  return <SocialTab />;
+  return null;
 }

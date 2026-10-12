@@ -8,24 +8,27 @@ export function usePendingRequests() {
 
   useEffect(() => {
     let mounted = true;
-    let channel: any = null;
+    let channel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
 
     if (!supabase || !session) {
       setHasPendingRequests(false);
       return;
     }
 
+    const sb = supabase;
+    const userId = session.user.id;
+
     async function checkPending() {
-      if (!supabase || !session) return;
+      if (!mounted) return;
       if (profile && profile.is_public) {
         if (mounted) setHasPendingRequests(false);
         return;
       }
 
-      const { data: pendingConns } = await supabase
+      const { data: pendingConns } = await sb
         .from('connections')
         .select('status')
-        .eq('following_id', session.user.id)
+        .eq('following_id', userId)
         .eq('status', 'pending')
         .limit(1);
 
@@ -36,14 +39,20 @@ export function usePendingRequests() {
 
     checkPending();
 
-    channel = supabase.channel(`public:connections:${session.user.id}`)
+    // Globally unique channel name to avoid collisions with
+    // stale channels from React StrictMode double-mount or HMR.
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const channelName = `pending-req:${userId}:${uniqueId}`;
+
+    channel = sb.channel(channelName);
+    channel
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'connections',
-          filter: `following_id=eq.${session.user.id}`,
+          filter: `following_id=eq.${userId}`,
         },
         () => {
           checkPending();
@@ -53,8 +62,8 @@ export function usePendingRequests() {
 
     return () => {
       mounted = false;
-      if (supabase && channel) {
-        supabase.removeChannel(channel);
+      if (channel) {
+        sb.removeChannel(channel);
       }
     };
   }, [session, profile]);
