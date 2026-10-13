@@ -105,18 +105,32 @@ type Props = {
   onAddExperience?: () => void;
   panelOpen?: boolean;
   hasCompareButton?: boolean;
+  /** Whether the map tab is currently visible. When false, Leaflet operations
+   *  that depend on the container having a non-zero size are skipped to prevent
+   *  the map from jumping/zooming-in when navigating back from other tabs. */
+  isActive?: boolean;
 };
 
-function FitWorld() {
+function FitWorld({ isActive }: { isActive?: boolean }) {
   const map = useMap();
+  const hasFittedRef = useRef(false);
+
   useEffect(() => {
+    if (isActive === false) return;
+    const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+    if (hasFittedRef.current) return;
+    hasFittedRef.current = true;
+
     if (window.location.hash.startsWith("#panel=")) {
       const saved = sessionStorage.getItem("mapState_world");
       if (saved) {
         try {
           const { zoom, center } = JSON.parse(saved);
-          map.setView(center, zoom, { animate: false });
-          return;
+          if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+            map.setView(center, zoom, { animate: false });
+            return;
+          }
         } catch (e) {}
       }
     }
@@ -139,21 +153,26 @@ function FitWorld() {
         [80, 180]
       ], { padding: [0, 0] });
     }
-  }, [map]);
+  }, [map, isActive]);
   return null;
 }
 
 // Calls invalidateSize() repeatedly during the CSS panel transition (300ms)
 // so Leaflet always knows the real container dimensions.
-function MapInvalidator({ panelOpen }: { panelOpen?: boolean }) {
+function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive?: boolean }) {
   const map = useMap();
   useEffect(() => {
+    if (isActive === false) return;
+    const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+
     const TRANSITION_MS = 350; // slightly longer than the 0.3s CSS transition
     const start = performance.now();
     let rafId: number;
 
     function tick(now: number) {
-      map.invalidateSize({ animate: false });
+      // pan: false ensures Leaflet updates canvas dimensions without shifting map center
+      map.invalidateSize({ animate: false, pan: false });
       if (now - start < TRANSITION_MS) {
         rafId = requestAnimationFrame(tick);
       }
@@ -161,7 +180,71 @@ function MapInvalidator({ panelOpen }: { panelOpen?: boolean }) {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [map, panelOpen]);
+  }, [map, panelOpen, isActive]);
+  return null;
+}
+
+function MapActiveSynchronizer({ isActive }: { isActive?: boolean }) {
+  const map = useMap();
+  const prevActiveRef = useRef(isActive);
+
+  useEffect(() => {
+    const wasInactive = prevActiveRef.current === false;
+    prevActiveRef.current = isActive;
+
+    if (!isActive) return;
+
+    if (wasInactive) {
+      const rafId = requestAnimationFrame(() => {
+        const container = map.getContainer();
+        if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+          map.invalidateSize({ animate: false, pan: false });
+        }
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [map, isActive]);
+
+  return null;
+}
+
+function MapZoomListener({ isActive }: { isActive?: boolean }) {
+  const map = useMapEvents({
+    zoom: () => {
+      if (isActive === false) return;
+      const container = map.getContainer();
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+      container.setAttribute("data-zoom", Math.max(0, Math.round(map.getZoom() || 0)).toString());
+    },
+    zoomend: () => {
+      if (isActive === false) return;
+      const container = map.getContainer();
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+      const zoom = map.getZoom();
+      const center = map.getCenter();
+      if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+        sessionStorage.setItem("mapState_world", JSON.stringify({ zoom, center }));
+      }
+      container.setAttribute("data-zoom", Math.max(0, Math.round(zoom || 0)).toString());
+    },
+    moveend: () => {
+      if (isActive === false) return;
+      const container = map.getContainer();
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+      const zoom = map.getZoom();
+      const center = map.getCenter();
+      if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+        sessionStorage.setItem("mapState_world", JSON.stringify({ zoom, center }));
+      }
+      container.setAttribute("data-zoom", Math.max(0, Math.round(zoom || 0)).toString());
+    },
+  });
+  useEffect(() => {
+    if (isActive === false) return;
+    const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+    container.setAttribute("data-zoom", Math.max(0, Math.round(map.getZoom() || 0)).toString());
+  }, [map, isActive]);
   return null;
 }
 
@@ -208,33 +291,6 @@ function MapClickListener({ onMapClick, selectingLocation }: { onMapClick?: (lat
     }
   }, [selectingLocation, map]);
   
-  return null;
-}
-function MapZoomListener() {
-  const map = useMapEvents({
-    zoom: () => {
-      const container = map.getContainer();
-      container.setAttribute("data-zoom", Math.max(0, Math.round(map.getZoom() || 0)).toString());
-    },
-    zoomend: () => {
-      const zoom = map.getZoom();
-      const center = map.getCenter();
-      sessionStorage.setItem("mapState_world", JSON.stringify({ zoom, center }));
-      const container = map.getContainer();
-      container.setAttribute("data-zoom", Math.max(0, Math.round(zoom || 0)).toString());
-    },
-    moveend: () => {
-      const zoom = map.getZoom();
-      const center = map.getCenter();
-      sessionStorage.setItem("mapState_world", JSON.stringify({ zoom, center }));
-      const container = map.getContainer();
-      container.setAttribute("data-zoom", Math.max(0, Math.round(zoom || 0)).toString());
-    },
-  });
-  useEffect(() => {
-    const container = map.getContainer();
-    container.setAttribute("data-zoom", Math.max(0, Math.round(map.getZoom() || 0)).toString());
-  }, [map]);
   return null;
 }
 
@@ -338,7 +394,7 @@ function getLargestPolygonBounds(feature: any) {
 
 import { getIconComponent } from "./icons";
 
-export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, experiencesMode, experienceRecords, selectingLocation, onMapClick, onCancelSelectingLocation, onExperienceClick, onAddExperience, panelOpen, hasCompareButton }: Props) {
+export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, experiencesMode, experienceRecords, selectingLocation, onMapClick, onCancelSelectingLocation, onExperienceClick, onAddExperience, panelOpen, hasCompareButton, isActive = true }: Props) {
   const [geo, setGeo] = useState<FeatureCollection | null>(_worldGeoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -666,9 +722,10 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
       ]}
       maxBoundsViscosity={0.5}
     >
-      <FitWorld />
-      <MapInvalidator panelOpen={panelOpen} />
-      <MapZoomListener />
+      <FitWorld isActive={isActive} />
+      <MapInvalidator panelOpen={panelOpen} isActive={isActive} />
+      <MapActiveSynchronizer isActive={isActive} />
+      <MapZoomListener isActive={isActive} />
       <MapClickListener onMapClick={onMapClick} selectingLocation={selectingLocation} />
       <SweepOverlay searchedId={searchedId} layerRefs={layerRefs} />
 

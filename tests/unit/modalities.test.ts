@@ -246,5 +246,121 @@ describe("Modality Preferences & Filtering Logic", () => {
       expect(updates.enable_countries).toBe(false);
       expect(updates.enable_experiences).toBe(false);
     });
+
+    describe("Experiences Continuity Across Tabs & Challenge Modes", () => {
+      type Tab = "map" | "social" | "ranking";
+      type ChallengeMode = "peaks" | "countries";
+
+      class AppNavigationController {
+        activeTab: Tab;
+        sharedMode: ChallengeMode;
+        sharedExperiencesMode: boolean;
+        history: string[] = [];
+
+        constructor(initialTab: Tab = "map", initialMode: ChallengeMode = "countries", initialExp: boolean = false) {
+          this.activeTab = initialTab;
+          this.sharedMode = initialMode;
+          this.sharedExperiencesMode = initialExp;
+        }
+
+        toggleExperiences(active: boolean) {
+          this.sharedExperiencesMode = active;
+        }
+
+        switchMode(newMode: ChallengeMode) {
+          this.sharedMode = newMode;
+          // Switching mode does NOT deactivate experiences mode
+        }
+
+        navigate(targetTab: Tab) {
+          this.activeTab = targetTab;
+          this.history.push(targetTab);
+        }
+
+        // Returns the effective view displayed in the current tab
+        getEffectiveView(): "peaks" | "countries" | "experiences" {
+          if (this.sharedMode === "peaks") {
+            return "peaks";
+          }
+          if (this.activeTab === "ranking") {
+            // Ranking never displays experiences, only countries
+            return "countries";
+          }
+          return this.sharedExperiencesMode ? "experiences" : "countries";
+        }
+      }
+
+      it("should maintain experiences when navigating from Map to Social", () => {
+        const app = new AppNavigationController("map", "countries", true);
+        expect(app.getEffectiveView()).toBe("experiences");
+
+        // Navigate to Social
+        app.navigate("social");
+        expect(app.activeTab).toBe("social");
+        expect(app.sharedExperiencesMode).toBe(true);
+        expect(app.getEffectiveView()).toBe("experiences");
+      });
+
+      it("should display Countries in Ranking, preserve experiences in memory, and restore experiences on return to Social or Map", () => {
+        const app = new AppNavigationController("map", "countries", true);
+
+        // Go to Ranking
+        app.navigate("ranking");
+        expect(app.activeTab).toBe("ranking");
+        expect(app.getEffectiveView()).toBe("countries"); // Ranking shows countries, not experiences
+        expect(app.sharedExperiencesMode).toBe(true); // Sub-state preserved!
+
+        // Return to Social
+        app.navigate("social");
+        expect(app.activeTab).toBe("social");
+        expect(app.getEffectiveView()).toBe("experiences"); // Restored!
+
+        // Go back to Ranking and then to Map
+        app.navigate("ranking");
+        expect(app.getEffectiveView()).toBe("countries");
+        app.navigate("map");
+        expect(app.activeTab).toBe("map");
+        expect(app.getEffectiveView()).toBe("experiences"); // Restored!
+      });
+
+      it("should maintain experiences across mode changes from Countries to Peaks and back to Countries", () => {
+        const app = new AppNavigationController("map", "countries", true);
+        expect(app.getEffectiveView()).toBe("experiences");
+
+        // Switch to Peaks
+        app.switchMode("peaks");
+        expect(app.getEffectiveView()).toBe("peaks");
+        expect(app.sharedExperiencesMode).toBe(true); // Flag not lost!
+
+        // Navigate tabs while in Peaks mode
+        app.navigate("social");
+        expect(app.getEffectiveView()).toBe("peaks");
+        app.navigate("ranking");
+        expect(app.getEffectiveView()).toBe("peaks");
+
+        // Switch back to Countries
+        app.switchMode("countries");
+        // Immediately restores experiences!
+        expect(app.sharedMode).toBe("countries");
+        app.navigate("social");
+        expect(app.getEffectiveView()).toBe("experiences");
+        app.navigate("map");
+        expect(app.getEffectiveView()).toBe("experiences");
+      });
+
+      it("should only deactivate experiences when explicitly toggled off by user", () => {
+        const app = new AppNavigationController("map", "countries", true);
+        expect(app.getEffectiveView()).toBe("experiences");
+
+        // User explicitly toggles off
+        app.toggleExperiences(false);
+        expect(app.sharedExperiencesMode).toBe(false);
+        expect(app.getEffectiveView()).toBe("countries");
+
+        // Navigating to Social shows Countries
+        app.navigate("social");
+        expect(app.getEffectiveView()).toBe("countries");
+      });
+    });
   });
 });

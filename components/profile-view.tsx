@@ -6,7 +6,6 @@ import { SummitTracker } from "./summit-tracker";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./auth-context";
-import { ArrowLeft } from "lucide-react";
 import { IconLogo } from "./icons";
 
 type Profile = {
@@ -33,6 +32,7 @@ export function ProfileView({
   const [profile, setProfile] = useState<Profile | null>(null);
   const [initialConnStatus, setInitialConnStatus] = useState<"pending" | "accepted" | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingAvatarUrl, setLoadingAvatarUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"peaks" | "countries">(initialMode);
   const router = useRouter();
@@ -57,6 +57,9 @@ export function ProfileView({
         return;
       }
 
+      // Show avatar immediately while waiting for connection status
+      setLoadingAvatarUrl(profileData.avatar_url ?? null);
+
       // 2. Fetch connection status before revealing SummitTracker so follow state is instantaneous
       let connStatus: "pending" | "accepted" | null = null;
       if (session?.user?.id && session.user.id !== profileData.id) {
@@ -80,23 +83,10 @@ export function ProfileView({
   }, [username, session]);
 
   if (loading) {
+    const initial = username ? username.charAt(0).toUpperCase() : "?";
     return (
       <main className="profile-loading-view" style={{ minHeight: "100vh", background: "var(--paper)" }}>
         <header className="topbar">
-          <button
-            type="button"
-            className="topbar-back-btn"
-            aria-label="Volver"
-            title="Volver"
-            onClick={() => {
-              if (fromTab === "ranking") router.push("/ranking");
-              else if (fromTab === "social") router.push("/social");
-              else if (typeof window !== "undefined" && window.history.length > 1) router.back();
-              else router.push("/social");
-            }}
-          >
-            <ArrowLeft size={18} strokeWidth={2.2} />
-          </button>
           <Link className="brand" href="/">
             <IconLogo className="brand-icon" />
             <span>
@@ -127,14 +117,29 @@ export function ProfileView({
         <div style={{ padding: "3rem 1rem", textAlign: "center", color: "var(--muted)", maxWidth: 480, margin: "0 auto" }}>
           <div
             style={{
-              width: 56,
-              height: 56,
+              width: 64,
+              height: 64,
               borderRadius: "50%",
               background: "var(--sand)",
               margin: "0 auto 16px",
-              animation: "pulse 1.5s ease-in-out infinite",
+              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              animation: loadingAvatarUrl ? undefined : "pulse 1.5s ease-in-out infinite",
+              boxShadow: loadingAvatarUrl ? "0 0 0 3px var(--pine)" : undefined,
             }}
-          />
+          >
+            {loadingAvatarUrl ? (
+              <img
+                src={loadingAvatarUrl}
+                alt={username}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <span style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--pine)" }}>{initial}</span>
+            )}
+          </div>
           <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: "1.4rem", margin: "0 0 8px", color: "var(--ink)" }}>
             @{username}
           </h2>
@@ -148,18 +153,6 @@ export function ProfileView({
     return (
       <main style={{ minHeight: "100vh", background: "var(--paper)" }}>
         <header className="topbar">
-          <button
-            type="button"
-            className="topbar-back-btn"
-            aria-label="Volver"
-            title="Volver"
-            onClick={() => {
-              if (fromTab === "ranking") router.push("/ranking");
-              else router.push("/social");
-            }}
-          >
-            <ArrowLeft size={18} strokeWidth={2.2} />
-          </button>
           <Link className="brand" href="/">
             <IconLogo className="brand-icon" />
             <span>

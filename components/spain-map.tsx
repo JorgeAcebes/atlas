@@ -64,18 +64,32 @@ type Props = {
   activeId?: string;
   panelOpen?: boolean;
   hasCompareButton?: boolean;
+  /** Whether the map tab is currently visible. When false, Leaflet operations
+   *  that depend on the container having a non-zero size are skipped to prevent
+   *  the map from jumping/zooming-in when navigating back from other tabs. */
+  isActive?: boolean;
 };
 
-function FitSpain() {
+function FitSpain({ isActive }: { isActive?: boolean }) {
   const map = useMap();
+  const hasFittedRef = useRef(false);
+
   useEffect(() => {
+    if (isActive === false) return;
+    const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+    if (hasFittedRef.current) return;
+    hasFittedRef.current = true;
+
     if (window.location.hash.startsWith("#panel=")) {
       const saved = sessionStorage.getItem("mapState_spain");
       if (saved) {
         try {
           const { zoom, center } = JSON.parse(saved);
-          map.setView(center, zoom, { animate: false });
-          return;
+          if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+            map.setView(center, zoom, { animate: false });
+            return;
+          }
         } catch (e) {}
       }
     }
@@ -86,21 +100,26 @@ function FitSpain() {
       ],
       { padding: [12, 12] },
     );
-  }, [map]);
+  }, [map, isActive]);
   return null;
 }
 
 // Calls invalidateSize() repeatedly during the CSS panel transition (300ms)
 // so Leaflet always knows the real container dimensions.
-function MapInvalidator({ panelOpen }: { panelOpen?: boolean }) {
+function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive?: boolean }) {
   const map = useMap();
   useEffect(() => {
+    if (isActive === false) return;
+    const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+
     const TRANSITION_MS = 350; // slightly longer than the 0.3s CSS transition
     const start = performance.now();
     let rafId: number;
 
     function tick(now: number) {
-      map.invalidateSize({ animate: false });
+      // pan: false ensures Leaflet updates canvas dimensions without shifting map center
+      map.invalidateSize({ animate: false, pan: false });
       if (now - start < TRANSITION_MS) {
         rafId = requestAnimationFrame(tick);
       }
@@ -108,43 +127,77 @@ function MapInvalidator({ panelOpen }: { panelOpen?: boolean }) {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [map, panelOpen]);
+  }, [map, panelOpen, isActive]);
   return null;
 }
 
+function MapActiveSynchronizer({ isActive }: { isActive?: boolean }) {
+  const map = useMap();
+  const prevActiveRef = useRef(isActive);
 
+  useEffect(() => {
+    const wasInactive = prevActiveRef.current === false;
+    prevActiveRef.current = isActive;
 
+    if (!isActive) return;
 
-function MapZoomListener() {
+    if (wasInactive) {
+      const rafId = requestAnimationFrame(() => {
+        const container = map.getContainer();
+        if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+          map.invalidateSize({ animate: false, pan: false });
+        }
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [map, isActive]);
+
+  return null;
+}
+
+function MapZoomListener({ isActive }: { isActive?: boolean }) {
   const map = useMapEvents({
     zoom: () => {
+      if (isActive === false) return;
       const container = map.getContainer();
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
       container.setAttribute("data-zoom", Math.round(map.getZoom()).toString());
     },
     zoomend: () => {
+      if (isActive === false) return;
+      const container = map.getContainer();
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
       const zoom = map.getZoom();
       const center = map.getCenter();
-      sessionStorage.setItem("mapState_spain", JSON.stringify({ zoom, center }));
-      const container = map.getContainer();
+      if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+        sessionStorage.setItem("mapState_spain", JSON.stringify({ zoom, center }));
+      }
       container.setAttribute("data-zoom", Math.round(zoom).toString());
     },
     moveend: () => {
+      if (isActive === false) return;
+      const container = map.getContainer();
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
       const zoom = map.getZoom();
       const center = map.getCenter();
-      sessionStorage.setItem("mapState_spain", JSON.stringify({ zoom, center }));
+      if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+        sessionStorage.setItem("mapState_spain", JSON.stringify({ zoom, center }));
+      }
     },
   });
   useEffect(() => {
+    if (isActive === false) return;
     const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
     container.setAttribute("data-zoom", Math.round(map.getZoom()).toString());
-  }, [map]);
+  }, [map, isActive]);
   return null;
 }
 
 // ── Stable marker list (never changes) ────
 const peakEntries = Object.values(peakByCode);
 
-export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, panelOpen, hasCompareButton }: Props) {
+export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, panelOpen, hasCompareButton, isActive = true }: Props) {
   const [geo, setGeo] = useState<FeatureCollection | null>(_geoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -443,9 +496,10 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
         ]}
         maxBoundsViscosity={1.0}
       >
-        <FitSpain />
-        <MapInvalidator panelOpen={panelOpen} />
-        <MapZoomListener />
+        <FitSpain isActive={isActive} />
+        <MapInvalidator panelOpen={panelOpen} isActive={isActive} />
+        <MapActiveSynchronizer isActive={isActive} />
+        <MapZoomListener isActive={isActive} />
       <SweepOverlay searchedId={searchedId} layerRefs={layerRefs} />
       <MapSearchControl 
         items={searchItems} 

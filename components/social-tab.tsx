@@ -52,11 +52,15 @@ function getStoredProgressData<T>(key: string, userId: string): T[] | null {
 
 export function SocialTab({
   mode: controlledMode,
+  experiencesMode: controlledExperiencesMode,
+  onToggleExperiences,
   onSwitchMode,
   onNavigate,
   isActive = true,
 }: {
   mode?: "countries" | "peaks";
+  experiencesMode?: boolean;
+  onToggleExperiences?: (active: boolean) => void;
   onSwitchMode?: (target: "countries" | "peaks") => void;
   onNavigate?: (tab: string) => void;
   isActive?: boolean;
@@ -84,6 +88,7 @@ export function SocialTab({
   });
 
   const [experiencesMode, setExperiencesMode] = useState(() => {
+    if (controlledExperiencesMode !== undefined) return controlledExperiencesMode;
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
       const urlView = urlParams.get("view");
@@ -92,6 +97,12 @@ export function SocialTab({
     }
     return false;
   });
+
+  useEffect(() => {
+    if (controlledExperiencesMode !== undefined && controlledExperiencesMode !== experiencesMode) {
+      setExperiencesMode(controlledExperiencesMode);
+    }
+  }, [controlledExperiencesMode]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -119,6 +130,11 @@ export function SocialTab({
       localStorage.setItem("last_map_path", target === "peaks" ? "/picos" : "/");
       const url = new URL(window.location.href);
       url.searchParams.set("challenge", target);
+      if (target === "countries" && experiencesMode) {
+        url.searchParams.set("view", "experiences");
+      } else if (target === "peaks") {
+        url.searchParams.delete("view");
+      }
       window.history.replaceState(null, "", url.toString());
     }
     setMapLink(target === "peaks" ? "/picos" : "/");
@@ -1107,6 +1123,9 @@ export function SocialTab({
                   onClick={() => {
                     const next = !experiencesMode;
                     setExperiencesMode(next);
+                    if (onToggleExperiences) {
+                      onToggleExperiences(next);
+                    }
                     if (typeof window !== "undefined") {
                       const url = new URL(window.location.href);
                       if (next) {

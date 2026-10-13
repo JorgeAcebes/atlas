@@ -60,7 +60,6 @@ export function PhotoLightbox({
   const stageRef = useRef<HTMLDivElement>(null);
   const scaleRef = useRef(1);
   scaleRef.current = scale;
-  const doubleTapTriggeredRef = useRef(false);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const pinchDistRef = useRef<number | null>(null);
@@ -254,22 +253,16 @@ export function PhotoLightbox({
       const touch = e.touches[0];
       const now = Date.now();
 
-      // Check double tap
+      // If there's a recent tap nearby, this could be the second tap of a double-tap.
+      // Suppress drag/swipe setup so we can confirm the double-tap on touchEnd.
       if (
         lastTapRef.current &&
         now - lastTapRef.current.time < 380 &&
         Math.hypot(touch.clientX - lastTapRef.current.x, touch.clientY - lastTapRef.current.y) < 45
       ) {
-        lastTapRef.current = null;
-        doubleTapTriggeredRef.current = true;
         touchStartSwipeRef.current = null;
         isDraggingRef.current = false;
-        handleDoubleTap(touch.clientX, touch.clientY);
-        return;
-      }
-      lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
-
-      if (scaleRef.current > 1.05) {
+      } else if (scaleRef.current > 1.05) {
         isDraggingRef.current = true;
         setIsInteracting(true);
         dragStartRef.current = {
@@ -309,21 +302,40 @@ export function PhotoLightbox({
     pinchDistRef.current = null;
     isDraggingRef.current = false;
 
-    if (doubleTapTriggeredRef.current) {
-      doubleTapTriggeredRef.current = false;
+    // Ignore if another finger is still on screen (e.g. releasing one finger from a pinch)
+    if (e.touches.length > 0) return;
+
+    const changedTouch = e.changedTouches[0];
+    if (!changedTouch) {
       touchStartSwipeRef.current = null;
       return;
     }
+
+    const now = Date.now();
+
+    // Double-tap detection: confirm here on touchEnd so zoom fires on finger-lift (no hold needed)
+    if (
+      lastTapRef.current &&
+      now - lastTapRef.current.time < 380 &&
+      Math.hypot(changedTouch.clientX - lastTapRef.current.x, changedTouch.clientY - lastTapRef.current.y) < 45
+    ) {
+      lastTapRef.current = null;
+      touchStartSwipeRef.current = null;
+      handleDoubleTap(changedTouch.clientX, changedTouch.clientY);
+      return;
+    }
+
+    // Record this tap for double-tap detection on next touchEnd
+    lastTapRef.current = { time: now, x: changedTouch.clientX, y: changedTouch.clientY };
 
     if (scaleRef.current < 1.05) {
       setScale(1);
       setPan({ x: 0, y: 0 });
 
       // Swipe navigation when at 1x scale
-      if (touchStartSwipeRef.current && e.changedTouches.length > 0) {
-        const touch = e.changedTouches[0];
-        const diffX = touch.clientX - touchStartSwipeRef.current.x;
-        const diffY = touch.clientY - touchStartSwipeRef.current.y;
+      if (touchStartSwipeRef.current) {
+        const diffX = changedTouch.clientX - touchStartSwipeRef.current.x;
+        const diffY = changedTouch.clientY - touchStartSwipeRef.current.y;
 
         if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY)) {
           if (diffX < 0 && hasNext) {

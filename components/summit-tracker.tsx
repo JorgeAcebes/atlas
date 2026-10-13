@@ -45,11 +45,11 @@ import {
   Triangle,
   Diamond,
   X,
-  ArrowLeft,
   UserRoundPlus,
   UserRoundCheck,
   UserRoundMinus,
   UserRoundArrowLeft,
+  NotebookPen,
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
@@ -160,6 +160,8 @@ type Props = {
   onNavigate?: (tab: string) => void;
   isActive?: boolean;
   initialExperiencesMode?: boolean;
+  experiencesMode?: boolean;
+  onToggleExperiences?: (active: boolean) => void;
   fromTab?: "ranking" | "social" | "mapa";
   initialTargetConnStatus?: "pending" | "accepted" | null;
 };
@@ -634,6 +636,8 @@ export function SummitTracker({
   onNavigate,
   isActive = true,
   initialExperiencesMode = false,
+  experiencesMode: controlledExperiencesMode,
+  onToggleExperiences,
   fromTab,
   initialTargetConnStatus,
 }: Props) {
@@ -756,6 +760,8 @@ export function SummitTracker({
     onConfirm: () => void;
   } | null>(null);
   const [notes, setNotes] = useState("");
+  const [wishlistNoteText, setWishlistNoteText] = useState("");
+  const [showWishlistNoteEditor, setShowWishlistNoteEditor] = useState(false);
   const [link, setLink] = useState("");
   const [linkName, setLinkName] = useState("");
   const [link2, setLink2] = useState("");
@@ -869,7 +875,7 @@ export function SummitTracker({
   const [editorPhoto, setEditorPhoto] = useState<SummitPhoto | null>(null);
   const [diffMode, setDiffMode] = useState(false);
   const [experiencesMode, setExperiencesMode] = useState(
-    initialExperiencesMode || false,
+    initialExperiencesMode || (controlledExperiencesMode !== undefined ? controlledExperiencesMode : false),
   );
   const [isEditingExperiences, setIsEditingExperiences] = useState(false);
   const [iconDropdownOpen, setIconDropdownOpen] = useState(false);
@@ -966,6 +972,7 @@ export function SummitTracker({
     }
     if (!canShowCountries) {
       if (experiencesMode) setExperiencesMode(false);
+      onToggleExperiences?.(false);
     }
   }, [mounted, canShowPeaks, canShowCountries, currentMode, experiencesMode]);
 
@@ -1030,13 +1037,21 @@ export function SummitTracker({
   }, [isScrollLocked]);
 
   useEffect(() => {
+    if (controlledExperiencesMode !== undefined && !isReadOnly) {
+      if (controlledExperiencesMode !== experiencesMode) {
+        setExperiencesMode(controlledExperiencesMode);
+      }
+    }
+  }, [controlledExperiencesMode, isReadOnly]);
+
+  useEffect(() => {
     if (initialExperiencesMode) {
       setExperiencesMode(true);
-    } else if (!isReadOnly) {
+    } else if (!isReadOnly && controlledExperiencesMode === undefined) {
       const savedExp = localStorage.getItem("myExperiencesMode");
       if (savedExp === "true") setExperiencesMode(true);
     }
-  }, [isReadOnly, initialExperiencesMode]);
+  }, [isReadOnly, initialExperiencesMode, controlledExperiencesMode]);
 
   useEffect(() => {
     if (!isReadOnly) {
@@ -1365,13 +1380,13 @@ export function SummitTracker({
           if (!canShowCountries) return;
           if (isPeaks) setCurrentMode("countries");
           setExperiencesMode(true);
+          onToggleExperiences?.(true);
           return;
         }
 
         // Check if it's a peak and we need to switch mode
         if (!isPeaks && peaks.some((p) => p.id === baseId)) {
           if (!canShowPeaks) return;
-          if (experiencesMode) setExperiencesMode(false);
           setCurrentMode("peaks");
           return;
         }
@@ -1379,7 +1394,6 @@ export function SummitTracker({
         // Check if it's a country and we need to switch mode
         if (isPeaks && (baseId.startsWith("country-") || countries.some((c) => c.id === baseId))) {
           if (!canShowCountries) return;
-          if (experiencesMode) setExperiencesMode(false);
           setCurrentMode("countries");
           return;
         }
@@ -1977,6 +1991,11 @@ export function SummitTracker({
     ];
     return allAscents.some((a) => a.summit_id === selected.id && a.is_wishlist);
   }, [selected, ascents, experienceRecords]);
+
+  const wishlistEntry = useMemo(() => {
+    if (!selected) return null;
+    return ascents.find((a) => a.summit_id === selected.id && a.is_wishlist) ?? null;
+  }, [selected, ascents]);
   const selectedPhotos = selected
     ? photos.filter(
       (p) =>
@@ -1996,6 +2015,7 @@ export function SummitTracker({
     setSelected(item);
     setRecordOpen(false);
     setNotice("");
+    setShowWishlistNoteEditor(false);
   }, []);
 
   async function handleAddPhotosToDate(
@@ -2575,6 +2595,52 @@ export function SummitTracker({
     }
   }
 
+  async function saveWishlistNote() {
+    if (!supabase || !session || !selected || !wishlistEntry) return;
+    const trimmed = wishlistNoteText.trim() || null;
+    const { error } = await supabase
+      .from("ascents")
+      .update({ notes: trimmed })
+      .match({
+        user_id: session.user.id,
+        summit_id: selected.id,
+        is_wishlist: true,
+      });
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+    setAscents((prev) =>
+      prev.map((a) =>
+        a.summit_id === selected.id && a.is_wishlist
+          ? { ...a, notes: trimmed }
+          : a,
+      ),
+    );
+    setShowWishlistNoteEditor(false);
+    setNotice(trimmed ? "Nota guardada." : "Nota eliminada.");
+  }
+
+  function renderWithClickableLinks(text: string) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) =>
+      part.startsWith("http://") || part.startsWith("https://") ? (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#a67c29", textDecoration: "underline", wordBreak: "break-all" }}
+        >
+          {part}
+        </a>
+      ) : (
+        <span key={i}>{part}</span>
+      ),
+    );
+  }
+
   async function saveAscent() {
     if (!supabase || !session || !selected) return;
     const isExperience = (selected as any)?.itemType === 'experience';
@@ -2619,7 +2685,7 @@ export function SummitTracker({
       setPhotos((prev) =>
         prev.map((p) =>
           (p.summit_id === expectedSummitId || p.summit_id === selected.id) &&
-          p.taken_on === originalAchievedOn
+            p.taken_on === originalAchievedOn
             ? { ...p, taken_on: finalDate }
             : p,
         ),
@@ -3641,10 +3707,12 @@ export function SummitTracker({
       setIsEditingExperiences(false);
       setIconDropdownOpen(false);
       setExperiencesMode(false);
+      onToggleExperiences?.(false);
     } else {
       if (!canShowCountries) return;
       if (isPeaks) setCurrentMode("countries");
       setExperiencesMode(true);
+      onToggleExperiences?.(true);
     }
   }, [
     canShowCountries,
@@ -3654,6 +3722,7 @@ export function SummitTracker({
     customExperiences,
     closePanel,
     selectingLocationForExp,
+    onToggleExperiences,
   ]);
 
   function switchMode(target: ChallengeMode) {
@@ -4082,27 +4151,6 @@ export function SummitTracker({
     >
       {/* ── Topbar ──────────────────────── */}
       <header className="topbar">
-        {isReadOnly && (
-          <button
-            type="button"
-            className="topbar-back-btn"
-            aria-label="Volver"
-            title="Volver"
-            onClick={() => {
-              if (fromTab === "ranking") {
-                router.push(isPeaks ? "/ranking?challenge=peaks" : "/ranking");
-              } else if (fromTab === "social") {
-                router.push(isPeaks ? "/social?challenge=peaks" : "/social");
-              } else if (typeof window !== "undefined" && window.history.length > 1) {
-                router.back();
-              } else {
-                router.push(isPeaks ? "/ranking?challenge=peaks" : "/ranking");
-              }
-            }}
-          >
-            <ArrowLeft size={18} strokeWidth={2.2} />
-          </button>
-        )}
         {isReadOnly ? (
           <Link
             className="brand"
@@ -4182,14 +4230,14 @@ export function SummitTracker({
                 Mapa
               </Link>
               <Link
-                href={`/social?challenge=${isPeaks ? "peaks" : "countries"}`}
+                href={isPeaks ? "/social?challenge=peaks" : experiencesMode ? "/social?challenge=countries&view=experiences" : "/social?challenge=countries"}
                 prefetch={true}
                 className={`topbar-nav-link topbar-nav-link--social ${fromTab === "social" ? "topbar-nav-link--active" : ""}`}
                 style={{ position: "relative" }}
                 onClick={(e) => {
                   if (onNavigate) {
                     e.preventDefault();
-                    onNavigate(`/social?challenge=${isPeaks ? "peaks" : "countries"}`);
+                    onNavigate(isPeaks ? "/social?challenge=peaks" : experiencesMode ? "/social?challenge=countries&view=experiences" : "/social?challenge=countries");
                   }
                 }}
               >
@@ -4228,25 +4276,20 @@ export function SummitTracker({
                 href="#mapa"
                 className="topbar-nav-link topbar-nav-link--mapa topbar-nav-link--active"
                 onClick={(e) => {
-                  if (onNavigate) {
-                    e.preventDefault();
-                    onNavigate(isPeaks ? "/picos" : "/");
-                    return;
-                  }
                   scrollToMap(e);
                 }}
               >
                 Mapa
               </a>
               <Link
-                href={`/social?challenge=${isPeaks ? "peaks" : "countries"}`}
+                href={isPeaks ? "/social?challenge=peaks" : experiencesMode ? "/social?challenge=countries&view=experiences" : "/social?challenge=countries"}
                 prefetch={true}
                 className="topbar-nav-link topbar-nav-link--social"
                 style={{ position: "relative" }}
                 onClick={(e) => {
                   if (onNavigate) {
                     e.preventDefault();
-                    onNavigate(`/social?challenge=${isPeaks ? "peaks" : "countries"}`);
+                    onNavigate(isPeaks ? "/social?challenge=peaks" : experiencesMode ? "/social?challenge=countries&view=experiences" : "/social?challenge=countries");
                   }
                 }}
               >
@@ -4327,13 +4370,12 @@ export function SummitTracker({
         onTouchEnd={handleSwipeTouchEnd}
       >
         <div
-          className={`hero-main ${
-            !targetProfile
+          className={`hero-main ${!targetProfile
               ? "hero-main--motto"
               : targetProfile && session?.user?.id !== targetProfile.id
-              ? "hero-main--with-follow"
-              : ""
-          }`}
+                ? "hero-main--with-follow"
+                : ""
+            }`}
         >
           <div className={`hero-title-wrap ${!targetProfile ? "hero-title-wrap--motto hide-on-mobile" : "hero-title-wrap--user"}`}>
             <h1 className={targetProfile ? "hero-title--user" : undefined}>
@@ -4366,9 +4408,8 @@ export function SummitTracker({
 
           {targetProfile && session?.user?.id !== targetProfile.id && (
             <div
-              className={`hero-target-follow-center ${
-                justFollowed ? "hero-target-follow-center--just-followed" : ""
-              } ${touchUnfollowActive ? "hero-target-follow-center--touch-unfollow" : ""}`}
+              className={`hero-target-follow-center ${justFollowed ? "hero-target-follow-center--just-followed" : ""
+                } ${touchUnfollowActive ? "hero-target-follow-center--touch-unfollow" : ""}`}
               onMouseLeave={() => setJustFollowed(false)}
               onTouchStart={() => {
                 if (justFollowed) {
@@ -4404,15 +4445,13 @@ export function SummitTracker({
             >
               <button
                 type="button"
-                className={`hero-center-follow-btn ${
-                  targetConnStatus === "accepted"
+                className={`hero-center-follow-btn ${targetConnStatus === "accepted"
                     ? "hero-center-follow-btn--following"
                     : targetConnStatus === "pending"
-                    ? "hero-center-follow-btn--pending"
-                    : "hero-center-follow-btn--connect"
-                } ${justFollowed ? "hero-center-follow-btn--just-followed" : ""} ${
-                  touchUnfollowActive ? "hero-center-follow-btn--touch-unfollow" : ""
-                }`}
+                      ? "hero-center-follow-btn--pending"
+                      : "hero-center-follow-btn--connect"
+                  } ${justFollowed ? "hero-center-follow-btn--just-followed" : ""} ${touchUnfollowActive ? "hero-center-follow-btn--touch-unfollow" : ""
+                  }`}
                 disabled={targetConnLoading}
                 onClick={targetConnStatus ? handleUnfollowTarget : handleFollowTarget}
                 onMouseLeave={() => setJustFollowed(false)}
@@ -4420,15 +4459,15 @@ export function SummitTracker({
                   targetConnStatus === "accepted"
                     ? "Siguiendo (clic para dejar de seguir)"
                     : targetConnStatus === "pending"
-                    ? "Solicitud pendiente (clic para cancelar)"
-                    : `Seguir a @${targetProfile.username}`
+                      ? "Solicitud pendiente (clic para cancelar)"
+                      : `Seguir a @${targetProfile.username}`
                 }
                 aria-label={
                   targetConnStatus === "accepted"
                     ? "Dejar de seguir"
                     : targetConnStatus === "pending"
-                    ? "Cancelar solicitud"
-                    : "Seguir"
+                      ? "Cancelar solicitud"
+                      : "Seguir"
                 }
               >
                 {targetConnStatus === "accepted" ? (
@@ -4459,20 +4498,19 @@ export function SummitTracker({
                 )}
               </button>
               <span
-                className={`hero-center-follow-label ${
-                  targetConnStatus === "accepted"
+                className={`hero-center-follow-label ${targetConnStatus === "accepted"
                     ? "hero-center-follow-label--following"
                     : targetConnStatus === "pending"
-                    ? "hero-center-follow-label--pending"
-                    : "hero-center-follow-label--connect"
-                }`}
+                      ? "hero-center-follow-label--pending"
+                      : "hero-center-follow-label--connect"
+                  }`}
                 onClick={targetConnLoading ? undefined : (targetConnStatus ? handleUnfollowTarget : handleFollowTarget)}
               >
                 {targetConnStatus === "accepted"
                   ? "Siguiendo"
                   : targetConnStatus === "pending"
-                  ? "pendiente"
-                  : "Seguir"}
+                    ? "pendiente"
+                    : "Seguir"}
               </span>
             </div>
           )}
@@ -4647,6 +4685,7 @@ export function SummitTracker({
               activeId={selected?.id}
               panelOpen={!!selected}
               hasCompareButton={Boolean(isReadOnly && session)}
+              isActive={isActive}
             />
           ) : (
             <>
@@ -4678,6 +4717,7 @@ export function SummitTracker({
                 onAddExperience={!isReadOnly && !selectingLocationForExp ? () => setExpSelectorOpen(true) : undefined}
                 panelOpen={!!selected}
                 hasCompareButton={Boolean(isReadOnly && session)}
+                isActive={isActive}
               />
             </>
           )}
@@ -6077,20 +6117,73 @@ export function SummitTracker({
                     );
                   })
                 ) : hasWishlist && !((selected as any)?.itemType === 'experience') ? (
-                  <div
-                    className="pending-card"
-                    style={{
-                      background: "var(--amber-bg)",
-                      color: "#a67c29",
-                      borderColor: "#ecd9a5",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Star size={14} fill="currentColor" strokeWidth={1} />
-                    <span>{isReadOnly ? "En su lista de deseos" : "En tu lista de deseos"}</span>
+                  <div className="wishlist-card-wrap">
+                    <div
+                      className="pending-card wishlist-pending-card"
+                      style={{
+                        background: "var(--amber-bg)",
+                        color: "#a67c29",
+                        borderColor: "#ecd9a5",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 6,
+                      }}
+                    >
+                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Star size={14} fill="currentColor" strokeWidth={1} />
+                        <span>{isReadOnly ? "En su lista de deseos" : "En tu lista de deseos"}</span>
+                      </span>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          className="wishlist-note-btn"
+                          title={wishlistEntry?.notes ? "Editar nota" : "Añadir nota"}
+                          onClick={() => {
+                            setWishlistNoteText(wishlistEntry?.notes ?? "");
+                            setShowWishlistNoteEditor((v) => !v);
+                          }}
+                          aria-label="Añadir o editar nota de lista de deseos"
+                        >
+                          <NotebookPen size={14} />
+                        </button>
+                      )}
+                    </div>
+                    {/* Note display (read-only) */}
+                    {wishlistEntry?.notes && !showWishlistNoteEditor && (
+                      <div className="wishlist-note-display">
+                        {renderWithClickableLinks(wishlistEntry.notes)}
+                      </div>
+                    )}
+                    {/* Note editor */}
+                    {!isReadOnly && showWishlistNoteEditor && (
+                      <div className="wishlist-note-editor">
+                        <textarea
+                          className="wishlist-note-textarea"
+                          value={wishlistNoteText}
+                          onChange={(e) => setWishlistNoteText(e.target.value)}
+                          placeholder="Escribe tu nota…"
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="wishlist-note-actions">
+                          <button
+                            type="button"
+                            className="button button--quiet"
+                            onClick={() => setShowWishlistNoteEditor(false)}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            className={`button ${isPeaks ? "button--green" : "button--purple"}`}
+                            onClick={() => saveWishlistNote()}
+                          >
+                            Guardar nota
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="pending-card">
@@ -6660,11 +6753,11 @@ export function SummitTracker({
                 style={
                   isPhotoLimitReached
                     ? {
-                        opacity: 0.45,
-                        cursor: "not-allowed",
-                        borderColor: "var(--muted)",
-                        background: "rgba(0, 0, 0, 0.04)",
-                      }
+                      opacity: 0.45,
+                      cursor: "not-allowed",
+                      borderColor: "var(--muted)",
+                      background: "rgba(0, 0, 0, 0.04)",
+                    }
                     : undefined
                 }
                 title={
@@ -6715,151 +6808,151 @@ export function SummitTracker({
             {(existingRecordPhotos.length > 0 ||
               files.length > 0 ||
               galleryPhotosToAdd.length > 0) && (
-              <div
-                style={{
-                  marginTop: "12px",
-                  display: "flex",
-                  gap: "8px",
-                  overflowX: "auto",
-                  paddingBottom: "8px",
-                }}
-              >
-                {existingRecordPhotos.map((photo) => (
-                  <div
-                    key={`existing-${photo.id}`}
-                    style={{ position: "relative", display: "inline-block" }}
-                  >
-                    <img
-                      src={photo.public_url}
-                      alt="preview guardada"
-                      style={{
-                        width: "48px",
-                        height: "48px",
-                        objectFit: "cover",
-                        borderRadius: "4px",
-                        border: "1px solid var(--border)",
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDeletedRecordPhotoIds((prev) => [...prev, photo.id])
-                      }
-                      title="Quitar foto del registro"
-                      style={{
-                        position: "absolute",
-                        top: "2px",
-                        right: "2px",
-                        background: "#e74c3c",
-                        color: "white",
-                        width: "16px",
-                        height: "16px",
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        zIndex: 10,
-                      }}
+                <div
+                  style={{
+                    marginTop: "12px",
+                    display: "flex",
+                    gap: "8px",
+                    overflowX: "auto",
+                    paddingBottom: "8px",
+                  }}
+                >
+                  {existingRecordPhotos.map((photo) => (
+                    <div
+                      key={`existing-${photo.id}`}
+                      style={{ position: "relative", display: "inline-block" }}
                     >
-                      <IconClose style={{ width: 10, height: 10 }} />
-                    </button>
-                  </div>
-                ))}
-                {Array.from(files).map((file, i) => (
-                  <div
-                    key={`local-${i}`}
-                    style={{ position: "relative", display: "inline-block" }}
-                  >
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt="preview local"
-                      style={{
-                        width: "48px",
-                        height: "48px",
-                        objectFit: "cover",
-                        borderRadius: "4px",
-                        border: "1px solid var(--border)",
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFiles((prev) => prev.filter((_, idx) => idx !== i))
-                      }
-                      title="Quitar imagen"
-                      style={{
-                        position: "absolute",
-                        top: "2px",
-                        right: "2px",
-                        background: "#e74c3c",
-                        color: "white",
-                        width: "16px",
-                        height: "16px",
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        zIndex: 10,
-                      }}
+                      <img
+                        src={photo.public_url}
+                        alt="preview guardada"
+                        style={{
+                          width: "48px",
+                          height: "48px",
+                          objectFit: "cover",
+                          borderRadius: "4px",
+                          border: "1px solid var(--border)",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDeletedRecordPhotoIds((prev) => [...prev, photo.id])
+                        }
+                        title="Quitar foto del registro"
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          right: "2px",
+                          background: "#e74c3c",
+                          color: "white",
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 0,
+                          zIndex: 10,
+                        }}
+                      >
+                        <IconClose style={{ width: 10, height: 10 }} />
+                      </button>
+                    </div>
+                  ))}
+                  {Array.from(files).map((file, i) => (
+                    <div
+                      key={`local-${i}`}
+                      style={{ position: "relative", display: "inline-block" }}
                     >
-                      <IconClose style={{ width: 10, height: 10 }} />
-                    </button>
-                  </div>
-                ))}
-                {galleryPhotosToAdd.map((p) => (
-                  <div
-                    key={`gallery-${p.id}`}
-                    style={{ position: "relative", display: "inline-block" }}
-                  >
-                    <img
-                      src={p.public_url}
-                      alt="preview galeria"
-                      style={{
-                        width: "48px",
-                        height: "48px",
-                        objectFit: "cover",
-                        borderRadius: "4px",
-                        border: "1px solid var(--border)",
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelectedPhotosForEdit((prev) =>
-                          prev.filter((x) => x !== p.id),
-                        )
-                      }
-                      title="Quitar imagen"
-                      style={{
-                        position: "absolute",
-                        top: "2px",
-                        right: "2px",
-                        background: "#e74c3c",
-                        color: "white",
-                        width: "16px",
-                        height: "16px",
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        zIndex: 10,
-                      }}
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt="preview local"
+                        style={{
+                          width: "48px",
+                          height: "48px",
+                          objectFit: "cover",
+                          borderRadius: "4px",
+                          border: "1px solid var(--border)",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFiles((prev) => prev.filter((_, idx) => idx !== i))
+                        }
+                        title="Quitar imagen"
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          right: "2px",
+                          background: "#e74c3c",
+                          color: "white",
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 0,
+                          zIndex: 10,
+                        }}
+                      >
+                        <IconClose style={{ width: 10, height: 10 }} />
+                      </button>
+                    </div>
+                  ))}
+                  {galleryPhotosToAdd.map((p) => (
+                    <div
+                      key={`gallery-${p.id}`}
+                      style={{ position: "relative", display: "inline-block" }}
                     >
-                      <IconClose style={{ width: 10, height: 10 }} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                      <img
+                        src={p.public_url}
+                        alt="preview galeria"
+                        style={{
+                          width: "48px",
+                          height: "48px",
+                          objectFit: "cover",
+                          borderRadius: "4px",
+                          border: "1px solid var(--border)",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedPhotosForEdit((prev) =>
+                            prev.filter((x) => x !== p.id),
+                          )
+                        }
+                        title="Quitar imagen"
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          right: "2px",
+                          background: "#e74c3c",
+                          color: "white",
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 0,
+                          zIndex: 10,
+                        }}
+                      >
+                        <IconClose style={{ width: 10, height: 10 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             {totalModalPhotos > 0 && (
               <p
                 className="file-count"
@@ -6871,9 +6964,8 @@ export function SummitTracker({
               >
                 {totalModalPhotos} / 4 fotos en este registro
                 {files.length > 0 || galleryPhotosToAdd.length > 0
-                  ? ` (${files.length + galleryPhotosToAdd.length} nueva${
-                      files.length + galleryPhotosToAdd.length !== 1 ? "s" : ""
-                    } por guardar)`
+                  ? ` (${files.length + galleryPhotosToAdd.length} nueva${files.length + galleryPhotosToAdd.length !== 1 ? "s" : ""
+                  } por guardar)`
                   : ""}
                 .
               </p>
@@ -7404,12 +7496,21 @@ export function SummitTracker({
           onProfileUpdate={(p) => {
             setMyProfile((prev) => ({ ...prev, ...p }));
             refreshProfile();
-            if (p.enable_experiences === false) setExperiencesMode(false);
+            if (p.enable_experiences === false) {
+              setExperiencesMode(false);
+              onToggleExperiences?.(false);
+            }
             if (p.enable_peaks === false && currentMode === "peaks") {
               switchMode("countries");
             }
-            if (p.enable_countries === false && currentMode === "countries") {
-              switchMode("peaks");
+            if (p.enable_countries === false) {
+              if (experiencesMode) {
+                setExperiencesMode(false);
+                onToggleExperiences?.(false);
+              }
+              if (currentMode === "countries") {
+                switchMode("peaks");
+              }
             }
           }}
           onClose={() => setProfileOpen(false)}

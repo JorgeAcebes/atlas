@@ -1608,6 +1608,84 @@ nav a:hover::after {
   animation: fadeUp 0.35s ease 0.1s both;
 }
 
+/* ── Wishlist note ───────────────────────── */
+.wishlist-card-wrap {
+  margin: 23px 0 17px;
+  animation: fadeUp 0.3s ease;
+}
+
+.wishlist-card-wrap .pending-card {
+  margin: 0;
+}
+
+.wishlist-note-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1.5px solid #d4b96a;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  color: #a67c29;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+}
+
+.wishlist-note-btn:hover {
+  background: #fff;
+  color: #7c5a1a;
+}
+
+.wishlist-note-display {
+  background: #fdf8ee;
+  border: 1px solid #ecd9a5;
+  border-top: none;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: #7c6429;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wishlist-note-editor {
+  background: #fdf8ee;
+  border: 1px solid #ecd9a5;
+  border-top: none;
+  padding: 10px 12px 12px;
+}
+
+.wishlist-note-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d4b96a;
+  border-radius: 6px;
+  background: #fff;
+  color: #4a3a10;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  padding: 8px 10px;
+  resize: vertical;
+  outline: none;
+}
+
+.wishlist-note-textarea:focus {
+  border-color: #a67c29;
+  box-shadow: 0 0 0 2px rgba(166, 124, 41, 0.15);
+}
+
+.wishlist-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+
 /* ── Photo section ──────────────────────── */
 .photo-section {
   border-top: 1px solid var(--line);
