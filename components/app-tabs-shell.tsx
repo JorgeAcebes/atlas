@@ -152,12 +152,17 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  const activeTabRef = React.useRef<MainTab>(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
   const handleToggleExperiences = useCallback(
     (active: boolean) => {
       setSharedExperiencesMode(active);
       if (typeof window !== "undefined") {
         localStorage.setItem("myExperiencesMode", active.toString());
-        if (activeTab === "social") {
+        if (activeTabRef.current === "social") {
           const url = new URL(window.location.href);
           if (active && sharedMode === "countries") {
             url.searchParams.set("view", "experiences");
@@ -168,7 +173,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [activeTab, sharedMode]
+    [sharedMode]
   );
 
   const handleNavigate = useCallback(
@@ -176,6 +181,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       const tab = getTabFromPath(targetPath);
       if (tab) {
         setActiveTab(tab);
+        activeTabRef.current = tab;
 
         // Determine target mode:
         // If the link explicitly specifies a challenge or specific map route, adopt it;
@@ -244,13 +250,14 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         localStorage.setItem("last_active_mode", newMode);
         localStorage.setItem("last_map_path", newMode === "peaks" ? "/picos" : "/");
         localStorage.setItem("ranking_mode", newMode);
-        if (activeTab === "map") {
+        const currentTab = activeTabRef.current || getTabFromPath(window.location.pathname) || "map";
+        if (currentTab === "map") {
           const newPath = newMode === "peaks" ? "/picos" : "/";
           window.history.replaceState(null, "", newPath);
         } else {
           const url = new URL(window.location.href);
           url.searchParams.set("challenge", newMode);
-          if (newMode === "countries" && sharedExperiencesMode && activeTab === "social") {
+          if (newMode === "countries" && sharedExperiencesMode && currentTab === "social") {
             url.searchParams.set("view", "experiences");
           } else if (newMode === "peaks") {
             url.searchParams.delete("view");
@@ -259,7 +266,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [activeTab, sharedExperiencesMode]
+    [sharedExperiencesMode]
   );
 
   return (

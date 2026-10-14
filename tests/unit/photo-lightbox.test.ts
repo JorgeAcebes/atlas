@@ -85,5 +85,16 @@ describe("PhotoLightbox Invariants and Architecture", () => {
     expect(confirmContent).toContain("createPortal");
     expect(confirmContent).toContain("zIndex: 100060");
   });
+
+  it("PhotoLightbox must support Twitter-style double-tap zoom to 2.5x and toggle back to 1x", () => {
+    // Stage must handle double click / double tap
+    expect(content).toContain("handleDoubleTap");
+    expect(content).toContain("const targetScale = 2.5");
+    expect(content).toContain("touchStartPosRef");
+    expect(content).toContain("isCleanTap");
+    // Must zoom to 2.5 on first double tap, then toggle to 1x on second double tap
+    expect(content).toContain("if (scaleRef.current > 1.05)");
+    expect(content).toContain("handleResetZoom()");
+  });
 });
 

@@ -361,6 +361,58 @@ describe("Modality Preferences & Filtering Logic", () => {
         app.navigate("social");
         expect(app.getEffectiveView()).toBe("countries");
       });
+
+      it("should stay in Ranking when switching between Countries and Peaks via swipe or toggle", () => {
+        const app = new AppNavigationController("ranking", "countries", false);
+        expect(app.activeTab).toBe("ranking");
+        expect(app.sharedMode).toBe("countries");
+
+        // User switches mode to peaks while in ranking
+        app.switchMode("peaks");
+        expect(app.activeTab).toBe("ranking"); // MUST remain in ranking!
+        expect(app.sharedMode).toBe("peaks");
+
+        // User switches back to countries
+        app.switchMode("countries");
+        expect(app.activeTab).toBe("ranking"); // MUST remain in ranking!
+        expect(app.sharedMode).toBe("countries");
+      });
+
+      it("should stay in Social when switching between Countries and Peaks via swipe or toggle", () => {
+        const app = new AppNavigationController("social", "countries", false);
+        expect(app.activeTab).toBe("social");
+        expect(app.sharedMode).toBe("countries");
+
+        // User switches mode to peaks while in social
+        app.switchMode("peaks");
+        expect(app.activeTab).toBe("social"); // MUST remain in social!
+        expect(app.sharedMode).toBe("peaks");
+      });
+
+      it("should strictly differentiate horizontal swipes from vertical scroll gestures", () => {
+        function isValidHorizontalSwipe(diffX: number, diffY: number): boolean {
+          return (
+            Math.abs(diffX) >= 50 &&
+            Math.abs(diffY) <= 35 &&
+            Math.abs(diffX) >= Math.abs(diffY) * 2.0
+          );
+        }
+
+        // Clean horizontal swipes
+        expect(isValidHorizontalSwipe(60, 5)).toBe(true);
+        expect(isValidHorizontalSwipe(-75, 10)).toBe(true);
+        expect(isValidHorizontalSwipe(50, 20)).toBe(true);
+
+        // Vertical thumb scrolling (must be rejected!)
+        expect(isValidHorizontalSwipe(45, 60)).toBe(false);
+        expect(isValidHorizontalSwipe(30, 80)).toBe(false);
+        expect(isValidHorizontalSwipe(10, 150)).toBe(false);
+
+        // Diagonal scroll with slight thumb drift (must be rejected!)
+        expect(isValidHorizontalSwipe(45, 30)).toBe(false); // diffX < 50
+        expect(isValidHorizontalSwipe(55, 40)).toBe(false); // diffY > 35
+        expect(isValidHorizontalSwipe(60, 35)).toBe(false); // 60 < 35 * 2.0 (70)
+      });
     });
   });
 });

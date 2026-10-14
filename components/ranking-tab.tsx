@@ -262,15 +262,17 @@ export function RankingTab({
   const swipeTouchStartY = useRef<number | null>(null);
 
   const handleSwipeTouchStart = (e: React.TouchEvent) => {
+    if (!isActive) return;
     swipeTouchStartX.current = e.touches[0].clientX;
     swipeTouchStartY.current = e.touches[0].clientY;
   };
 
   const handleSwipeTouchEnd = (e: React.TouchEvent) => {
+    if (!isActive) return;
     if (swipeTouchStartX.current === null || swipeTouchStartY.current === null) return;
     const diffX = e.changedTouches[0].clientX - swipeTouchStartX.current;
     const diffY = e.changedTouches[0].clientY - swipeTouchStartY.current;
-    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY) * 1.25) {
+    if (Math.abs(diffX) >= 50 && Math.abs(diffY) <= 35 && Math.abs(diffX) >= Math.abs(diffY) * 2.0) {
       if (diffX < 0) {
         if (mode === "peaks" && enableCountries) switchMode("countries");
       } else {
@@ -282,6 +284,8 @@ export function RankingTab({
   };
 
   useEffect(() => {
+    if (!isActive) return;
+
     const handleGlobalTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null;
       if (
@@ -318,7 +322,7 @@ export function RankingTab({
       const diffX = endX - swipeTouchStartX.current;
       const diffY = endY - swipeTouchStartY.current;
 
-      if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY) * 1.25) {
+      if (Math.abs(diffX) >= 50 && Math.abs(diffY) <= 35 && Math.abs(diffX) >= Math.abs(diffY) * 2.0) {
         if (diffX < 0) {
           if (mode === "peaks" && enableCountries) switchMode("countries");
         } else {
@@ -335,7 +339,7 @@ export function RankingTab({
       window.removeEventListener("touchstart", handleGlobalTouchStart);
       window.removeEventListener("touchend", handleGlobalTouchEnd);
     };
-  }, [mode, enablePeaks, enableCountries]);
+  }, [isActive, mode, enablePeaks, enableCountries]);
 
   useEffect(() => {
     // Precarga en segundo plano de los módulos del mapa para navegación instantánea sin flash blanco

@@ -167,21 +167,23 @@ export function SocialTab({
   const swipeStartYRef = useRef<number | null>(null);
 
   const handleSwipeTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isActive) return;
     if (e.touches.length === 1) {
       swipeStartXRef.current = e.touches[0].clientX;
       swipeStartYRef.current = e.touches[0].clientY;
     }
-  }, []);
+  }, [isActive]);
 
   const handleSwipeTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!isActive) return;
     if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
     const endX = e.changedTouches[0].clientX;
     const endY = e.changedTouches[0].clientY;
     const diffX = endX - swipeStartXRef.current;
     const diffY = endY - swipeStartYRef.current;
 
-    // Minimum swipe distance 35px, predominantly horizontal
-    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY) * 1.25) {
+    // Minimum swipe distance 50px, predominantly horizontal, max 35px vertical deviation
+    if (Math.abs(diffX) >= 50 && Math.abs(diffY) <= 35 && Math.abs(diffX) >= Math.abs(diffY) * 2.0) {
       if (diffX < 0) {
         // Swipe left -> go to 196 Países
         if (currentMode === "peaks" && enableCountries) {
@@ -196,9 +198,11 @@ export function SocialTab({
     }
     swipeStartXRef.current = null;
     swipeStartYRef.current = null;
-  }, [currentMode, enablePeaks, enableCountries]);
+  }, [isActive, currentMode, enablePeaks, enableCountries]);
 
   useEffect(() => {
+    if (!isActive) return;
+
     const handleGlobalTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null;
       if (
@@ -229,7 +233,7 @@ export function SocialTab({
       const diffX = endX - swipeStartXRef.current;
       const diffY = endY - swipeStartYRef.current;
 
-      if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY) * 1.25) {
+      if (Math.abs(diffX) >= 50 && Math.abs(diffY) <= 35 && Math.abs(diffX) >= Math.abs(diffY) * 2.0) {
         if (diffX < 0) {
           if (currentMode === "peaks" && enableCountries) switchMode("countries");
         } else {
@@ -246,7 +250,7 @@ export function SocialTab({
       window.removeEventListener("touchstart", handleGlobalTouchStart);
       window.removeEventListener("touchend", handleGlobalTouchEnd);
     };
-  }, [currentMode, enablePeaks, enableCountries]);
+  }, [isActive, currentMode, enablePeaks, enableCountries]);
 
   useEffect(() => {
     // Precarga dinámicamente en segundo plano los módulos del mapa para navegación instantánea sin flash blanco
