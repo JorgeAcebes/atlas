@@ -69,15 +69,56 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
 
   const isMainRoute = getTabFromPath(pathname) !== null;
 
+  const historyScrollPositions = React.useRef<Map<string, number>>(new Map());
+  const isPopStateRef = React.useRef(false);
+  const lastPathRef = React.useRef(pathname);
+  const activeTabRef = React.useRef<MainTab>(activeTab);
+
+  const resetScrollToTop = useCallback((smooth = false) => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash && window.location.hash !== "#") {
+      return;
+    }
+    const behavior: ScrollBehavior = smooth ? "smooth" : "instant";
+    window.scrollTo({ top: 0, left: 0, behavior });
+    if (!smooth) {
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+    }
+  }, []);
+
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (typeof window === "undefined") return;
+      const key = window.location.pathname + window.location.search;
+      historyScrollPositions.current.set(key, window.scrollY);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Sync state when pathname changes via Next router
   useEffect(() => {
+    const prevPath = lastPathRef.current;
+    lastPathRef.current = pathname;
+
+    if (isPopStateRef.current) {
+      return;
+    }
+
     const tab = getTabFromPath(pathname);
     if (tab) {
+      const prevTab = activeTabRef.current;
       setActiveTab(tab);
+      activeTabRef.current = tab;
+
       let detectedMode: ChallengeMode | null = null;
       if (pathname === "/picos") {
         detectedMode = "peaks";
@@ -103,21 +144,38 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         }
       }
 
+      if (pathname !== prevPath || tab !== prevTab) {
+        resetScrollToTop(false);
+        requestAnimationFrame(() => {
+          resetScrollToTop(false);
+        });
+      }
+
       if (tab === "map") {
         setTimeout(() => {
           window.dispatchEvent(new Event("resize"));
         }, 50);
       }
+    } else {
+      if (pathname !== prevPath) {
+        resetScrollToTop(false);
+        requestAnimationFrame(() => {
+          resetScrollToTop(false);
+        });
+      }
     }
-  }, [pathname]);
+  }, [pathname, resetScrollToTop]);
 
   // Handle browser popstate
   useEffect(() => {
     const handlePopState = () => {
+      isPopStateRef.current = true;
       const currentPath = window.location.pathname;
+      const currentKey = currentPath + window.location.search;
       const tab = getTabFromPath(currentPath);
       if (tab) {
         setActiveTab(tab);
+        activeTabRef.current = tab;
         let detectedMode: ChallengeMode | null = null;
         if (currentPath === "/picos") {
           detectedMode = "peaks";
@@ -147,12 +205,21 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           }, 50);
         }
       }
+
+      const savedY = historyScrollPositions.current.get(currentKey) ?? 0;
+      requestAnimationFrame(() => {
+        if (!window.location.hash || window.location.hash === "#") {
+          window.scrollTo({ top: savedY, left: 0, behavior: "instant" });
+          if (document.documentElement) document.documentElement.scrollTop = savedY;
+          if (document.body) document.body.scrollTop = savedY;
+        }
+        isPopStateRef.current = false;
+      });
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const activeTabRef = React.useRef<MainTab>(activeTab);
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
@@ -180,6 +247,17 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
     (targetPath: string) => {
       const tab = getTabFromPath(targetPath);
       if (tab) {
+        const prevTab = activeTabRef.current;
+        if (tab === prevTab) {
+          resetScrollToTop(true);
+          return;
+        }
+
+        if (typeof window !== "undefined") {
+          const currentKey = window.location.pathname + window.location.search;
+          historyScrollPositions.current.set(currentKey, window.scrollY);
+        }
+
         setActiveTab(tab);
         activeTabRef.current = tab;
 
@@ -231,16 +309,27 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           localStorage.setItem("ranking_mode", targetMode);
         }
         window.history.pushState(null, "", finalPath);
+        lastPathRef.current = finalPath;
+
+        resetScrollToTop(false);
+        requestAnimationFrame(() => {
+          resetScrollToTop(false);
+        });
+
         if (tab === "map") {
           setTimeout(() => {
             window.dispatchEvent(new Event("resize"));
           }, 50);
         }
       } else {
+        if (typeof window !== "undefined") {
+          const currentKey = window.location.pathname + window.location.search;
+          historyScrollPositions.current.set(currentKey, window.scrollY);
+        }
         router.push(targetPath);
       }
     },
-    [router, sharedMode, sharedExperiencesMode]
+    [router, sharedMode, sharedExperiencesMode, resetScrollToTop]
   );
 
   const handleSwitchMode = useCallback(
@@ -265,9 +354,10 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           url.hash = "";
           window.history.replaceState(null, "", url.toString());
         }
+        resetScrollToTop(false);
       }
     },
-    [sharedExperiencesMode]
+    [sharedExperiencesMode, resetScrollToTop]
   );
 
   return (

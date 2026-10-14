@@ -886,12 +886,26 @@ export function SocialTab({
 
         <nav>
           <Link href={mapLink} prefetch={true} className="topbar-nav-link topbar-nav-link--mapa">Mapa</Link>
-          <Link href={`/social?challenge=${currentMode}`} className="topbar-nav-link topbar-nav-link--social topbar-nav-link--active" style={{ position: 'relative' }}>
+          <Link
+            href={`/social?challenge=${currentMode}`}
+            className="topbar-nav-link topbar-nav-link--social topbar-nav-link--active"
+            style={{ position: 'relative' }}
+            onClick={(e) => {
+              if (onNavigate) {
+                e.preventDefault();
+                onNavigate(`/social?challenge=${currentMode}`);
+              } else {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+          >
             Social
             {hasPendingRequests ? (
               <span 
                 onClick={(e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   setConnectionsModal('followers');
                 }}
                 style={{ 

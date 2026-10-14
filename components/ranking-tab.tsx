@@ -475,7 +475,22 @@ export function RankingTab({
               />
             ) : null}
           </Link>
-          <Link href={`/ranking?challenge=${mode}`} prefetch={true} className="topbar-nav-link topbar-nav-link--ranking topbar-nav-link--active">Ranking</Link>
+          <Link
+            href={`/ranking?challenge=${mode}`}
+            prefetch={true}
+            className="topbar-nav-link topbar-nav-link--ranking topbar-nav-link--active"
+            onClick={(e) => {
+              if (onNavigate) {
+                e.preventDefault();
+                onNavigate(`/ranking?challenge=${mode}`);
+              } else {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+          >
+            Ranking
+          </Link>
           {(myProfile || session) ? (
             <button
               className="account-button"

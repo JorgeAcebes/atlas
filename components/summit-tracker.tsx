@@ -4717,7 +4717,7 @@ export function SummitTracker({
       {/* ── Map ─────────────────────────── */}
       <section className="map-section">
         <div id="mapa" className="section-heading map-heading-row">
-          <div className="map-legend-area">
+          <div className={`map-legend-area ${diffMode ? "map-legend-area--diff" : ""}`}>
             {diffMode ? (
               <div className="diff-legend">
                 <span>
@@ -4731,7 +4731,7 @@ export function SummitTracker({
                 <span>
                   <i className="legend-diff-dot legend-diff-dot--both" /> Ambos
                 </span>
-                <span>
+                <span className="diff-legend-item--none">
                   <i className="legend-diff-dot legend-diff-dot--none" />{" "}
                   Ninguno
                 </span>

@@ -91,6 +91,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 5. **Posición de la Lupa (Buscador del Mapa)**: La lupa (`.map-search-control`) se sitúa en su posición superior estándar (`top: 10px; right: 10px;` en desktop, `top: 8px; right: 8px;` en móvil) tanto en el mapa normal como en el mapa colectivo. **ÚNICAMENTE** se desplaza hacia abajo (`.map-search-control--offset`, `top: 48px;` / `top: 44px;`) cuando se accede al perfil de otro usuario y aparece el botón de comparar (`isReadOnly && session`).
 6. **Estabilidad Cromática de «Comparar conmigo» al Cambiar a Experiencias**: El botón flotante de «Comparar conmigo» (`.map-floating-btn`) no cambia de color al conmutar a modo experiencias (`.mode-experiences`), manteniendo invariables sus colores de fondo blanco, texto y acentos tanto en reposo como en hover y activo (`diffMode`).
 7. **Alineación Exacta de Controles con Pestaña Social y Mapa**: La barra de búsqueda, la píldora de «Siguiendo» y el selector de experiencias (`.social-feed-controls`) en `RankingTab` y `SocialTab` comparten la misma estructura de contenedores (`.page-container` con `paddingTop: '14px'`, `paddingBottom: '70px'`, `paddingLeft: '16px'`, `paddingRight: '16px'` y contenedor interno con `maxWidth: '680px', margin: '0 auto', width: '100%'`, reduciéndose a `padding-top: 8px !important` en móvil `<= 768px`), garantizando que la posición horizontal y vertical sea idéntica a la píldora de experiencias de la página de Mapa (`.map-section` a 14px / 8px del hero) para una transición completamente fluida y sin saltos visuales al alternar entre pestañas.
+8. **Leyenda Comparativa (Centrada en Móvil e Invarianza Cromática en Modo Oscuro)**: La leyenda comparativa (`.diff-legend`: 'Solo tú', 'Solo @usuario', 'Ambos', 'Ninguno') se centra horizontalmente en dispositivos móviles (`<= 768px`) conservando íntegramente todos sus elementos incluido 'Ninguno'. Además, los colores de los marcadores de la leyenda comparativa son estrictamente invariables al cambiar a modo experiencias / modo oscuro (`.mode-experiences`), manteniendo los colores canónicos ('Solo tú': `#7b52ab`, 'Solo @usuario': `#c75a3a`, 'Ambos': `#c5b3da`, 'Ninguno': `#ddd8d0`) sin adoptar variables de acento ni transparencias.
 
 ---
 
@@ -262,6 +263,20 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 2. **Botón de Cruz (`X`) para Cancelar y Cerrar Solicitud**:
    - El banner rectangular flotante superior (*"Haz clic en el mapa para situar la experiencia o busca el lugar aquí"*) dispone en su lateral derecho de un botón circular con el icono de la cruz (`.selecting-location-cancel-btn`).
    - Pulsar este botón o la tecla `Escape` cancela de forma inmediata la selección de ubicación y desbloquea el scroll general.
+
+---
+
+## 21. Aislamiento de Scroll entre Pestañas y Rutas (`components/app-tabs-shell.tsx`, `components/social-tab.tsx`, `components/ranking-tab.tsx`)
+
+1. **Cero Permeabilidad de Scroll entre Vistas**:
+   - El scroll de una página (ej. Social) nunca debe arrastrarse ni permear al resto de páginas (Mapa, Ranking, Perfiles).
+   - Al navegar a una pestaña o ruta diferente mediante clics en la barra de navegación o enlaces, la nueva vista se inicializa estrictamente en la parte superior (`top: 0`) de forma instantánea (`behavior: "instant"`).
+2. **Control Manual de Restauración de Historial**:
+   - En `AppTabsShellInner`, se desactiva la restauración automática del navegador (`window.history.scrollRestoration = "manual"`) para delegar el control a la aplicación.
+   - Un mapa de historial en memoria registra las posiciones para restaurarlas exclusivamente ante eventos reales de navegación atrás/adelante (`popstate`).
+3. **Retorno Suave Arriba en Pestaña Activa**:
+   - Al hacer clic sobre el enlace de la pestaña que ya se encuentra activa en ese momento (ej. pulsar en «Social» estando ya en Social, o «Ranking» estando en Ranking), la página realiza un desplazamiento suave hacia arriba (`window.scrollTo({ top: 0, behavior: "smooth" })`).
+
 
 
 

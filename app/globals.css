@@ -124,13 +124,11 @@
   border-color: rgba(186, 194, 222, 0.3);
 }
 
-.mode-experiences .legend-diff-dot--only-me,
 .mode-experiences .summit-pin--diff-only-me {
   background: var(--pine);
   border-color: rgba(149, 112, 199, 0.3);
 }
 
-.mode-experiences .legend-diff-dot--both,
 .mode-experiences .summit-pin--diff-both {
   background: rgba(149, 112, 199, 0.4);
   border-color: rgba(149, 112, 199, 0.2);
@@ -3690,12 +3688,28 @@ textarea:focus {
   background: #ddd8d0;
 }
 
-.mode-countries .legend-diff-dot--only-me {
-  background: #7b52ab;
+.mode-countries .legend-diff-dot--only-me,
+.mode-experiences .legend-diff-dot--only-me {
+  background: #7b52ab !important;
+  border: none !important;
 }
 
-.mode-countries .legend-diff-dot--both {
-  background: #c5b3da;
+.mode-countries .legend-diff-dot--both,
+.mode-experiences .legend-diff-dot--both {
+  background: #c5b3da !important;
+  border: none !important;
+}
+
+.mode-countries .legend-diff-dot--only-them,
+.mode-experiences .legend-diff-dot--only-them {
+  background: #c75a3a !important;
+  border: none !important;
+}
+
+.mode-countries .legend-diff-dot--none,
+.mode-experiences .legend-diff-dot--none {
+  background: #ddd8d0 !important;
+  border: none !important;
 }
 
 /* ── Diff map pin variants ────────────── */
@@ -3831,8 +3845,17 @@ textarea:focus {
   }
 
   .diff-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .diff-legend span {
+    white-space: nowrap;
   }
 }
 
@@ -4758,6 +4781,8 @@ textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
+  padding: 0.04em 0.18em;
+  margin: -0.04em -0.18em;
 }
 
 .hero-target-follow-center {
@@ -5843,9 +5868,33 @@ main.mode-experiences {
     gap: 10px !important;
     margin: 0 !important;
   }
-  .map-legend-area > .map-legend,
-  .map-legend-area > .diff-legend {
+  .map-legend-area > .map-legend {
     order: 0 !important;
+  }
+  .map-legend-area--diff,
+  .map-legend-area:has(> .diff-legend) {
+    justify-content: center !important;
+  }
+  .map-legend-area--diff > .diff-legend,
+  .map-legend-area > .diff-legend,
+  .diff-legend {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    margin: 0 auto !important;
+    gap: 12px !important;
+    text-align: center !important;
+    flex-wrap: wrap !important;
+    order: 0 !important;
+  }
+  .diff-legend span {
+    white-space: nowrap !important;
+  }
+  .map-legend-area--diff > .diff-toggle-wrap,
+  .map-legend-area:has(> .diff-legend) > .diff-toggle-wrap {
+    display: none !important;
   }
   .map-legend-area > .diff-toggle-wrap {
     order: 2 !important;
@@ -5868,6 +5917,13 @@ main.mode-experiences {
 @media (max-width: 600px) {
   .map-legend-area {
     gap: 8px !important;
+  }
+  .diff-legend {
+    gap: 8px !important;
+  }
+  .diff-legend span {
+    gap: 4px !important;
+    flex-shrink: 0 !important;
   }
   .map-legend {
     gap: 8px !important;

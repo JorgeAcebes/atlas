@@ -943,6 +943,49 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(content).toContain("get_feed_photos");
       expect(content).not.toMatch(/\.in\(['"]user_id['"],\s*batchUserIds\)\.in\(['"]summit_id['"],\s*batchSummitIds\)/);
     });
+
+    it("Invariant 11.34: Comparative legend is centered on mobile, Ninguno is visible, and colors remain invariant in dark mode", () => {
+      const summitTrackerPath = path.join(rootDir, "components/summit-tracker.tsx");
+      const summitContent = fs.readFileSync(summitTrackerPath, "utf-8");
+
+      // map-legend-area--diff class applied during diffMode
+      expect(summitContent).toContain('map-legend-area ${diffMode ? "map-legend-area--diff" : ""}');
+      // Ninguno item has diff-legend-item--none
+      expect(summitContent).toContain('className="diff-legend-item--none"');
+
+      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+
+      // Ninguno must NOT be hidden
+      expect(globalsCss).not.toMatch(/\.diff-legend\s+\.diff-legend-item--none\s*\{[^}]*display:\s*none/);
+
+      // Mobile rule must center diff-legend
+      expect(globalsCss).toMatch(/\.diff-legend\s*\{[^}]*justify-content:\s*center\s*!important/);
+      expect(globalsCss).toMatch(/\.map-legend-area--diff[\s\S]*?justify-content:\s*center\s*!important/);
+
+      // Colors of legend-diff-dot must remain invariant in dark mode (mode-experiences)
+      expect(globalsCss).toMatch(/\.mode-experiences\s+\.legend-diff-dot--only-me\s*\{[^}]*background:\s*#7b52ab/);
+      expect(globalsCss).toMatch(/\.mode-experiences\s+\.legend-diff-dot--both\s*\{[^}]*background:\s*#c5b3da/);
+      expect(globalsCss).not.toMatch(/\.mode-experiences\s+\.legend-diff-dot--only-me\s*\{[^}]*background:\s*var\(--pine\)/);
+    });
+
+    it("Invariant 11.35: Scroll isolation and top reset must be enforced across tabs and routes in AppTabsShell", () => {
+      const shellPath = path.join(rootDir, "components/app-tabs-shell.tsx");
+      const shellContent = fs.readFileSync(shellPath, "utf-8");
+
+      expect(shellContent).toContain('window.history.scrollRestoration = "manual"');
+      expect(shellContent).toContain("resetScrollToTop");
+      expect(shellContent).toContain("historyScrollPositions");
+      expect(shellContent).toContain("resetScrollToTop(false)");
+      expect(shellContent).toContain("resetScrollToTop(true)");
+
+      const socialTabPath = path.join(rootDir, "components/social-tab.tsx");
+      const socialContent = fs.readFileSync(socialTabPath, "utf-8");
+      expect(socialContent).toMatch(/topbar-nav-link--social topbar-nav-link--active[\s\S]*?onClick=/);
+
+      const rankingTabPath = path.join(rootDir, "components/ranking-tab.tsx");
+      const rankingContent = fs.readFileSync(rankingTabPath, "utf-8");
+      expect(rankingContent).toMatch(/topbar-nav-link--ranking topbar-nav-link--active[\s\S]*?onClick=/);
+    });
   });
 });
 

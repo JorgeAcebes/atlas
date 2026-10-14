@@ -141,4 +141,15 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
       expect(globalsCss).toMatch(/\.hero-main--ranking\s*\{[^}]*text-align:\s*center\s*!important/);
     });
   });
+
+  describe("6. User map title @ symbol spacing and overflow protection", () => {
+    it("should provide horizontal padding and negative margins to prevent clipping of italic characters like @", () => {
+      const globalsCss = fs.readFileSync(path.resolve(process.cwd(), "app/globals.css"), "utf-8");
+      expect(globalsCss).toMatch(/\.hero-title--user\s+em,\s*\n*\.hero-main--with-follow\s+h1\s+em\s*\{[^}]*overflow:\s*hidden/);
+      expect(globalsCss).toMatch(/\.hero-title--user\s+em,\s*\n*\.hero-main--with-follow\s+h1\s+em\s*\{[^}]*text-overflow:\s*ellipsis/);
+      expect(globalsCss).toMatch(/\.hero-title--user\s+em,\s*\n*\.hero-main--with-follow\s+h1\s+em\s*\{[^}]*padding:\s*0\.04em\s+0\.18em/);
+      expect(globalsCss).toMatch(/\.hero-title--user\s+em,\s*\n*\.hero-main--with-follow\s+h1\s+em\s*\{[^}]*margin:\s*-0\.04em\s+-0\.18em/);
+    });
+  });
 });
+
