@@ -151,5 +151,26 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
       expect(globalsCss).toMatch(/\.hero-title--user\s+em,\s*\n*\.hero-main--with-follow\s+h1\s+em\s*\{[^}]*margin:\s*-0\.04em\s+-0\.18em/);
     });
   });
+
+  describe("7. Collective map visitor deep-link to record panel", () => {
+    it("should link visitor items to user profile with #panel=recordId and set auto_open_panel in sessionStorage", () => {
+      const collectivePath = path.resolve(process.cwd(), "components/collective-map.tsx");
+      const collective = fs.readFileSync(collectivePath, "utf-8");
+
+      expect(collective).toContain("useRouter");
+      expect(collective).toContain("recordUrlWithHash");
+      expect(collective).toContain('sessionStorage.setItem("auto_open_panel", recordId)');
+      expect(collective).toContain("#panel=");
+      expect(collective).toContain("handleVisitorClick");
+      expect(collective).toContain("challenge=${recordChallenge}&from=ranking");
+      expect(collective).toContain("collective-visitor-link");
+    });
+
+    it("should have hover styling in ranking.css for collective-visitor-link across modes", () => {
+      const rankingCss = fs.readFileSync(path.resolve(process.cwd(), "components/ranking.css"), "utf-8");
+      expect(rankingCss).toMatch(/\.collective-visitor-link:hover\s*\{[^}]*background:/);
+      expect(rankingCss).toMatch(/\.mode-peaks \.collective-visitor-link:hover\s*\{[^}]*background:/);
+    });
+  });
 });
 

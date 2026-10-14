@@ -22,6 +22,7 @@ import { getIconComponent } from "./icons";
 import { predefinedCategories } from "@/data/experiences";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "./auth-context";
 import { AuthDialog } from "@/components/auth-dialog";
 import { UserRoundCheck } from "lucide-react";
@@ -317,6 +318,7 @@ function ExperiencesToggleControl({
 }
 
 export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode = "countries" }: Props) {
+  const router = useRouter();
   const { session } = useAuth();
   const [internalScope, setInternalScope] = useState<"all" | "following">("all");
   const scope = propScope !== undefined ? propScope : internalScope;
@@ -942,8 +944,11 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
                    zIndexOffset={1000}
                    eventHandlers={{
                      click: () => {
+                       const expRecordId = marker.experience_id
+                         ? (marker.sub_item_id ? `${marker.experience_id}::${marker.sub_item_id}` : marker.experience_id)
+                         : marker.id;
                        setSelectedSummit({ 
-                         id: marker.id, 
+                         id: expRecordId, 
                          name: expName, 
                          visitors: [{ id: marker.user_id, username: marker.profiles?.username, avatar: marker.profiles?.avatar_url }],
                          isExperience: true
@@ -1004,20 +1009,53 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
                   {selectedSummit.visitors.length} {selectedSummit.visitors.length === 1 ? 'persona ha' : 'personas han'} {(selectedSummit as any).isExperience ? 'vivido esta experiencia' : isPeaks ? 'ascendido esta cumbre' : 'visitado este lugar'}
                 </p>
                 <ul className="collective-visitors-list">
-                  {selectedSummit.visitors.map((v) => (
-                    <li key={v.id}>
-                      <Link href={`/perfil/${v.username}?challenge=${isPeaks ? "peaks" : "countries"}&from=ranking`} className="collective-visitor-link" onClick={(e) => e.stopPropagation()}>
-                        <div className="collective-visitor-avatar">
-                          {v.avatar ? (
-                            <img src={v.avatar} alt={v.username} />
-                          ) : (
-                            v.username.charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <span>@{v.username}</span>
-                      </Link>
-                    </li>
-                  ))}
+                  {selectedSummit.visitors.map((v) => {
+                    const isExp = Boolean((selectedSummit as any)?.isExperience);
+                    const recordChallenge = isExp ? "experiences" : isPeaks ? "peaks" : "countries";
+                    const recordId = selectedSummit.id;
+                    const profileBaseUrl = v.username
+                      ? `/perfil/${v.username}?challenge=${recordChallenge}&from=ranking`
+                      : "";
+                    const recordUrlWithHash =
+                      v.username && recordId
+                        ? `${profileBaseUrl}#panel=${encodeURIComponent(recordId)}`
+                        : profileBaseUrl;
+
+                    const handleVisitorClick = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (!v.username || !recordId) return;
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+                        return;
+                      }
+                      e.preventDefault();
+                      try {
+                        sessionStorage.setItem("auto_open_panel", recordId);
+                      } catch (err) {
+                        console.warn("Could not set sessionStorage:", err);
+                      }
+                      router.push(profileBaseUrl);
+                    };
+
+                    return (
+                      <li key={v.id}>
+                        <Link
+                          href={recordUrlWithHash}
+                          className="collective-visitor-link"
+                          onClick={handleVisitorClick}
+                          title={v.username ? `Ver registro de @${v.username}` : undefined}
+                        >
+                          <div className="collective-visitor-avatar">
+                            {v.avatar ? (
+                              <img src={v.avatar} alt={v.username} />
+                            ) : (
+                              v.username.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <span>@{v.username}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
               </>
             ) : (

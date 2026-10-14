@@ -791,6 +791,11 @@ h1.ranking-hero-title em {
   background: rgba(123, 82, 171, 0.08);
 }
 
+.collective-map-overlay.mode-peaks .collective-visitor-link:hover,
+.mode-peaks .collective-visitor-link:hover {
+  background: rgba(92, 155, 125, 0.12);
+}
+
 .collective-visitor-avatar {
   width: 32px;
   height: 32px;
