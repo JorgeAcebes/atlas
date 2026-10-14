@@ -872,7 +872,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
                   eventHandlers={{
                     click: () => {
                       const data = collectiveData.get(peak.id);
-                      const name = `${provText}: ${peak.name} (${peak.altitude}m)`;
+                      const name = `${provText}: ${peak.name}`;
                       if (data && data.visitor_usernames.length > 0) {
                         const visitors = data.visitor_usernames.map((username, i) => ({
                           id: data.visitor_ids[i],
@@ -885,17 +885,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
                       }
                     },
                   }}
-                >
-                  <Tooltip direction="top" offset={[0, -12]} className="summit-tooltip">
-                    <strong>{peak.name}</strong> ({peak.altitude}m)
-                    <br />
-                    <span style={{ fontSize: "11px", opacity: 0.85 }}>{provText}</span>
-                    <br />
-                    <span style={{ fontSize: "11px", color: count >= 3 ? "#245f52" : count === 2 ? "#5c9b7d" : count === 1 ? "#c75a3a" : "#888" }}>
-                      {count} {count === 1 ? "escalador" : "escaladores"}
-                    </span>
-                  </Tooltip>
-                </Marker>
+                />
               );
             })}
 

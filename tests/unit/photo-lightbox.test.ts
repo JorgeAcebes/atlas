@@ -96,5 +96,30 @@ describe("PhotoLightbox Invariants and Architecture", () => {
     expect(content).toContain("if (scaleRef.current > 1.05)");
     expect(content).toContain("handleResetZoom()");
   });
+
+  it("PhotoLightbox must implement Google Photos double-tap to zoom with configurable parameters and smooth transition", () => {
+    expect(content).toContain("GOOGLE_PHOTOS_ZOOM_CONFIG");
+    expect(content).toContain("animationDurationMs");
+    expect(content).toContain("animationEasing");
+    expect(content).toContain("dragThresholdPx");
+    expect(content).toContain("doubleTapDelayMs");
+    expect(content).toContain("imageRef");
+    expect(content).toContain("ref={imageRef}");
+  });
+
+  it("CollectiveMap must NOT render a tooltip inside the peak Marker and must open selectedSummit panel on click", () => {
+    const collectivePath = path.join(rootDir, "components/collective-map.tsx");
+    const collectiveContent = fs.readFileSync(collectivePath, "utf-8");
+
+    // Must not have Tooltip inside peak markers block
+    const uniquePeaksBlock = collectiveContent.slice(
+      collectiveContent.indexOf("uniquePeaks.map"),
+      collectiveContent.indexOf("experienceMarkers.map")
+    );
+    expect(uniquePeaksBlock).not.toContain("<Tooltip");
+
+    // Peak marker click must set selectedSummit matching province click behavior
+    expect(uniquePeaksBlock).toContain("setSelectedSummit({ id: peak.id");
+  });
 });
 

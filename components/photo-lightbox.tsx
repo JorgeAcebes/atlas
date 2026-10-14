@@ -16,6 +16,20 @@ export interface LightboxPhoto {
   [key: string]: any;
 }
 
+// Google Photos double-tap to zoom configuration
+export const GOOGLE_PHOTOS_ZOOM_CONFIG = {
+  initialScale: 1.0,
+  targetScale: 2.5,
+  maxScale: 4.0,
+  minScale: 1.0,
+  animationDurationMs: 280,
+  animationEasing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+  doubleTapDelayMs: 320,
+  singleTapMaxDurationMs: 250,
+  doubleTapMaxDistancePx: 50,
+  dragThresholdPx: 12,
+};
+
 export interface PhotoLightboxProps {
   photos: LightboxPhoto[];
   currentIndex: number;
@@ -58,6 +72,7 @@ export function PhotoLightbox({
 
   // References for drag/pan and touch gestures
   const stageRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
   const scaleRef = useRef(1);
   scaleRef.current = scale;
   const isDraggingRef = useRef(false);
@@ -89,16 +104,25 @@ export function PhotoLightbox({
     }
   }, [hasNext, currentIndex, onIndexChange]);
 
-  // Clamping pan bounds based on stage dimensions and current zoom scale
+  // Clamping pan bounds based on image & stage dimensions and current zoom scale
   const clampPan = useCallback((x: number, y: number, currentScale: number) => {
-    if (!stageRef.current || currentScale <= 1) {
+    if (!stageRef.current || currentScale <= 1.01) {
       return { x: 0, y: 0 };
     }
-    const stageWidth = stageRef.current.clientWidth;
-    const stageHeight = stageRef.current.clientHeight;
+    const stageWidth = stageRef.current.clientWidth || 800;
+    const stageHeight = stageRef.current.clientHeight || 600;
 
-    const maxPanX = Math.max(0, (stageWidth * (currentScale - 1)) / 2 + 40);
-    const maxPanY = Math.max(0, (stageHeight * (currentScale - 1)) / 2 + 40);
+    const imgW =
+      imageRef.current && imageRef.current.offsetWidth > 0
+        ? imageRef.current.offsetWidth
+        : stageWidth;
+    const imgH =
+      imageRef.current && imageRef.current.offsetHeight > 0
+        ? imageRef.current.offsetHeight
+        : stageHeight;
+
+    const maxPanX = Math.max(0, (imgW * currentScale - stageWidth) / 2);
+    const maxPanY = Math.max(0, (imgH * currentScale - stageHeight) / 2);
 
     return {
       x: Math.max(-maxPanX, Math.min(maxPanX, x)),
@@ -184,13 +208,17 @@ export function PhotoLightbox({
     return () => stage.removeEventListener("wheel", onWheel);
   }, [clampPan]);
 
-  // Double click / Double tap handler
+  // Double click / Double tap handler (Google Photos style)
   const handleDoubleTap = useCallback(
     (clientX: number, clientY: number) => {
       setIsInteracting(false);
+      const isZoomed = scaleRef.current > 1.05;
+
       if (scaleRef.current > 1.05) {
+        // Segundo doble tap: restaurar la escala inicial y centrar la imagen con animación
         handleResetZoom();
       } else {
+        // Primer doble tap: ampliar alrededor del punto focal (focalPoint)
         const targetScale = 2.5;
         if (stageRef.current) {
           const rect = stageRef.current.getBoundingClientRect();
@@ -198,7 +226,11 @@ export function PhotoLightbox({
           const centerY = rect.top + rect.height / 2;
           const offsetX = clientX - centerX;
           const offsetY = clientY - centerY;
-          const newPan = clampPan(-offsetX * (targetScale - 1), -offsetY * (targetScale - 1), targetScale);
+          const newPan = clampPan(
+            -offsetX * (targetScale - 1),
+            -offsetY * (targetScale - 1),
+            targetScale
+          );
           setScale(targetScale);
           setPan(newPan);
         } else {
@@ -212,7 +244,7 @@ export function PhotoLightbox({
   // Mouse pan event handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
-    if (scale > 1) {
+    if (scale > 1.05) {
       e.preventDefault();
       isDraggingRef.current = true;
       setIsInteracting(true);
@@ -239,7 +271,7 @@ export function PhotoLightbox({
 
   const touchStartPosRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
-  // Touch event handlers (Pinch, Pan & Swipe)
+  // Touch event handlers (Pinch, Pan & Swipe con coexistencia de doble tap)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       // Pinch to zoom
@@ -257,15 +289,12 @@ export function PhotoLightbox({
       const touch = e.touches[0];
       const now = Date.now();
       touchStartPosRef.current = { x: touch.clientX, y: touch.clientY, time: now };
+      dragStartRef.current = {
+        x: touch.clientX - pan.x,
+        y: touch.clientY - pan.y,
+      };
 
-      if (scaleRef.current > 1.05) {
-        isDraggingRef.current = true;
-        setIsInteracting(true);
-        dragStartRef.current = {
-          x: touch.clientX - pan.x,
-          y: touch.clientY - pan.y,
-        };
-      } else {
+      if (scaleRef.current <= 1.05) {
         touchStartSwipeRef.current = { x: touch.clientX, y: touch.clientY };
       }
     }
@@ -278,7 +307,10 @@ export function PhotoLightbox({
         e.touches[0].clientY - e.touches[1].clientY
       );
       const ratio = dist / pinchDistRef.current;
-      const nextScale = Math.min(4, Math.max(1, pinchScaleRef.current * ratio));
+      const nextScale = Math.min(
+        GOOGLE_PHOTOS_ZOOM_CONFIG.maxScale,
+        Math.max(GOOGLE_PHOTOS_ZOOM_CONFIG.minScale, pinchScaleRef.current * ratio)
+      );
       setScale(nextScale);
       if (nextScale <= 1.05) {
         setPan({ x: 0, y: 0 });
@@ -292,9 +324,13 @@ export function PhotoLightbox({
           touch.clientX - touchStartPosRef.current.x,
           touch.clientY - touchStartPosRef.current.y
         );
-        // If finger moves more than 15px, this is a drag, not a stationary tap
-        if (moveDist > 15) {
+        // Distinguir un toque estacionario de un desplazamiento (drag)
+        if (moveDist > GOOGLE_PHOTOS_ZOOM_CONFIG.dragThresholdPx) {
           touchStartPosRef.current = null;
+          if (scaleRef.current > 1.05 && !isDraggingRef.current) {
+            isDraggingRef.current = true;
+            setIsInteracting(true);
+          }
         }
       }
       if (isDraggingRef.current && scaleRef.current > 1.05) {
@@ -324,20 +360,21 @@ export function PhotoLightbox({
     const touchStart = touchStartPosRef.current;
     touchStartPosRef.current = null;
 
-    // A valid clean tap: duration <= 320ms and total displacement <= 20px
+    // A valid clean tap: duration <= singleTapMaxDurationMs and displacement <= 15px
     const isCleanTap =
       touchStart &&
-      now - touchStart.time <= 320 &&
-      Math.hypot(changedTouch.clientX - touchStart.x, changedTouch.clientY - touchStart.y) <= 20;
+      now - touchStart.time <= GOOGLE_PHOTOS_ZOOM_CONFIG.singleTapMaxDurationMs &&
+      Math.hypot(changedTouch.clientX - touchStart.x, changedTouch.clientY - touchStart.y) <= 15;
 
     if (isCleanTap) {
       const lastTap = lastTapRef.current;
       if (
         lastTap &&
-        now - lastTap.time <= 450 &&
-        Math.hypot(changedTouch.clientX - lastTap.x, changedTouch.clientY - lastTap.y) <= 55
+        now - lastTap.time <= GOOGLE_PHOTOS_ZOOM_CONFIG.doubleTapDelayMs &&
+        Math.hypot(changedTouch.clientX - lastTap.x, changedTouch.clientY - lastTap.y) <=
+          GOOGLE_PHOTOS_ZOOM_CONFIG.doubleTapMaxDistancePx
       ) {
-        // Double-tap confirmed: toggle zoom to 2.5x at tap location or reset to 1x
+        // Double-tap confirmed: animar ampliación a focalPoint o restaurar a 1x
         lastTapRef.current = null;
         touchStartSwipeRef.current = null;
         handleDoubleTap(changedTouch.clientX, changedTouch.clientY);
@@ -603,11 +640,14 @@ export function PhotoLightbox({
             justifyContent: "center",
             transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${scale})`,
             transformOrigin: "center center",
-            transition: isInteracting ? "none" : "transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)",
-            cursor: scale > 1 ? (isDraggingRef.current ? "grabbing" : "grab") : "zoom-in",
+            transition: isInteracting
+              ? "none"
+              : `transform ${GOOGLE_PHOTOS_ZOOM_CONFIG.animationDurationMs}ms ${GOOGLE_PHOTOS_ZOOM_CONFIG.animationEasing}`,
+            cursor: scale > 1.05 ? (isDraggingRef.current ? "grabbing" : "grab") : "zoom-in",
           }}
         >
           <img
+            ref={imageRef}
             key={currentPhoto.id || currentIndex}
             src={currentPhoto.public_url}
             alt={title || "Foto"}
