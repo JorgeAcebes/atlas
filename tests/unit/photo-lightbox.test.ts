@@ -103,6 +103,8 @@ describe("PhotoLightbox Invariants and Architecture", () => {
     expect(content).toContain("animationEasing");
     expect(content).toContain("dragThresholdPx");
     expect(content).toContain("doubleTapDelayMs");
+    expect(content).toContain("doubleTapCooldownMs");
+    expect(content).toContain("lastDoubleTapTimeRef");
     expect(content).toContain("imageRef");
     expect(content).toContain("ref={imageRef}");
   });

@@ -24,10 +24,11 @@ export const GOOGLE_PHOTOS_ZOOM_CONFIG = {
   minScale: 1.0,
   animationDurationMs: 280,
   animationEasing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-  doubleTapDelayMs: 320,
-  singleTapMaxDurationMs: 250,
-  doubleTapMaxDistancePx: 50,
+  doubleTapDelayMs: 380,
+  singleTapMaxDurationMs: 320,
+  doubleTapMaxDistancePx: 55,
   dragThresholdPx: 12,
+  doubleTapCooldownMs: 450,
 };
 
 export interface PhotoLightboxProps {
@@ -208,18 +209,29 @@ export function PhotoLightbox({
     return () => stage.removeEventListener("wheel", onWheel);
   }, [clampPan]);
 
+  const lastDoubleTapTimeRef = useRef(0);
+
   // Double click / Double tap handler (Google Photos style)
   const handleDoubleTap = useCallback(
     (clientX: number, clientY: number) => {
+      const now = Date.now();
+      // Cooldown anti-rebote: descarta eventos duplicados/sintéticos dblclick generados tras el touchend
+      if (now - lastDoubleTapTimeRef.current < GOOGLE_PHOTOS_ZOOM_CONFIG.doubleTapCooldownMs) {
+        return;
+      }
+      lastDoubleTapTimeRef.current = now;
+
       setIsInteracting(false);
       const isZoomed = scaleRef.current > 1.05;
 
       if (scaleRef.current > 1.05) {
         // Segundo doble tap: restaurar la escala inicial y centrar la imagen con animación
+        scaleRef.current = 1.0;
         handleResetZoom();
       } else {
         // Primer doble tap: ampliar alrededor del punto focal (focalPoint)
         const targetScale = 2.5;
+        scaleRef.current = targetScale;
         if (stageRef.current) {
           const rect = stageRef.current.getBoundingClientRect();
           const centerX = rect.left + rect.width / 2;
@@ -377,6 +389,9 @@ export function PhotoLightbox({
         // Double-tap confirmed: animar ampliación a focalPoint o restaurar a 1x
         lastTapRef.current = null;
         touchStartSwipeRef.current = null;
+        if (e.cancelable) {
+          e.preventDefault();
+        }
         handleDoubleTap(changedTouch.clientX, changedTouch.clientY);
         return;
       }
@@ -579,8 +594,10 @@ export function PhotoLightbox({
         onMouseMove={handleMouseMove}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onDoubleClick={(e) => handleDoubleTap(e.clientX, e.clientY)}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          handleDoubleTap(e.clientX, e.clientY);
+        }}
         onClick={(e) => {
           // Clicking anywhere in the stage background does NOT dismiss the lightbox
           e.stopPropagation();
