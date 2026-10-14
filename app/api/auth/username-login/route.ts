@@ -1,8 +1,25 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { authRateLimiter, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const rateCheck = authRateLimiter.check(ip);
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Demasiados intentos de inicio de sesión. Por favor, inténtalo de nuevo más tarde." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.ceil(rateCheck.resetMs / 1000).toString(),
+            "X-RateLimit-Limit": rateCheck.limit.toString(),
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+
     const body = await request.json();
     const { username, password } = body;
 

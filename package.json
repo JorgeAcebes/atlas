@@ -15,6 +15,8 @@
     "harness:eval": "tsx .agents/eval/runner.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1151.0",
+    "@aws-sdk/s3-request-presigner": "^3.1151.0",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-query-devtools": "^5.102.8",

@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
+import { uploadPhotoBlob, deleteStoragePhotos } from "@/lib/photo-client";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { MarqueeText } from "./marquee-text";
 
@@ -187,6 +188,7 @@ function countryToItem(country: Country): SelectedItem {
     subtitle: "",
     detail: "",
     note: "",
+    itemType: 'country',
   };
 }
 
@@ -293,6 +295,28 @@ function renderRecordLink(link?: string | null, linkName?: string | null) {
       <span style={{ textDecoration: "underline" }}>{displayName}</span>
     </a>
   );
+}
+
+export function getLinkPlaceholders(
+  isPeaks: boolean,
+  isExp: boolean,
+): { link1: string; link2: string } {
+  if (isPeaks) {
+    return {
+      link1: "Ej: Track de la Ruta",
+      link2: "Ej: Equipamiento utilizado",
+    };
+  }
+  if (isExp) {
+    return {
+      link1: "Ej: Vídeo de la experiencia",
+      link2: "Ej: Guía para la experiencia",
+    };
+  }
+  return {
+    link1: "Ej: Restaurante favorito",
+    link2: "Ej: Alojamiento recomendado",
+  };
 }
 
 /* ── SVG icon components ────────────────── */
@@ -700,7 +724,9 @@ export function SummitTracker({
   const targetId = targetProfile ? targetProfile.id : (session?.user.id || authProfile?.id);
   const [ascents, setAscents] = useState<Ascent[]>(() => getInitialTrackerList<Ascent>("ascents", targetId, cachedAscentsByUser));
   const [photos, setPhotos] = useState<SummitPhoto[]>(() => getInitialTrackerList<SummitPhoto>("photos", targetId, cachedPhotosByUser));
-  const [selected, setSelected] = useState<SelectedItem | null>(null);
+  const [selectedPeak, setSelectedPeak] = useState<SelectedItem | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<SelectedItem | null>(null);
+  const [selectedExperience, setSelectedExperience] = useState<SelectedItem | null>(null);
   const panelPushedRef = useRef(false);
   const recordOpenedFromPanelRef = useRef(false);
   const [panelIdToOpen, setPanelIdToOpen] = useState<string | null>(() => {
@@ -868,6 +894,118 @@ export function SummitTracker({
   const [isEditingExperiences, setIsEditingExperiences] = useState(false);
   const [iconDropdownOpen, setIconDropdownOpen] = useState(false);
 
+  const prevModeRef = useRef<ChallengeMode>(currentMode);
+  const prevExperiencesModeRef = useRef<boolean>(experiencesMode);
+
+  useEffect(() => {
+    if (prevModeRef.current !== currentMode) {
+      prevModeRef.current = currentMode;
+      setRecordOpen(false);
+      setProfileOpen(false);
+      setAuthOpen(false);
+      setPanelIdToOpen(null);
+      panelPushedRef.current = false;
+      recordOpenedFromPanelRef.current = false;
+    }
+  }, [currentMode]);
+
+  useEffect(() => {
+    if (prevExperiencesModeRef.current !== experiencesMode) {
+      prevExperiencesModeRef.current = experiencesMode;
+      setRecordOpen(false);
+      setProfileOpen(false);
+      setAuthOpen(false);
+      setPanelIdToOpen(null);
+      panelPushedRef.current = false;
+      recordOpenedFromPanelRef.current = false;
+    }
+  }, [experiencesMode]);
+
+  const isExp = experiencesMode && !isPeaks;
+
+  const selected = useMemo<SelectedItem | null>(() => {
+    if (isPeaks) return selectedPeak;
+    if (isExp) return selectedExperience;
+    return selectedCountry;
+  }, [isPeaks, isExp, selectedPeak, selectedCountry, selectedExperience]);
+
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+
+  const customExperiencesRef = useRef(customExperiences);
+  customExperiencesRef.current = customExperiences;
+
+  const setSelected = useCallback(
+    (
+      val:
+        | SelectedItem
+        | null
+        | ((prev: SelectedItem | null) => SelectedItem | null),
+    ) => {
+      const item = typeof val === "function" ? val(selectedRef.current) : val;
+      if (!item) {
+        setSelectedPeak(null);
+        setSelectedCountry(null);
+        setSelectedExperience(null);
+        return;
+      }
+
+      const isItemExp =
+        (item as any).itemType === "experience" ||
+        item.id.startsWith("exp-") ||
+        predefinedCategories.some((cat) =>
+          cat.experiences.some((exp) => exp.id === item.id),
+        ) ||
+        customExperiencesRef.current.some((exp) => exp.id === item.id);
+
+      const isItemPeak =
+        item.itemType === "peak" ||
+        peaks.some((p) => p.id === item.id);
+
+      if (isItemPeak) {
+        setSelectedPeak(item);
+      } else if (isItemExp) {
+        setSelectedExperience(item);
+      } else {
+        setSelectedCountry(item);
+      }
+    },
+    [],
+  );
+
+  const isSelectedValidForCurrentMode = Boolean(
+    selected &&
+    (isPeaks
+      ? (selected.itemType === 'peak' || peaks.some((p) => p.id === selected.id))
+      : isExp
+        ? (selected.itemType === 'experience' ||
+           predefinedCategories.some((cat) => cat.experiences.some((exp) => exp.id === selected.id)) ||
+           customExperiences.some((exp) => exp.id === selected.id) ||
+           selected.id.startsWith("exp-"))
+        : (selected.itemType === 'country' ||
+           countries.some((c) => c.id === selected.id) ||
+           selected.id.startsWith("country-")))
+  );
+
+  const activeSelected = isSelectedValidForCurrentMode ? selected : null;
+
+  useEffect(() => {
+    if (selected && !isSelectedValidForCurrentMode) {
+      setSelected(null);
+      setRecordOpen(false);
+      setPanelIdToOpen(null);
+      panelPushedRef.current = false;
+      recordOpenedFromPanelRef.current = false;
+      if (typeof window !== "undefined" && window.location.hash.startsWith("#panel")) {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search,
+        );
+      }
+    }
+  }, [selected, isSelectedValidForCurrentMode]);
+
   const [targetConnStatus, setTargetConnStatus] = useState<"pending" | "accepted" | null>(() => {
     return initialTargetConnStatus !== undefined ? initialTargetConnStatus : null;
   });
@@ -976,8 +1114,8 @@ export function SummitTracker({
   }, []);
 
   const isScrollLocked =
-    (isMobile && !!selected) ||
-    !!recordOpen ||
+    (isMobile && !!selected && isSelectedValidForCurrentMode) ||
+    (!!recordOpen && !!selected && isSelectedValidForCurrentMode) ||
     !!lightboxPhoto ||
     !!editorPhoto ||
     !!lightboxCaptionModalOpen ||
@@ -1057,7 +1195,7 @@ export function SummitTracker({
   const touchStartX = useRef<number | null>(null);
 
   const currentPhotoGroup = useMemo(() => {
-    if (!lightboxPhoto || !selected) return [];
+    if (!lightboxPhoto || !selected || !isSelectedValidForCurrentMode) return [];
     const registeredDates = new Set([
       ...ascents
         .filter((a) => a.summit_id === selected.id && !a.is_wishlist)
@@ -1081,7 +1219,7 @@ export function SummitTracker({
         (p) => p.summit_id === selected.id && !registeredDates.has(p.taken_on),
       );
     }
-  }, [lightboxPhoto, selected, ascents, experienceRecords, photos]);
+  }, [lightboxPhoto, selected, isSelectedValidForCurrentMode, ascents, experienceRecords, photos]);
 
   const lightboxIndex = lightboxPhoto
     ? currentPhotoGroup.findIndex((p) => p.id === lightboxPhoto.id)
@@ -1122,15 +1260,16 @@ export function SummitTracker({
           setRecordOpen(false);
         }
       } else {
-        setEditorPhoto(null);
-        setLightboxPhoto(null);
-        setSelected(null);
-        setRecordOpen(false);
-        setProfileOpen(false);
-        setAuthOpen(false);
-        setPanelIdToOpen(null);
-        panelPushedRef.current = false;
-        recordOpenedFromPanelRef.current = false;
+        if (!panelIdToOpen) {
+          setEditorPhoto(null);
+          setLightboxPhoto(null);
+          setSelected(null);
+          setRecordOpen(false);
+          setProfileOpen(false);
+          setAuthOpen(false);
+          panelPushedRef.current = false;
+          recordOpenedFromPanelRef.current = false;
+        }
       }
     };
     window.addEventListener("hashchange", handleHashChange);
@@ -1139,7 +1278,7 @@ export function SummitTracker({
       window.removeEventListener("hashchange", handleHashChange);
       window.removeEventListener("popstate", handleHashChange);
     };
-  }, [isActive, selected]);
+  }, [isActive, selected, panelIdToOpen, setSelected]);
 
   useEffect(() => {
     if (!isActive) {
@@ -1166,7 +1305,6 @@ export function SummitTracker({
   }, [experiencesMode, isPeaks, isActive, session]);
 
   // ── Mode config ────────────────────────────
-  const isExp = experiencesMode && !isPeaks;
   const dynamicCategories = useMemo(() => {
     const hiddenCategoryIds = new Set(
       hiddenItems
@@ -1920,7 +2058,7 @@ export function SummitTracker({
   }, [completedModeAscents, myCompletedIds]);
 
   const selectedAscents = useMemo(() => {
-    if (!selected) return [];
+    if (!selected || !isSelectedValidForCurrentMode) return [];
 
     const allAscents = [
       ...ascents,
@@ -1953,10 +2091,10 @@ export function SummitTracker({
         const bEnd = b.end_date || b.achieved_on;
         return aEnd.localeCompare(bEnd) * order;
       });
-  }, [selected, ascents, experienceRecords, ascentsSortOrder]);
+  }, [selected, isSelectedValidForCurrentMode, ascents, experienceRecords, ascentsSortOrder]);
 
   const selectedExperienceRecords = useMemo(() => {
-    if (!selected) return [];
+    if (!selected || !isSelectedValidForCurrentMode) return [];
     return experienceRecords
       .filter((r) => r.experience_id === selected.id && !r.sub_item_id)
       .sort((a, b) => {
@@ -1966,10 +2104,10 @@ export function SummitTracker({
         }
         return 0;
       });
-  }, [selected, experienceRecords, ascentsSortOrder]);
+  }, [selected, isSelectedValidForCurrentMode, experienceRecords, ascentsSortOrder]);
 
   const hasWishlist = useMemo(() => {
-    if (!selected) return false;
+    if (!selected || !isSelectedValidForCurrentMode) return false;
     const allAscents = [
       ...ascents,
       ...experienceRecords.map((r) => ({
@@ -1978,13 +2116,13 @@ export function SummitTracker({
       })),
     ];
     return allAscents.some((a) => a.summit_id === selected.id && a.is_wishlist);
-  }, [selected, ascents, experienceRecords]);
+  }, [selected, isSelectedValidForCurrentMode, ascents, experienceRecords]);
 
   const wishlistEntry = useMemo(() => {
-    if (!selected) return null;
+    if (!selected || !isSelectedValidForCurrentMode) return null;
     return ascents.find((a) => a.summit_id === selected.id && a.is_wishlist) ?? null;
-  }, [selected, ascents]);
-  const selectedPhotos = selected
+  }, [selected, isSelectedValidForCurrentMode, ascents]);
+  const selectedPhotos = selected && isSelectedValidForCurrentMode
     ? photos.filter(
       (p) =>
         p.summit_id === selected.id ||
@@ -2004,7 +2142,7 @@ export function SummitTracker({
     setRecordOpen(false);
     setNotice("");
     setShowWishlistNoteEditor(false);
-  }, []);
+  }, [setSelected]);
 
   async function handleAddPhotosToDate(
     event: ChangeEvent<HTMLInputElement>,
@@ -2053,17 +2191,20 @@ export function SummitTracker({
     for (const { file, shotAt } of filesToUpload) {
       if (!file.type.startsWith("image/")) continue;
       const compressedBlob = await compressImage(file);
-      const path = `${session.user.id}/${selected.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-      const upload = await supabase.storage
-        .from("summit-photos")
-        .upload(path, compressedBlob, { contentType: compressedBlob.type || "image/webp", upsert: false });
-      if (upload.error) {
-        setNotice(`Error al subir ${file.name}: ${upload.error.message}`);
+      let uploadResult;
+      try {
+        uploadResult = await uploadPhotoBlob({
+          blob: compressedBlob,
+          fileName: file.name,
+          summitId: selected.id,
+          session,
+          supabase,
+        });
+      } catch (uploadErr: any) {
+        setNotice(uploadErr.message || `Error al subir ${file.name}`);
         continue;
       }
-      const { data } = supabase.storage
-        .from("summit-photos")
-        .getPublicUrl(path);
+
       const photoResult = await supabase
         .from("summit_photos")
         .insert({
@@ -2071,8 +2212,9 @@ export function SummitTracker({
           summit_id: ascent.sub_item_id
             ? `${selected.id}::${ascent.sub_item_id}`
             : selected.id,
-          storage_path: path,
-          public_url: data.publicUrl,
+          storage_path: uploadResult.storagePath,
+          public_url: uploadResult.publicUrl,
+          file_size: uploadResult.fileSize,
           taken_on: ascent.achieved_on,
           shot_at: shotAt,
         })
@@ -2784,7 +2926,7 @@ export function SummitTracker({
         .map((p) => p.storage_path)
         .filter(Boolean);
       if (storagePaths.length > 0) {
-        await supabase.storage.from("summit-photos").remove(storagePaths);
+        await deleteStoragePhotos({ paths: storagePaths, session, supabase });
       }
       await supabase
         .from("summit_photos")
@@ -2807,19 +2949,22 @@ export function SummitTracker({
     for (const { file, shotAt } of filesToUpload) {
       if (!file.type.startsWith("image/")) continue;
       const compressedBlob = await compressImage(file);
-      const path = `${session.user.id}/${selected.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-      const upload = await supabase.storage
-        .from("summit-photos")
-        .upload(path, compressedBlob, { contentType: compressedBlob.type || "image/webp", upsert: false });
-      if (upload.error) {
+      let uploadResult;
+      try {
+        uploadResult = await uploadPhotoBlob({
+          blob: compressedBlob,
+          fileName: file.name,
+          summitId: selected.id,
+          session,
+          supabase,
+        });
+      } catch (uploadErr: any) {
         setNotice(
-          `Registro guardado, pero una foto no pudo subirse: ${upload.error.message}`,
+          `Registro guardado, pero una foto no pudo subirse: ${uploadErr.message}`,
         );
         continue;
       }
-      const { data } = supabase.storage
-        .from("summit-photos")
-        .getPublicUrl(path);
+
       const photoResult = await supabase
         .from("summit_photos")
         .insert({
@@ -2827,8 +2972,9 @@ export function SummitTracker({
           summit_id: selected.sub_item_id
             ? `${selected.id}::${selected.sub_item_id}`
             : selected.id,
-          storage_path: path,
-          public_url: data.publicUrl,
+          storage_path: uploadResult.storagePath,
+          public_url: uploadResult.publicUrl,
+          file_size: uploadResult.fileSize,
           taken_on: finalDate,
           shot_at: shotAt,
         })
@@ -3398,14 +3544,11 @@ export function SummitTracker({
     setSaving(true);
     setNotice("Eliminando foto...");
 
-    const { error: storageError } = await supabase.storage
-      .from("summit-photos")
-      .remove([photo.storage_path]);
-    if (storageError) {
-      setNotice(`Error al eliminar la imagen: ${storageError.message}`);
-      setSaving(false);
-      return;
-    }
+    await deleteStoragePhotos({
+      paths: [photo.storage_path],
+      session,
+      supabase,
+    });
 
     const { error: dbError } = await supabase
       .from("summit_photos")
@@ -3446,14 +3589,11 @@ export function SummitTracker({
     );
     const storagePaths = photosToDelete.map((p) => p.storage_path);
 
-    const { error: storageError } = await supabase.storage
-      .from("summit-photos")
-      .remove(storagePaths);
-    if (storageError) {
-      setNotice(`Error al eliminar las imágenes: ${storageError.message}`);
-      setSaving(false);
-      return;
-    }
+    await deleteStoragePhotos({
+      paths: storagePaths,
+      session,
+      supabase,
+    });
 
     const { error: dbError } = await supabase
       .from("summit_photos")
@@ -3575,40 +3715,57 @@ export function SummitTracker({
     }
 
     setSaving(true);
-    const newPath = `${session.user.id}/${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("summit-photos")
-      .upload(newPath, blob, { upsert: true });
-
-    if (uploadError) {
+    let uploadResult;
+    try {
+      uploadResult = await uploadPhotoBlob({
+        blob,
+        fileName: `${Date.now()}.jpg`,
+        summitId: selected?.id || "editor",
+        session,
+        supabase,
+      });
+    } catch (uploadErr: any) {
       setSaving(false);
-      setNotice("Error al subir la imagen editada.");
+      setNotice(uploadErr.message || "Error al subir la imagen editada.");
       setTimeout(() => setNotice(""), 3000);
       return;
     }
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("summit-photos").getPublicUrl(newPath);
     const { error: dbError } = await supabase
       .from("summit_photos")
-      .update({ storage_path: newPath, public_url: publicUrl })
+      .update({
+        storage_path: uploadResult.storagePath,
+        public_url: uploadResult.publicUrl,
+        file_size: uploadResult.fileSize,
+      })
       .eq("id", editorPhoto.id);
 
     if (!dbError) {
-      await supabase.storage
-        .from("summit-photos")
-        .remove([editorPhoto.storage_path]);
+      await deleteStoragePhotos({
+        paths: [editorPhoto.storage_path],
+        session,
+        supabase,
+      });
       setPhotos((prev) =>
         prev.map((p) =>
           p.id === editorPhoto.id
-            ? { ...p, storage_path: newPath, public_url: publicUrl }
+            ? {
+                ...p,
+                storage_path: uploadResult.storagePath,
+                public_url: uploadResult.publicUrl,
+                file_size: uploadResult.fileSize,
+              }
             : p,
         ),
       );
       setLightboxPhoto((prev) =>
         prev && prev.id === editorPhoto.id
-          ? { ...prev, storage_path: newPath, public_url: publicUrl }
+          ? {
+              ...prev,
+              storage_path: uploadResult.storagePath,
+              public_url: uploadResult.publicUrl,
+              file_size: uploadResult.fileSize,
+            }
           : prev,
       );
       setNotice("Foto editada correctamente.");
@@ -3622,11 +3779,16 @@ export function SummitTracker({
 
   async function signOut() {
     await supabase?.auth.signOut();
-    setSelected(null);
+    setSelectedPeak(null);
+    setSelectedCountry(null);
+    setSelectedExperience(null);
   }
 
   const closePanel = useCallback(() => {
     setSelected(null);
+    setSelectedPeak(null);
+    setSelectedCountry(null);
+    setSelectedExperience(null);
     setRecordOpen(false);
     setProfileOpen(false);
     setAuthOpen(false);
@@ -3644,11 +3806,12 @@ export function SummitTracker({
         window.location.pathname + window.location.search,
       );
     }
-  }, []);
+  }, [setSelected]);
 
   const handleCloseRecord = useCallback(() => {
     setFiles([]);
     setDeletedRecordPhotoIds([]);
+    setEditingExpRecordId(null);
     if (recordOpenedFromPanelRef.current) {
       setRecordOpen(false);
     } else {
@@ -3718,9 +3881,8 @@ export function SummitTracker({
     if (target === "peaks" && !canShowPeaks) return;
     if (target === "countries" && !canShowCountries) return;
 
-    // Clear panels explicitly without using history.back()
+    // Clear modals explicitly without using history.back()
     // to prevent race conditions with navigation.
-    setSelected(null);
     setRecordOpen(false);
     setProfileOpen(false);
     setAuthOpen(false);
@@ -4139,7 +4301,7 @@ export function SummitTracker({
   /* ── Render ───────────────────────────── */
   return (
     <main
-      className={`${isPeaks ? "" : (isExp && session) ? "mode-experiences" : "mode-countries"} ${selected ? "panel-open" : ""}`}
+      className={`${isPeaks ? "" : (isExp && session) ? "mode-experiences" : "mode-countries"} ${activeSelected ? "panel-open" : ""}`}
     >
       {/* ── Topbar ──────────────────────── */}
       <header className="topbar">
@@ -4674,8 +4836,8 @@ export function SummitTracker({
               diffOnlyViewer={diffPeakOnlyViewer}
               diffOnlyTarget={diffPeakOnlyTarget}
               diffBoth={diffPeakBoth}
-              activeId={selected?.id}
-              panelOpen={!!selected}
+              activeId={activeSelected?.id}
+              panelOpen={!!activeSelected}
               hasCompareButton={Boolean(isReadOnly && session)}
               isActive={isActive}
             />
@@ -4690,7 +4852,7 @@ export function SummitTracker({
                 diffOnlyViewer={diffItemOnlyViewer}
                 diffOnlyTarget={diffItemOnlyTarget}
                 diffBoth={diffItemBoth}
-                activeId={selected?.id}
+                activeId={activeSelected?.id}
                 experiencesMode={experiencesMode}
                 experienceRecords={
                   experiencesMode
@@ -4707,7 +4869,7 @@ export function SummitTracker({
                 onCancelSelectingLocation={handleCancelSelectingLocationForExp}
                 onExperienceClick={handleExperienceClick}
                 onAddExperience={!isReadOnly && !selectingLocationForExp ? () => setExpSelectorOpen(true) : undefined}
-                panelOpen={!!selected}
+                panelOpen={!!activeSelected}
                 hasCompareButton={Boolean(isReadOnly && session)}
                 isActive={isActive}
               />
@@ -5340,14 +5502,22 @@ export function SummitTracker({
 
         <div className="footer-bottom">
           <div className="footer-disclaimer">
-            Toda la información personal y datos de progreso de los usuarios se
-            almacenan y procesan de forma segura en los servidores de{" "}
+            Toda la información personal y datos de progreso se procesan de forma
+            segura en los servidores de{" "}
             <a
               href="https://supabase.com/"
               target="_blank"
               rel="noopener noreferrer"
             >
               Supabase
+            </a>
+            , y el contenido fotográfico y multimedia se almacena en{" "}
+            <a
+              href="https://www.cloudflare.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Cloudflare
             </a>
             .<br />
             &copy; {new Date().getFullYear()} Jorge Acebes. Todos los derechos
@@ -5390,12 +5560,13 @@ export function SummitTracker({
       </footer>
 
       {/* ── Info panel ──────────────────── */}
-      {selected && (
+      {selected && isSelectedValidForCurrentMode && (
         <aside
           className="info-panel"
           aria-label={`Información sobre ${selected.title}`}
         >
           <button
+            type="button"
             className="icon-button"
             onClick={closePanel}
             aria-label="Cerrar"
@@ -6382,7 +6553,7 @@ export function SummitTracker({
       )}
 
       {/* ── Record dialog ───────────────── */}
-      {recordOpen && selected && (
+      {recordOpen && selected && isSelectedValidForCurrentMode && (
         <div className="modal-backdrop" onWheel={(e) => e.stopPropagation()}>
           <section
             className="record-dialog"
@@ -6391,6 +6562,7 @@ export function SummitTracker({
             style={{ overscrollBehavior: "contain" }}
           >
             <button
+              type="button"
               className="icon-button"
               onClick={handleCloseRecord}
               aria-label="Cerrar"
@@ -6979,139 +7151,148 @@ export function SummitTracker({
               />
             </label>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "12px",
-                marginBottom: Boolean(linkName && linkName.trim()) && !showSecondLink && !link2 && !linkName2 ? 8 : 16,
-              }}
-            >
-              <label className="field-label">
-                Enlace
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={link || ""}
-                  onChange={(e) => {
-                    setLink(e.target.value);
-                    if (!e.target.value) {
-                      setLinkName("");
-                      setLink2("");
-                      setLinkName2("");
-                      setShowSecondLink(false);
-                    }
-                  }}
-                />
-              </label>
-              <label
-                className="field-label"
-                style={{ opacity: !link ? 0.5 : 1 }}
-              >
-                Texto del enlace
-                <input
-                  type="text"
-                  placeholder="Ej: Track de la ruta"
-                  value={linkName || ""}
-                  onChange={(e) => {
-                    setLinkName(e.target.value);
-                    if (!e.target.value && !link2 && !linkName2) {
-                      setShowSecondLink(false);
-                    }
-                  }}
-                  disabled={!link}
-                  title={!link ? "Añade un enlace primero" : ""}
-                />
-              </label>
-            </div>
+            {(() => {
+              const isRecordExp = Boolean(isExp || (selected as any)?.itemType === "experience");
+              const linkPlaceholders = getLinkPlaceholders(isPeaks, isRecordExp);
 
-            {/* Opción sutil para añadir un segundo enlace: solo visible cuando el texto del primero se ha introducido */}
-            {Boolean(linkName && linkName.trim()) && !showSecondLink && !link2 && !linkName2 && (
-              <div style={{ marginTop: -4, marginBottom: 16 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSecondLink(true)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: "2px 0",
-                    fontSize: "13px",
-                    color: "var(--pine, #234e52)",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontWeight: 500,
-                    opacity: 0.85,
-                  }}
-                >
-                  <span style={{ fontSize: "14px", fontWeight: 600 }}>+</span>
-                  <span style={{ textDecoration: "underline", textUnderlineOffset: 2 }}>
-                    Añadir un segundo enlace
-                  </span>
-                </button>
-              </div>
-            )}
-
-            {(showSecondLink || Boolean(link2 || linkName2)) && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "12px",
-                  marginBottom: 16,
-                }}
-              >
-                <label className="field-label">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>Segundo enlace</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLink2("");
-                        setLinkName2("");
-                        setShowSecondLink(false);
-                      }}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        fontSize: "11px",
-                        color: "var(--danger, #a34f3d)",
-                        cursor: "pointer",
-                        fontWeight: 400,
-                      }}
-                      title="Quitar segundo enlace"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                  <input
-                    type="url"
-                    placeholder="https://..."
-                    value={link2 || ""}
-                    onChange={(e) => {
-                      setLink2(e.target.value);
-                      if (!e.target.value) setLinkName2("");
+              return (
+                <>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "12px",
+                      marginBottom: Boolean(linkName && linkName.trim()) && !showSecondLink && !link2 && !linkName2 ? 8 : 16,
                     }}
-                  />
-                </label>
-                <label
-                  className="field-label"
-                  style={{ opacity: !link2 ? 0.5 : 1 }}
-                >
-                  Texto del segundo enlace
-                  <input
-                    type="text"
-                    placeholder="Ej: Restaurante favorito"
-                    value={linkName2 || ""}
-                    onChange={(e) => setLinkName2(e.target.value)}
-                    disabled={!link2}
-                    title={!link2 ? "Añade un enlace primero" : ""}
-                  />
-                </label>
-              </div>
-            )}
+                  >
+                    <label className="field-label">
+                      Enlace
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={link || ""}
+                        onChange={(e) => {
+                          setLink(e.target.value);
+                          if (!e.target.value) {
+                            setLinkName("");
+                            setLink2("");
+                            setLinkName2("");
+                            setShowSecondLink(false);
+                          }
+                        }}
+                      />
+                    </label>
+                    <label
+                      className="field-label"
+                      style={{ opacity: !link ? 0.5 : 1 }}
+                    >
+                      Texto del enlace
+                      <input
+                        type="text"
+                        placeholder={linkPlaceholders.link1}
+                        value={linkName || ""}
+                        onChange={(e) => {
+                          setLinkName(e.target.value);
+                          if (!e.target.value && !link2 && !linkName2) {
+                            setShowSecondLink(false);
+                          }
+                        }}
+                        disabled={!link}
+                        title={!link ? "Añade un enlace primero" : ""}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Opción sutil para añadir un segundo enlace: solo visible cuando el texto del primero se ha introducido */}
+                  {Boolean(linkName && linkName.trim()) && !showSecondLink && !link2 && !linkName2 && (
+                    <div style={{ marginTop: -4, marginBottom: 16 }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowSecondLink(true)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: "2px 0",
+                          fontSize: "13px",
+                          color: "var(--pine, #234e52)",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontWeight: 500,
+                          opacity: 0.85,
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", fontWeight: 600 }}>+</span>
+                        <span style={{ textDecoration: "underline", textUnderlineOffset: 2 }}>
+                          Añadir un segundo enlace
+                        </span>
+                      </button>
+                    </div>
+                  )}
+
+                  {(showSecondLink || Boolean(link2 || linkName2)) && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "12px",
+                        marginBottom: 16,
+                      }}
+                    >
+                      <label className="field-label">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>Segundo enlace</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLink2("");
+                              setLinkName2("");
+                              setShowSecondLink(false);
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              fontSize: "11px",
+                              color: "var(--danger, #a34f3d)",
+                              cursor: "pointer",
+                              fontWeight: 400,
+                            }}
+                            title="Quitar segundo enlace"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={link2 || ""}
+                          onChange={(e) => {
+                            setLink2(e.target.value);
+                            if (!e.target.value) setLinkName2("");
+                          }}
+                        />
+                      </label>
+                      <label
+                        className="field-label"
+                        style={{ opacity: !link2 ? 0.5 : 1 }}
+                      >
+                        Texto del segundo enlace
+                        <input
+                          type="text"
+                          placeholder={linkPlaceholders.link2}
+                          value={linkName2 || ""}
+                          onChange={(e) => setLinkName2(e.target.value)}
+                          disabled={!link2}
+                          title={!link2 ? "Añade un enlace primero" : ""}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <button
               className={`button ${isPeaks ? "button--green" : "button--purple"} button--wide`}
@@ -7163,7 +7344,7 @@ export function SummitTracker({
             onClose={() => {
               window.history.back();
             }}
-            title={selected?.title || ""}
+            title={activeSelected?.title || ""}
             canEdit={!isReadOnly}
             onEditPhoto={(photo) => {
               setEditorPhoto(photo as any);

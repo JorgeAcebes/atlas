@@ -23,6 +23,17 @@ describe("Image Compression Utilities", () => {
     expect(result).toBeDefined();
     expect(result).toBe(mockBlob);
   });
+
+  it("should fill the full canvas from coordinate (0, 0) for transparent JPEG conversion", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const code = fs.readFileSync(path.resolve(__dirname, "../../lib/image-utils.ts"), "utf-8");
+
+    // Must never contain the bug 'ctx.fillRect(0, width, height, height)'
+    expect(code).not.toContain("ctx.fillRect(0, width, height, height)");
+    // Must fill canvas from origin 0, 0
+    expect(code).toContain("ctx.fillRect(0, 0, width, height)");
+  });
 });
 
 describe("Photo Chronological Ordering in Grids", () => {

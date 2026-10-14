@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 import { compressImage } from "@/lib/image-utils";
+import { uploadPhotoBlob } from "@/lib/photo-client";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { DeleteAccountModal } from "./delete-account-modal";
 
@@ -130,19 +131,21 @@ export function ProfileSettings({
       }
       const compressedBlob = await compressImage(avatarFile, 256, 0.85);
       const ext = compressedBlob.type === "image/webp" ? "webp" : "jpg";
-      const path = `${session.user.id}/avatar_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("summit-photos")
-        .upload(path, compressedBlob, { contentType: compressedBlob.type || "image/webp", upsert: true });
 
-      if (uploadError) {
-        setError("Error al subir la foto de perfil: " + uploadError.message);
+      try {
+        const uploadResult = await uploadPhotoBlob({
+          blob: compressedBlob,
+          fileName: `avatar_${Date.now()}.${ext}`,
+          summitId: "avatar",
+          session,
+          supabase,
+        });
+        avatarUrl = uploadResult.publicUrl;
+      } catch (uploadErr: any) {
+        setError(uploadErr.message || "Error al subir la foto de perfil.");
         setSaving(false);
         return;
       }
-
-      const { data } = supabase.storage.from("summit-photos").getPublicUrl(path);
-      avatarUrl = data.publicUrl;
     }
 
     const updates = {

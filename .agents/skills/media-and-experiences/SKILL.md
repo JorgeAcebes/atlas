@@ -18,8 +18,8 @@ This skill covers photo optimization pipelines and the custom/predefined experie
 - **Flow**:
   1. User selects a photo (raw camera photo can be 10-20MB).
   2. Canvas scales down the image to a max dimension of 1200px and converts to JPEG at 75% quality.
-  3. Uploads the compressed Blob to Supabase Storage `summit-photos/[user_id]/[filename]`.
-  4. Inserts row into `public.summit_photos` with `storage_path`, `public_url`, `taken_on`, and `caption`.
+  3. Requests presigned upload URL from `/api/photos/upload-intent` (with hard 9.5 GB cap check) and uploads compressed Blob directly to Cloudflare R2 (`atlas-photos/[user_id]/[filename]`).
+  4. Inserts row into `public.summit_photos` with `storage_path`, `public_url`, `file_size`, `taken_on`, and `caption`.
 
 ### Batch Server-Side Compression
 - **Script**: `scripts/compress-existing-photos.mjs`

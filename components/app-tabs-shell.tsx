@@ -262,6 +262,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           } else if (newMode === "peaks") {
             url.searchParams.delete("view");
           }
+          url.hash = "";
           window.history.replaceState(null, "", url.toString());
         }
       }

@@ -22,7 +22,8 @@ Aplicación web social y cartográfica para registrar el recorrido por los 196 p
 - **Framework**: [Next.js 15](https://nextjs.org/) (App Router) & [React 19](https://react.dev/)
 - **Lenguaje**: TypeScript
 - **Cartografía**: [Leaflet](https://leafletjs.com/), `react-leaflet`, `topojson-client`
-- **Backend & Autenticación**: [Supabase](https://supabase.com/) (PostgreSQL con Row Level Security, Auth y Storage)
+- **Backend & Autenticación**: [Supabase](https://supabase.com/) (PostgreSQL con Row Level Security y Auth)
+- **Almacenamiento Multimedia**: [Cloudflare R2](https://www.cloudflare.com/) (Almacenamiento de fotografías con CDN y control de límite de 9,5 GB)
 - **Estilos**: CSS moderno con CSS Variables y diseño adaptativo (responsive)
 - **Testing**: [Vitest](https://vitest.dev/) con suite de pruebas unitarias, integración e invariantes
 

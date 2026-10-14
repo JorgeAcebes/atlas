@@ -462,6 +462,18 @@ export class MockSupabaseClient {
       return { data: uniqueSummits, error: null };
     }
 
+    if (functionName === "get_feed_photos") {
+      const pairs = (args?.pairs || []) as Array<{ user_id: string; summit_id: string }>;
+      const summitPhotos = this.store.get("summit_photos") || [];
+      const pairSet = new Set(pairs.map((p) => `${p.user_id}|${p.summit_id}`));
+
+      const matchingPhotos = summitPhotos
+        .filter((photo) => pairSet.has(`${photo.user_id}|${photo.summit_id}`))
+        .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+
+      return { data: matchingPhotos, error: null };
+    }
+
     return { data: [], error: null };
   }
 

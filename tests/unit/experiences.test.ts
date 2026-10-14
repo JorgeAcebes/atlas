@@ -138,5 +138,34 @@ describe("Experience Modification Safety & Action Buttons Invariants", () => {
     expect(trackerContent).toMatch(/name:\s*cat\.name/);
     expect(trackerContent).toMatch(/iconName:\s*cat\.iconName/);
   });
+
+  it("should ensure experience panel and record dialog can be closed cleanly via close button", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const trackerContent = fs.readFileSync(
+      path.resolve(__dirname, "../../components/summit-tracker.tsx"),
+      "utf-8"
+    );
+
+    // setSelected must clear selectedExperience when passed null
+    expect(trackerContent).toContain("setSelectedExperience(null)");
+    expect(trackerContent).toMatch(
+      /if\s*\(!item\)\s*\{\s*setSelectedPeak\(null\);\s*setSelectedCountry\(null\);\s*setSelectedExperience\(null\);/
+    );
+
+    // closePanel must clear selectedExperience explicitly
+    expect(trackerContent).toMatch(
+      /const closePanel\s*=\s*useCallback\(\(\)\s*=>\s*\{[\s\S]*?setSelectedExperience\(null\);/
+    );
+
+    // close buttons in info-panel and record-dialog must have type="button" and IconClose
+    expect(trackerContent).toMatch(
+      /<aside[\s\S]*?className="info-panel"[\s\S]*?<button[\s\S]*?type="button"[\s\S]*?onClick=\{closePanel\}[\s\S]*?<IconClose/
+    );
+    expect(trackerContent).toMatch(
+      /className="record-dialog"[\s\S]*?<button[\s\S]*?type="button"[\s\S]*?onClick=\{handleCloseRecord\}[\s\S]*?<IconClose/
+    );
+  });
 });
+
 

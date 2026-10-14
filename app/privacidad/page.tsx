@@ -216,7 +216,11 @@ export default function PrivacidadPage() {
             <ul style={{ paddingLeft: "1.25rem", marginTop: "0.5rem" }}>
               <li>
                 <strong>Supabase Inc.</strong>: Servicio de base de datos
-                PostgreSQL y almacenamiento de archivos cifrados.
+                PostgreSQL y autenticación de usuarios.
+              </li>
+              <li>
+                <strong>Cloudflare Inc.</strong>: Almacenamiento de archivos y
+                contenido multimedia (Cloudflare R2) y red de entrega de contenido (CDN).
               </li>
               <li>
                 <strong>Vercel Inc.</strong>: Alojamiento y despliegue de la

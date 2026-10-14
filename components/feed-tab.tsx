@@ -644,7 +644,10 @@ export function FeedTab({
        .sort(compareFeedRecords)
        .slice(0, limit);
        
-      const customExpIds = combinedBase.filter(item => item.type === 'experience' && item.experience_id).map(item => item.experience_id);
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const customExpIds = combinedBase
+        .filter(item => item.type === 'experience' && item.experience_id && UUID_REGEX.test(item.experience_id))
+        .map(item => item.experience_id);
       const customExperiences: Record<string, string> = {};
       if (customExpIds.length > 0) {
         const { data: customExpData } = await supabase.from('custom_experiences').select('id, name').in('id', customExpIds);
@@ -698,29 +701,37 @@ export function FeedTab({
       let photosMap = new Map();
       let photosMapBySummit = new Map();
       if (pairs.length > 0) {
-        // Batch in chunks of 30 pairs to avoid massive queries
-        const BATCH_SIZE = 30;
-        const allPhotos: any[] = [];
-        for (let i = 0; i < pairs.length; i += BATCH_SIZE) {
-          const batch = pairs.slice(i, i + BATCH_SIZE);
-          const batchUserIds = [...new Set(batch.map(p => p.user_id))];
-          const batchSummitIds = [...new Set(batch.map(p => p.summit_id))];
-          const { data: photosData } = await supabase
-            .from('summit_photos')
-            .select('id, user_id, summit_id, public_url, taken_on, caption, created_at, storage_path, shot_at')
-            .in('user_id', batchUserIds)
-            .in('summit_id', batchSummitIds)
-            .order('created_at', { ascending: true });
-          if (photosData) allPhotos.push(...photosData);
+        let uniquePhotos: any[] = [];
+
+        // 1. Intentar primero con la función RPC get_feed_photos (join exacto sin producto cartesiano)
+        const { data: rpcPhotos, error: rpcErr } = await supabase.rpc('get_feed_photos', { pairs });
+        if (!rpcErr && Array.isArray(rpcPhotos)) {
+          uniquePhotos = rpcPhotos;
+        } else {
+          // 2. Fallback: Consulta directa con PostgREST .or() disyuntivo para evitar el producto cartesiano
+          const BATCH_SIZE = 25;
+          const allPhotos: any[] = [];
+          for (let i = 0; i < pairs.length; i += BATCH_SIZE) {
+            const batch = pairs.slice(i, i + BATCH_SIZE);
+            const orFilter = batch
+              .map(p => `and(user_id.eq.${p.user_id},summit_id.eq.${p.summit_id})`)
+              .join(',');
+            const { data: photosData } = await supabase
+              .from('summit_photos')
+              .select('id, user_id, summit_id, public_url, taken_on, caption, created_at, storage_path, shot_at')
+              .or(orFilter)
+              .order('created_at', { ascending: true });
+            if (photosData) allPhotos.push(...photosData);
+          }
+
+          // Deduplicate photos by id
+          const seenIds = new Set<string>();
+          uniquePhotos = allPhotos.filter(p => {
+            if (seenIds.has(p.id)) return false;
+            seenIds.add(p.id);
+            return true;
+          });
         }
-          
-        // Deduplicate photos by id (batches may return overlapping results)
-        const seenIds = new Set<string>();
-        const uniquePhotos = allPhotos.filter(p => {
-          if (seenIds.has(p.id)) return false;
-          seenIds.add(p.id);
-          return true;
-        });
 
         uniquePhotos.forEach(p => {
            // Key with exact date

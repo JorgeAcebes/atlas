@@ -10,6 +10,8 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import type { FeatureCollection } from "geojson";
+import { feature } from "topojson-client";
+import type { Topology } from "topojson-specification";
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { peakByCode, type Peak } from "@/data/peaks";
 import { MapSearchControl, type SearchItem } from "./map-search";
@@ -18,6 +20,7 @@ import { SweepOverlay } from "./sweep-overlay";
 // Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
 L.Canvas.prototype.options.padding = 0.5;
 
+const PROVINCES_TOPO_URL = "/provincias_spain.topo.json";
 const PROVINCES_URL = "/provincias_spain.geojson";
 const PROVINCES_FALLBACK_URL =
   "https://gist.githubusercontent.com/josemamira/3af52a4698d42b3f676fbc23f807a605/raw/cc5e247b63b05520c167639ed51d61acd560b1c1/provincias_spain.geojson";
@@ -29,20 +32,35 @@ let _geoPromise: Promise<FeatureCollection> | null = null;
 function fetchProvinces(): Promise<FeatureCollection> {
   if (_geoCache) return Promise.resolve(_geoCache);
   if (!_geoPromise) {
-    _geoPromise = fetch(PROVINCES_URL)
+    _geoPromise = fetch(PROVINCES_TOPO_URL)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .catch(() => {
-        return fetch(PROVINCES_FALLBACK_URL).then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        });
+      .then((topology: Topology) => {
+        const provincesGeo = feature(
+          topology,
+          (topology.objects.provincias || Object.values(topology.objects)[0]) as any
+        ) as unknown as FeatureCollection;
+        _geoCache = provincesGeo;
+        return provincesGeo;
       })
-      .then((data: FeatureCollection) => {
-        _geoCache = data;
-        return data;
+      .catch(() => {
+        return fetch(PROVINCES_URL)
+          .then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          })
+          .catch(() => {
+            return fetch(PROVINCES_FALLBACK_URL).then((r) => {
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            });
+          })
+          .then((data: FeatureCollection) => {
+            _geoCache = data;
+            return data;
+          });
       })
       .catch((err) => {
         _geoPromise = null;

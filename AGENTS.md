@@ -1,7 +1,7 @@
 # 47 Picos & 196 Países · Contexto Persistente para Agentes
 
 > Aplicación web social y cartográfica para registrar el ascenso al techo provincial de las 50 provincias españolas más Ceuta y Melilla (52 demarcaciones, 47 cumbres físicas), el recorrido por 196 países del mundo y experiencias de aventura personalizadas.
-> Construida con Next.js 15 (App Router), React 19, TypeScript, Leaflet y Supabase (Auth, Postgres RLS y Storage).
+> Construida con Next.js 15 (App Router), React 19, TypeScript, Leaflet, Supabase (Auth, Postgres RLS) y Cloudflare R2 (Storage).
 
 ---
 

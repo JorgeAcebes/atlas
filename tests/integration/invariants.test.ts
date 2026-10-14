@@ -233,14 +233,21 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(content).toContain("renderFeedLink(item.link_2, item.link_name_2)");
     });
 
-    it("Invariant 7.4: Footprints icon must be assigned for hiking/running links and placeholder for second link must guide user", () => {
+    it("Invariant 7.4: Footprints icon must be assigned for hiking/running links and placeholders for links must guide user dynamically per mode", () => {
       const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
       const trackerContent = fs.readFileSync(trackerPath, "utf-8");
       expect(trackerContent).toContain("Footprints");
       expect(trackerContent).toMatch(/strava\.com[\s\S]*?Icon\s*=\s*Footprints/);
       expect(trackerContent).toMatch(/strava\.app\.link[\s\S]*?Icon\s*=\s*Footprints/);
       expect(trackerContent).toMatch(/wikiloc\.com[\s\S]*?Icon\s*=\s*Footprints/);
-      expect(trackerContent).toContain('placeholder="Ej: Restaurante favorito"');
+      // Placeholders must adapt per active mode
+      expect(trackerContent).toContain("Ej: Track de la Ruta");
+      expect(trackerContent).toContain("Ej: Equipamiento utilizado");
+      expect(trackerContent).toContain("Ej: Restaurante favorito");
+      expect(trackerContent).toContain("Ej: Alojamiento recomendado");
+      expect(trackerContent).toContain("Ej: Vídeo de la experiencia");
+      expect(trackerContent).toContain("Ej: Guía para la experiencia");
+      expect(trackerContent).toContain("getLinkPlaceholders");
 
       const feedPath = path.join(rootDir, "components/feed-tab.tsx");
       const feedContent = fs.readFileSync(feedPath, "utf-8");
@@ -920,6 +927,21 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(collectiveContent).toContain("#cba6f7");
       expect(collectiveContent).toContain("showExperiences && experienceMarkers.map");
       expect(collectiveContent).toContain("subItem?.name || exp?.name || marker.location_name");
+    });
+
+    it("Invariant 11.32: App layout must preload local GeoJSON/TopoJSON files instead of third-party CDNs", () => {
+      const layout = fs.readFileSync(path.join(rootDir, "app/layout.tsx"), "utf-8");
+      expect(layout).toContain('href="/world-countries.topo.json"');
+      expect(layout).toContain('href="/provincias_spain.geojson"');
+      expect(layout).not.toContain('href="https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json"');
+      expect(layout).not.toContain('href="https://gist.githubusercontent.com');
+    });
+
+    it("Invariant 11.33: Social feed must not execute Cartesian user_id x summit_id queries for photos", () => {
+      const feedTabPath = path.join(rootDir, "components/feed-tab.tsx");
+      const content = fs.readFileSync(feedTabPath, "utf-8");
+      expect(content).toContain("get_feed_photos");
+      expect(content).not.toMatch(/\.in\(['"]user_id['"],\s*batchUserIds\)\.in\(['"]summit_id['"],\s*batchSummitIds\)/);
     });
   });
 });

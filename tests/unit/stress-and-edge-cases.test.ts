@@ -172,12 +172,19 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
       expect(content).toContain("outputHeight");
     });
 
-    it("3.4 [Cartography Resilience]: SpainMap uses local GeoJSON with remote fallback and catch reset", () => {
+    it("3.4 [Cartography Resilience]: SpainMap uses local TopoJSON with GeoJSON remote fallback and catch reset", () => {
       const spainMapPath = path.join(rootDir, "components/spain-map.tsx");
       const content = fs.readFileSync(spainMapPath, "utf-8");
 
+      expect(content).toContain("/provincias_spain.topo.json");
       expect(content).toContain("/provincias_spain.geojson");
       expect(content).toContain("_geoPromise = null");
+
+      const topoPath = path.join(rootDir, "public/provincias_spain.topo.json");
+      expect(fs.existsSync(topoPath)).toBe(true);
+      const topoData = JSON.parse(fs.readFileSync(topoPath, "utf-8"));
+      expect(topoData.type).toBe("Topology");
+      expect(topoData.objects.provincias).toBeDefined();
     });
 
     it("3.5 [Cartography Resilience]: WorldMap uses local TopoJSON with remote fallback and catch reset", () => {

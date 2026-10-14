@@ -413,6 +413,49 @@ describe("Modality Preferences & Filtering Logic", () => {
         expect(isValidHorizontalSwipe(55, 40)).toBe(false); // diffY > 35
         expect(isValidHorizontalSwipe(60, 35)).toBe(false); // 60 < 35 * 2.0 (70)
       });
+
+      it("should keep record on the right only for the corresponding mode across tabs and mode switches", () => {
+        // Simulating the user scenario:
+        // Selections are kept per challenge mode
+        let selectedPeak: { id: string; itemType: "peak" } | null = { id: "teide", itemType: "peak" };
+        let selectedCountry: { id: string; itemType: "country" } | null = null;
+        let mode: "peaks" | "countries" = "peaks";
+        let activeTab: "map" | "social" | "ranking" = "map";
+
+        const getActiveSelection = () => (mode === "peaks" ? selectedPeak : selectedCountry);
+
+        // 1. User is on Map in Peaks mode: Teide is open on the right
+        expect(activeTab).toBe("map");
+        expect(mode).toBe("peaks");
+        expect(getActiveSelection()).toEqual({ id: "teide", itemType: "peak" });
+
+        // 2. User navigates to Social
+        activeTab = "social";
+
+        // 3. User switches to Countries mode while in Social
+        mode = "countries";
+
+        // 4. User navigates back to Map (now in Countries mode)
+        activeTab = "map";
+        expect(mode).toBe("countries");
+        // In Countries mode, Teide must NOT be shown!
+        expect(getActiveSelection()).toBeNull();
+
+        // 5. User opens a country in 196 Countries (e.g. France)
+        selectedCountry = { id: "country-FR", itemType: "country" };
+        expect(getActiveSelection()).toEqual({ id: "country-FR", itemType: "country" });
+
+        // 6. User switches back to Peaks mode on Map
+        mode = "peaks";
+        // The peak that was selected in Peaks mode is preserved and shown!
+        expect(getActiveSelection()).toEqual({ id: "teide", itemType: "peak" });
+
+        // 7. User navigates to Social and returns to Map in Peaks mode
+        activeTab = "social";
+        activeTab = "map";
+        // It stays open because it is of the corresponding mode!
+        expect(getActiveSelection()).toEqual({ id: "teide", itemType: "peak" });
+      });
     });
   });
 });

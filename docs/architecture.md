@@ -15,10 +15,10 @@ graph TD
     NextApp --> MapEngine[Motor Cartográfico Leaflet / TopoJSON]
     NextApp --> AuthState[Auth Context & Local Cache]
     NextApp --> SupabaseClient[Supabase JS Client]
+    NextApp --> R2Storage[Cloudflare R2 Storage (atlas-photos)]
     
     SupabaseClient --> AuthServ[Supabase Auth]
     SupabaseClient --> PG[(Postgres con RLS)]
-    SupabaseClient --> Storage[Bucket summit-photos]
     
     Cron[Vercel Cron] --> KeepAliveRoute[API /api/keepalive]
     KeepAliveRoute --> PG
@@ -45,13 +45,12 @@ graph TD
 - **Topologías**: Archivos TopoJSON simplificados en `public/` para renderizado ultra rápido en Leaflet sin bloquear el hilo principal.
 
 ### 2.3 Persistencia y Seguridad (`supabase/migrations/`)
-- 21 migraciones SQL contiguas con **Row Level Security (RLS)** estricto en cada tabla pública.
-- Funciones PL/pgSQL de cálculo intensivo con `SECURITY DEFINER` y `SET search_path = public` (`get_peaks_ranking`, `get_collective_visited_countries`).
-- Storage Bucket `summit-photos` con políticas que aíslan ficheros por `auth.uid()`.
+- Migraciones SQL contiguas con **Row Level Security (RLS)** estricto en cada tabla pública.
+- Funciones PL/pgSQL de cálculo intensivo con `SECURITY DEFINER` y `SET search_path = public` (`get_peaks_ranking`, `get_collective_visited_countries`, `get_total_photos_storage_bytes`).
 
-### 2.4 Multimedia e Imágenes (`lib/image-utils.ts`, `scripts/compress-existing-photos.mjs`)
-- En cliente: el usuario selecciona la foto, `react-image-crop` permite el recorte y `compressImage` en [`lib/image-utils.ts`](file:///c:/Users/jorge/Desktop/52_picos/lib/image-utils.ts) reescala vía canvas HTML5 a máx 1200px (JPEG 75%) antes de subir a Storage.
-- En servidor/batch: [`scripts/compress-existing-photos.mjs`](file:///c:/Users/jorge/Desktop/52_picos/scripts/compress-existing-photos.mjs) utiliza Sharp para comprimir imágenes históricas en Storage superiores a 250 KB.
+### 2.4 Multimedia e Imágenes (`lib/r2-storage.ts`, `lib/photo-client.ts`, `lib/image-utils.ts`)
+- En cliente: el usuario selecciona la foto, `react-image-crop` permite el recorte y `compressImage` en [`lib/image-utils.ts`](file:///c:/Users/jorge/Desktop/52_picos/lib/image-utils.ts) reescala vía canvas HTML5 a máx 1200px (JPEG 75%).
+- En servidor: [`app/api/photos/upload-intent/route.ts`](file:///c:/Users/jorge/Desktop/52_picos/app/api/photos/upload-intent/route.ts) aplica un guardián infranqueable que bloquea nuevas subidas al alcanzar los 9,5 GB y genera URLs prefirmadas para subida directa a Cloudflare R2 (`atlas-photos`).
 
 ---
 

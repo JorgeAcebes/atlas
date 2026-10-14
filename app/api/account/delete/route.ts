@@ -44,6 +44,22 @@ export async function POST(request: Request) {
       // Non-fatal, continue with user deletion
     }
 
+    // Clean up Cloudflare R2 photos if configured
+    try {
+      const { data: userPhotos } = await supabaseAdmin
+        .from("summit_photos")
+        .select("storage_path")
+        .eq("user_id", user.id);
+
+      if (userPhotos && userPhotos.length > 0) {
+        const { deleteR2Objects } = await import("@/lib/r2-storage");
+        const r2Paths = userPhotos.map((p) => p.storage_path).filter(Boolean);
+        await deleteR2Objects(r2Paths);
+      }
+    } catch (r2Err) {
+      console.error("Error cleaning up user R2 photos during account deletion:", r2Err);
+    }
+
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
     
     if (deleteError) {

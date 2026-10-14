@@ -33,6 +33,7 @@ L.Canvas.prototype.options.padding = 0.5;
 
 const WORLD_TOPO_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
+const PROVINCES_TOPO_URL = "/provincias_spain.topo.json";
 const PROVINCES_URL = "/provincias_spain.geojson";
 const PROVINCES_FALLBACK_URL =
   "https://gist.githubusercontent.com/josemamira/3af52a4698d42b3f676fbc23f807a605/raw/cc5e247b63b05520c167639ed51d61acd560b1c1/provincias_spain.geojson";
@@ -65,20 +66,35 @@ function fetchWorldGeo(): Promise<FeatureCollection> {
 function fetchProvinces(): Promise<FeatureCollection> {
   if (_spainGeoCache) return Promise.resolve(_spainGeoCache);
   if (!_spainGeoPromise) {
-    _spainGeoPromise = fetch(PROVINCES_URL)
+    _spainGeoPromise = fetch(PROVINCES_TOPO_URL)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .catch(() => {
-        return fetch(PROVINCES_FALLBACK_URL).then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        });
+      .then((topology: Topology) => {
+        const provincesGeo = feature(
+          topology,
+          (topology.objects.provincias || Object.values(topology.objects)[0]) as any
+        ) as unknown as FeatureCollection;
+        _spainGeoCache = provincesGeo;
+        return provincesGeo;
       })
-      .then((data: FeatureCollection) => {
-        _spainGeoCache = data;
-        return data;
+      .catch(() => {
+        return fetch(PROVINCES_URL)
+          .then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          })
+          .catch(() => {
+            return fetch(PROVINCES_FALLBACK_URL).then((r) => {
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            });
+          })
+          .then((data: FeatureCollection) => {
+            _spainGeoCache = data;
+            return data;
+          });
       })
       .catch((err) => {
         _spainGeoPromise = null;

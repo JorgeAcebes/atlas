@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  geocodingClientRateLimiter,
+  getClientIp,
+  throttleNominatim,
+} from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   try {
@@ -8,6 +13,25 @@ export async function GET(request: Request) {
     if (!query || query.trim().length < 2) {
       return NextResponse.json([]);
     }
+
+    const ip = getClientIp(request);
+    const rateCheck = geocodingClientRateLimiter.check(ip);
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Demasiadas peticiones de búsqueda. Por favor, espera un momento." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.max(1, Math.ceil(rateCheck.resetMs / 1000)).toString(),
+            "X-RateLimit-Limit": rateCheck.limit.toString(),
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+
+    // Asegurar que no se sobrepase el límite estricto de 1 req/segundo de Nominatim
+    await throttleNominatim(1000);
 
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query.trim())}&limit=5&accept-language=es`;
 

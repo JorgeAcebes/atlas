@@ -15,15 +15,18 @@ export function usePendingRequests() {
       return;
     }
 
+    // Si el usuario es público, nunca tendrá solicitudes pendientes de aprobación
+    // y no es necesario abrir canales Realtime ni consultar la base de datos
+    if (profile && profile.is_public) {
+      setHasPendingRequests(false);
+      return;
+    }
+
     const sb = supabase;
     const userId = session.user.id;
 
     async function checkPending() {
       if (!mounted) return;
-      if (profile && profile.is_public) {
-        if (mounted) setHasPendingRequests(false);
-        return;
-      }
 
       const { data: pendingConns } = await sb
         .from('connections')

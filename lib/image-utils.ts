@@ -37,7 +37,7 @@ export async function compressImage(
     // When exporting to JPEG, fill white background to prevent transparent pixels from becoming black
     if (targetFormat === "image/jpeg" && isTransparentFormat) {
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, width, height, height);
+      ctx.fillRect(0, 0, width, height);
     }
 
     ctx.drawImage(bitmap, 0, 0, width, height);
