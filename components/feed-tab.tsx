@@ -12,6 +12,7 @@ import { peaks } from "@/data/peaks";
 import { predefinedCategories } from "@/data/experiences";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { sortPhotosByTime } from "@/lib/image-utils";
+import { compareFeedRecords } from "@/lib/feed-sort";
 import { PhotoLightbox } from "./photo-lightbox";
 
 function isUnknownDate(dateVal: string | undefined | null): boolean {
@@ -52,6 +53,8 @@ function formatRecordDateRange(startDateVal: string | undefined | null, endDateV
   }
   return startStr;
 }
+
+export { compareFeedRecords };
 
 function formatDateSafe(dateVal: string | undefined | null): string {
   if (!dateVal) return '';
@@ -638,7 +641,7 @@ export function FeedTab({
           record_date: e.achieved_on
         }))
       ].filter(item => item.record_date && !isNaN(new Date(item.record_date).getTime()))
-       .sort((a, b) => new Date(b.record_date).getTime() - new Date(a.record_date).getTime())
+       .sort(compareFeedRecords)
        .slice(0, limit);
        
       const customExpIds = combinedBase.filter(item => item.type === 'experience' && item.experience_id).map(item => item.experience_id);

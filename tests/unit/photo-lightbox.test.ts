@@ -123,5 +123,29 @@ describe("PhotoLightbox Invariants and Architecture", () => {
     // Peak marker click must set selectedSummit matching province click behavior
     expect(uniquePeaksBlock).toContain("setSelectedSummit({ id: peak.id");
   });
+
+  it("PhotoLightbox must support swipe navigation across touch, mouse drag, and trackpad", () => {
+    expect(content).toContain("onTouchEnd={handleTouchEnd}");
+    expect(content).toContain("touchStartSwipeRef");
+    expect(content).toContain("mouseSwipeStartRef");
+    expect(content).toContain("showNext()");
+    expect(content).toContain("showPrev()");
+  });
+
+  it("CollectiveMap close button must be styled as a circle matching app style", () => {
+    const rankingCss = fs.readFileSync(path.join(rootDir, "components/ranking.css"), "utf-8");
+    expect(rankingCss).toMatch(/\.collective-map-close\s*\{[^}]*border-radius:\s*50%/);
+    expect(rankingCss).toMatch(/\.collective-map-close\s*\{[^}]*width:\s*36px/);
+    expect(rankingCss).toMatch(/\.collective-map-close\s*\{[^}]*height:\s*36px/);
+  });
+
+  it("PhotoLightbox top-right controls must be wrapped in .lightbox-top-controls and snug to the right on mobile", () => {
+    expect(content).toContain('className="lightbox-top-controls"');
+
+    const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+    expect(globalsCss).toMatch(/\.lightbox-top-controls\s*\{[^}]*right:\s*28px/);
+    expect(globalsCss).toMatch(/\.lightbox-top-controls\s*\{[^}]*top:\s*24px/);
+    expect(globalsCss).toMatch(/@media[^{]*max-width:\s*768px[^{]*\{[\s\S]*?\.lightbox-top-controls\s*\{[^}]*right:\s*calc\(10px/);
+  });
 });
 

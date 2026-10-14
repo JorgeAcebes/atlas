@@ -514,24 +514,6 @@ export function RankingTab({
         onTouchEnd={handleSwipeTouchEnd}
       >
         <div className="hero-main hero-main--ranking">
-          <div className="hero-title-wrap hero-title-wrap--motto hide-on-mobile">
-            <h1>
-              {mode === "peaks" ? (
-                <>
-                  Los techos de España.
-                  <br />
-                  <em>El podio de cumbres.</em>
-                </>
-              ) : (
-                <>
-                  Los grandes viajeros.
-                  <br />
-                  <em>El podio mundial.</em>
-                </>
-              )}
-            </h1>
-          </div>
-
           <div className="ranking-hero-aside">
             {session && myRank ? (
               <button

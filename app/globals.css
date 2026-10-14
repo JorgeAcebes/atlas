@@ -1921,6 +1921,16 @@ nav a:hover::after {
   padding: 0 16px;
 }
 
+.lightbox-top-controls {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 100010;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .lightbox-close {
   width: 42px;
   height: 42px;
@@ -1986,7 +1996,12 @@ nav a:hover::after {
   right: 28px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 768px), (max-height: 500px) {
+  .lightbox-top-controls {
+    top: calc(14px + env(safe-area-inset-top, 0px));
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    gap: 8px;
+  }
   .lightbox-nav {
     display: none; /* En móvil se navega por deslizamiento táctil (swipe) */
   }
@@ -2038,6 +2053,12 @@ nav a:hover::after {
   --amber: #d2a54b;
   --amber-bg: #fff8e7;
   color: var(--ink);
+  padding: 34px 34px 28px;
+}
+
+.auth-dialog .icon-button {
+  top: 20px;
+  right: 20px;
 }
 
 /* Header background for record dialog */
@@ -2067,7 +2088,6 @@ nav a:hover::after {
   z-index: 2;
 }
 
-.auth-dialog h2,
 .record-dialog h2 {
   font-family: "Playfair Display", Georgia, serif;
   font-size: 26px;
@@ -2075,6 +2095,21 @@ nav a:hover::after {
   line-height: 1.1;
   margin-bottom: 8px;
   letter-spacing: -0.5px;
+}
+
+.auth-dialog h2 {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.auth-dialog .eyebrow + h2 {
+  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 .auth-dialog>p,
@@ -2930,6 +2965,20 @@ textarea:focus {
     max-width: 100%;
   }
 
+  .auth-dialog {
+    padding: 26px 20px 22px;
+  }
+
+  .auth-dialog .icon-button {
+    top: 16px;
+    right: 16px;
+  }
+
+  .auth-dialog h2 {
+    font-size: 24px;
+    margin-bottom: 18px;
+  }
+
   .configuration-note {
     margin: 12px 16px 0;
   }
@@ -3270,12 +3319,12 @@ textarea:focus {
 }
 
 .install-prompt-title {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 22px;
   font-weight: 700;
   color: var(--ink);
   margin: 0 0 6px;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.13em;
 }
 
 .install-prompt-subtitle {
@@ -3822,36 +3871,37 @@ textarea:focus {
 
 /* -- Lightbox Kebab Menu ----------------- */
 .lightbox-menu-btn {
-  position: fixed;
-  top: 18px;
-  right: 70px;
-  width: 40px;
-  height: 40px;
+  position: relative;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  border: 0;
-  background: rgba(0, 0, 0, 0.4);
-  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   cursor: pointer;
-  z-index: 1101;
-  transition: background 0.2s, color 0.2s;
+  z-index: 100010;
+  transition: background 0.2s, color 0.2s, transform 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .lightbox-menu-btn:hover {
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  transform: scale(1.06);
 }
 
 .lightbox-dropdown {
-  position: fixed;
-  top: 60px;
-  right: 70px;
+  position: absolute;
+  top: 48px;
+  right: 0;
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1102;
+  z-index: 100020;
   overflow: hidden;
   min-width: 150px;
   display: flex;
@@ -4203,6 +4253,32 @@ textarea:focus {
   max-width: 620px !important;
   margin: 0 auto !important;
   gap: 24px !important;
+}
+
+/* Centered Ranking Hero (single stat on all viewports) */
+.hero-main.hero-main--ranking,
+.hero-main--ranking {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  grid-template-columns: 1fr !important;
+  width: 100% !important;
+  max-width: 620px !important;
+  margin: 0 auto !important;
+  gap: 0 !important;
+  text-align: center !important;
+}
+
+.hero-main.hero-main--ranking .ranking-hero-aside,
+.hero-main--ranking .ranking-hero-aside {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+  margin: 0 auto !important;
 }
 
 .hero-title-wrap {
@@ -5105,6 +5181,27 @@ textarea:focus {
   margin-bottom: 0 !important;
 }
 
+.hero-main--social.hero-main--social-anon {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  max-width: 620px !important;
+  margin: 0 auto !important;
+  text-align: center !important;
+}
+
+.hero-main--social.hero-main--social-anon .hero-stat--anon {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+}
+
 @media (max-width: 700px) {
   .hero-main--social {
     display: grid !important;
@@ -5136,6 +5233,31 @@ textarea:focus {
     justify-content: center !important;
     width: 100% !important;
     text-align: center !important;
+  }
+  .hero-main--social .hero-title-wrap {
+    display: none !important;
+  }
+  .hero-main--social.hero-main--anon,
+  .hero-main--social:has(.hero-stat--anon) {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    max-width: 380px !important;
+    margin: 0 auto !important;
+    text-align: center !important;
+  }
+  .hero-main--social.hero-main--anon .hero-stat--anon,
+  .hero-main--social .hero-stat--anon {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    margin: 0 auto !important;
   }
   .hero-main--social .hero-profile-avatar {
     width: 36px !important;

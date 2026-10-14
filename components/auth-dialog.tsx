@@ -246,13 +246,7 @@ export function AuthDialog({ onClose, initialTab = "register" }: { onClose: () =
         <button className="icon-button" aria-label="Cerrar" onClick={onClose}>
           <IconClose />
         </button>
-        <span className="eyebrow">TU RETO, TU HISTORIA</span>
         <h2>{isRegister ? "Crea tu cuenta" : "Bienvenido de vuelta"}</h2>
-        <p>
-          {isRegister
-            ? "Guarda cada cima y recupera tu mapa desde cualquier dispositivo."
-            : "Entra para ver tu progreso personal."}
-        </p>
         <form onSubmit={submit} className="auth-form">
           <label>
             {isRegister ? "Correo electrónico" : "Correo electrónico o @usuario"}
@@ -322,7 +316,7 @@ export function AuthDialog({ onClose, initialTab = "register" }: { onClose: () =
                 fontSize: "0.78rem",
                 lineHeight: 1.4,
                 color: "var(--muted)",
-                margin: "0.5rem 0 0.75rem",
+                margin: "-2px 0 -8px",
                 textAlign: "center",
               }}
             >

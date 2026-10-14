@@ -6,14 +6,25 @@
 }
 
 .hero-main--ranking {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  display: flex !important;
+  flex-direction: column !important;
   align-items: center !important;
-  justify-items: center !important;
+  justify-content: center !important;
   width: 100% !important;
   max-width: 620px !important;
   margin: 0 auto !important;
-  gap: 24px !important;
+  gap: 0 !important;
+  text-align: center !important;
+}
+
+.hero-main--ranking .ranking-hero-aside {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+  margin: 0 auto !important;
 }
 
 @media (max-width: 1023px) {
@@ -23,25 +34,13 @@
   }
 
   .hero-main--ranking {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
     height: 56px !important;
     min-height: 56px !important;
     max-height: 56px !important;
-    margin: 0 auto !important;
-    gap: 0 !important;
   }
 
   .hero-main--ranking .ranking-hero-aside {
-    width: 100% !important;
     height: 100% !important;
-    margin: 0 auto !important;
-    align-items: center !important;
-    justify-content: center !important;
-    text-align: center !important;
   }
 }
 
@@ -534,20 +533,28 @@ h1.ranking-hero-title em {
 .collective-map-close {
   background: none;
   border: 1.5px solid #E4D2AE;
-  border-radius: 8px;
-  padding: 6px;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   cursor: pointer;
   color: #6B5638;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
 .collective-map-close:hover {
   background: #f0ebe3;
   color: #3A2A17;
   border-color: #3A2A17;
+}
+
+.collective-map-close:focus-visible {
+  outline: 2px solid #3A2A17;
+  outline-offset: 2px;
 }
 
 .collective-map-toggles {

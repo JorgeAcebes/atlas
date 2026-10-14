@@ -184,7 +184,9 @@ export function PhotoLightbox({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, scale, showPrev, showNext, handleZoomIn, handleZoomOut, handleResetZoom, menuOpen]);
 
-  // Wheel zoom with passive: false to prevent background scroll
+  const lastWheelNavRef = useRef(0);
+
+  // Wheel zoom & trackpad swipe with passive: false to prevent background scroll
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -192,6 +194,24 @@ export function PhotoLightbox({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
+
+      // Deslizamiento horizontal con trackpad a escala 1x
+      if (
+        scaleRef.current <= 1.05 &&
+        Math.abs(e.deltaX) > 35 &&
+        Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5
+      ) {
+        const now = Date.now();
+        if (now - lastWheelNavRef.current > 350) {
+          lastWheelNavRef.current = now;
+          if (e.deltaX > 0 && hasNext) {
+            showNext();
+          } else if (e.deltaX < 0 && hasPrev) {
+            showPrev();
+          }
+        }
+        return;
+      }
 
       const factor = e.deltaY < 0 ? 1.25 : 0.8;
       setScale((prevScale) => {
@@ -207,7 +227,7 @@ export function PhotoLightbox({
 
     stage.addEventListener("wheel", onWheel, { passive: false });
     return () => stage.removeEventListener("wheel", onWheel);
-  }, [clampPan]);
+  }, [clampPan, hasNext, hasPrev, showNext, showPrev]);
 
   const lastDoubleTapTimeRef = useRef(0);
 
@@ -253,10 +273,12 @@ export function PhotoLightbox({
     [clampPan, handleResetZoom]
   );
 
-  // Mouse pan event handlers
+  const mouseSwipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  // Mouse pan & swipe event handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
-    if (scale > 1.05) {
+    if (scaleRef.current > 1.05) {
       e.preventDefault();
       isDraggingRef.current = true;
       setIsInteracting(true);
@@ -264,20 +286,44 @@ export function PhotoLightbox({
         x: e.clientX - pan.x,
         y: e.clientY - pan.y,
       };
+    } else {
+      mouseSwipeStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        time: Date.now(),
+      };
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingRef.current) return;
-    const nextX = e.clientX - dragStartRef.current.x;
-    const nextY = e.clientY - dragStartRef.current.y;
-    setPan(clampPan(nextX, nextY, scale));
+    if (isDraggingRef.current && scaleRef.current > 1.05) {
+      const nextX = e.clientX - dragStartRef.current.x;
+      const nextY = e.clientY - dragStartRef.current.y;
+      setPan(clampPan(nextX, nextY, scaleRef.current));
+    }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e?: React.MouseEvent) => {
     if (isDraggingRef.current) {
       isDraggingRef.current = false;
       setIsInteracting(false);
+    }
+    if (mouseSwipeStartRef.current && e) {
+      const diffX = e.clientX - mouseSwipeStartRef.current.x;
+      const diffY = e.clientY - mouseSwipeStartRef.current.y;
+      mouseSwipeStartRef.current = null;
+
+      if (scaleRef.current <= 1.05) {
+        if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+          if (diffX < 0 && hasNext) {
+            showNext();
+          } else if (diffX > 0 && hasPrev) {
+            showPrev();
+          }
+        }
+      }
+    } else {
+      mouseSwipeStartRef.current = null;
     }
   };
 
@@ -403,16 +449,16 @@ export function PhotoLightbox({
       lastTapRef.current = null;
     }
 
-    if (scaleRef.current < 1.05) {
+    if (scaleRef.current <= 1.05) {
       setScale(1);
       setPan({ x: 0, y: 0 });
 
-      // Swipe navigation when at 1x scale (only if not a tap)
-      if (touchStartSwipeRef.current && !isCleanTap) {
+      // Swipe navigation when at 1x scale
+      if (touchStartSwipeRef.current) {
         const diffX = changedTouch.clientX - touchStartSwipeRef.current.x;
         const diffY = changedTouch.clientY - touchStartSwipeRef.current.y;
 
-        if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY)) {
+        if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
           if (diffX < 0 && hasNext) {
             showNext();
           } else if (diffX > 0 && hasPrev) {
@@ -453,15 +499,7 @@ export function PhotoLightbox({
     >
       {/* ── Top-Right Controls: Menú de opciones (si editable) y Cruz de cerrar ── */}
       <div
-        style={{
-          position: "absolute",
-          top: 24,
-          right: 28,
-          zIndex: 100010,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
+        className="lightbox-top-controls"
         onClick={(e) => e.stopPropagation()}
       >
         {canEdit && (
@@ -592,8 +630,10 @@ export function PhotoLightbox({
         }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onDoubleClick={(e) => {
           e.preventDefault();
           handleDoubleTap(e.clientX, e.clientY);

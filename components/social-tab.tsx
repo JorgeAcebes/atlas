@@ -957,7 +957,7 @@ export function SocialTab({
         onTouchStart={handleSwipeTouchStart}
         onTouchEnd={handleSwipeTouchEnd}
       >
-        <div className="hero-main hero-main--social">
+        <div className={`hero-main hero-main--social ${(!session || !myProfile) ? "hero-main--social-anon" : ""}`}>
           {session && myProfile ? (
             <>
               <div className="hero-profile-wrap">
@@ -1010,16 +1010,12 @@ export function SocialTab({
             </>
           ) : (
             <>
-              <div className="hero-title-wrap hide-on-mobile">
-                <h1>
-                  Comunidad viajera.
-                  <br />
-                  <em>Comparte el camino.</em>
-                </h1>
-              </div>
-
+              {/* hero-title-wrap hide-on-mobile: suprimido por petición del usuario */}
               <aside className="hero-stat hero-stat--anon">
-                <button className="button button--green" onClick={() => setAuthOpen("login")}>
+                <button
+                  className="button button--green"
+                  onClick={() => setAuthOpen("login")}
+                >
                   Iniciar sesión
                 </button>
                 <span style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
