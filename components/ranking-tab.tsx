@@ -9,7 +9,8 @@ import { IconLogo, IconCollectiveMap } from "@/components/icons";
 import { useAuth } from "./auth-context";
 import { ProfileSettings } from "./profile-settings";
 import { usePendingRequests } from "./use-pending-requests";
-import { UserRoundCheck } from "lucide-react";
+import { UserRoundCheck, ChartNoAxesColumn } from "lucide-react";
+import { StatsModal } from "./stats-modal";
 import "./ranking.css";
 
 const CollectiveMap = dynamic(
@@ -76,6 +77,7 @@ export function RankingTab({
   const hasPendingRequests = usePendingRequests();
   const [mounted, setMounted] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [mapLink, setMapLink] = useState("/");
   const [showCollectiveMap, setShowCollectiveMap] = useState(false);
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
@@ -428,7 +430,7 @@ export function RankingTab({
         </Link>
 
         {hasBothModes && (
-          <div className={`app-mode-switch hide-on-mobile ${mode === "peaks" ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}>
+          <div className={`app-mode-switch ${mode === "peaks" ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}>
             <div className="app-mode-switch__indicator" />
             <button
               className={`app-mode-btn ${mode === "peaks" ? "active" : ""}`}
@@ -491,6 +493,21 @@ export function RankingTab({
           >
             Ranking
           </Link>
+          {/* Mobile-only Stats button (a la izquierda de la foto de perfil) */}
+          {(myProfile || session) && (
+            <button
+              type="button"
+              className="topbar-stats-btn"
+              aria-label="Mis Estadísticas"
+              title="Mis Estadísticas"
+              onClick={() => {
+                window.location.hash = "estadisticas";
+                setStatsOpen(true);
+              }}
+            >
+              <ChartNoAxesColumn size={20} />
+            </button>
+          )}
           {(myProfile || session) ? (
             <button
               className="account-button"
@@ -745,6 +762,19 @@ export function RankingTab({
           session={session}
           onClose={() => setProfileOpen(false)}
           onProfileUpdate={() => refreshProfile()}
+        />
+      )}
+      {statsOpen && (
+        <StatsModal
+          session={session}
+          myProfile={myProfile}
+          initialMode={mode}
+          onClose={() => {
+            if (window.location.hash === "#estadisticas") {
+              window.history.back();
+            }
+            setStatsOpen(false);
+          }}
         />
       )}
     </main>

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { SummitTracker } from "@/components/summit-tracker";
 import { SocialTab } from "@/components/social-tab";
 import { RankingTab } from "@/components/ranking-tab";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 
 type MainTab = "map" | "social" | "ranking";
 type ChallengeMode = "peaks" | "countries";
@@ -248,7 +249,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       const tab = getTabFromPath(targetPath);
       if (tab) {
         const prevTab = activeTabRef.current;
-        if (tab === prevTab) {
+        if (tab === prevTab && isMainRoute) {
           resetScrollToTop(true);
           return;
         }
@@ -308,13 +309,17 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           localStorage.setItem("last_map_path", targetMode === "peaks" ? "/picos" : "/");
           localStorage.setItem("ranking_mode", targetMode);
         }
-        window.history.pushState(null, "", finalPath);
-        lastPathRef.current = finalPath;
+        if (!isMainRoute) {
+          router.push(finalPath);
+        } else {
+          window.history.pushState(null, "", finalPath);
+          lastPathRef.current = finalPath;
 
-        resetScrollToTop(false);
-        requestAnimationFrame(() => {
           resetScrollToTop(false);
-        });
+          requestAnimationFrame(() => {
+            resetScrollToTop(false);
+          });
+        }
 
         if (tab === "map") {
           setTimeout(() => {
@@ -329,7 +334,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         router.push(targetPath);
       }
     },
-    [router, sharedMode, sharedExperiencesMode, resetScrollToTop]
+    [router, sharedMode, sharedExperiencesMode, isMainRoute, resetScrollToTop]
   );
 
   const handleSwitchMode = useCallback(
@@ -419,6 +424,15 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
 
       {/* ── Other Routes (UserProfile, Privacidad, etc.) ── */}
       {!isMainRoute && children}
+
+      {/* ── Mobile Bottom Navigation Bar ── */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        mode={sharedMode}
+        experiencesMode={sharedExperiencesMode}
+        onNavigate={handleNavigate}
+        isMainRoute={isMainRoute}
+      />
     </>
   );
 }

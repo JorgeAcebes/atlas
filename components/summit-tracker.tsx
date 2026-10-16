@@ -28,6 +28,7 @@ import { AuthDialog } from "./auth-dialog";
 import { ProfileSettings } from "./profile-settings";
 import { InstallPrompt } from "./install-prompt";
 import { ConfirmModal } from "./confirm-modal";
+import { StatsModal } from "./stats-modal";
 import PhotoEditor from "./photo-editor";
 import { PhotoLightbox } from "./photo-lightbox";
 import { getIconComponent, IconLogo } from "./icons";
@@ -51,6 +52,7 @@ import {
   UserRoundArrowLeft,
   NotebookPen,
   Share2,
+  ChartNoAxesColumn,
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
@@ -759,6 +761,7 @@ export function SummitTracker({
   }, [panelIdToOpen]);
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
   const [climbDate, setClimbDate] = useState<Date | null>(new Date());
   const [climbEndDate, setClimbEndDate] = useState<Date | null>(null);
@@ -1247,6 +1250,8 @@ export function SummitTracker({
         // Let it stay open
       } else if (hash === "#lightbox") {
         setEditorPhoto(null);
+      } else if (hash === "#estadisticas") {
+        setStatsOpen(true);
       } else if (hash.startsWith("#panel")) {
         setEditorPhoto(null);
         setLightboxPhoto(null);
@@ -1266,6 +1271,7 @@ export function SummitTracker({
           setSelected(null);
           setRecordOpen(false);
           setProfileOpen(false);
+          setStatsOpen(false);
           setAuthOpen(false);
           panelPushedRef.current = false;
           recordOpenedFromPanelRef.current = false;
@@ -4350,7 +4356,7 @@ export function SummitTracker({
         )}
 
         {hasBothModes && (
-          <div className={`app-mode-switch hide-on-mobile ${isPeaks ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}>
+          <div className={`app-mode-switch ${isPeaks ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}>
             <div className="app-mode-switch__indicator" />
             <button
               className={`app-mode-btn ${isPeaks ? "active" : ""}`}
@@ -4477,6 +4483,23 @@ export function SummitTracker({
               </Link>
             </>
           )}
+
+          {/* Mobile-only Stats button (a la izquierda de la foto de perfil) */}
+          {(myProfile || session) && (
+            <button
+              type="button"
+              className="topbar-stats-btn"
+              aria-label="Mis Estadísticas"
+              title="Mis Estadísticas"
+              onClick={() => {
+                window.location.hash = "estadisticas";
+                setStatsOpen(true);
+              }}
+            >
+              <ChartNoAxesColumn size={20} />
+            </button>
+          )}
+
           {(myProfile || session) ? (
             <button
               className="account-button"
@@ -7687,6 +7710,23 @@ export function SummitTracker({
             }
           }}
           onClose={() => setProfileOpen(false)}
+        />
+      )}
+      {statsOpen && (
+        <StatsModal
+          session={session}
+          myProfile={myProfile}
+          ascents={ascents}
+          experienceRecords={experienceRecords}
+          photos={photos}
+          photosCount={photos?.length}
+          initialMode={isPeaks ? "peaks" : "countries"}
+          onClose={() => {
+            if (window.location.hash === "#estadisticas") {
+              window.history.back();
+            }
+            setStatsOpen(false);
+          }}
         />
       )}
       <ConfirmModal

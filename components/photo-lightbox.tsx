@@ -38,6 +38,8 @@ export interface PhotoLightboxProps {
   onClose: () => void;
   title: string;
   canEdit?: boolean;
+  showDots?: boolean;
+  onTitleClick?: () => void;
   onEditPhoto?: (photo: LightboxPhoto) => void;
   onEditCaption?: (photo: LightboxPhoto) => void;
   onDeletePhoto?: (photo: LightboxPhoto) => void;
@@ -50,6 +52,8 @@ export function PhotoLightbox({
   onClose,
   title,
   canEdit = false,
+  showDots = true,
+  onTitleClick,
   onEditPhoto,
   onEditCaption,
   onDeletePhoto,
@@ -782,23 +786,51 @@ export function PhotoLightbox({
 
           {/* Nombre del lugar / cumbre / país / experiencia en blanco puro */}
           {title && (
-            <span
-              style={{
-                color: "#ffffff",
-                fontSize: currentPhoto.caption ? "13px" : "16px",
-                fontWeight: currentPhoto.caption ? 400 : 600,
-                lineHeight: "1.35",
-                letterSpacing: "0.015em",
-                opacity: currentPhoto.caption ? 0.9 : 1,
-                textShadow: "0 2px 4px rgba(0, 0, 0, 0.8)",
-              }}
-            >
-              {title}
-            </span>
+            onTitleClick ? (
+              <button
+                type="button"
+                onClick={onTitleClick}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  margin: 0,
+                  color: "#ffffff",
+                  fontSize: currentPhoto.caption ? "13px" : "16px",
+                  fontWeight: currentPhoto.caption ? 500 : 600,
+                  lineHeight: "1.35",
+                  letterSpacing: "0.015em",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  textUnderlineOffset: "3px",
+                  textShadow: "0 2px 4px rgba(0, 0, 0, 0.8)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+                title="Ver registro de actividad"
+              >
+                {title}
+              </button>
+            ) : (
+              <span
+                style={{
+                  color: "#ffffff",
+                  fontSize: currentPhoto.caption ? "13px" : "16px",
+                  fontWeight: currentPhoto.caption ? 400 : 600,
+                  lineHeight: "1.35",
+                  letterSpacing: "0.015em",
+                  opacity: currentPhoto.caption ? 0.9 : 1,
+                  textShadow: "0 2px 4px rgba(0, 0, 0, 0.8)",
+                }}
+              >
+                {title}
+              </span>
+            )
           )}
 
           {/* Puntos de paginación interactivos */}
-          {photos.length > 1 && (
+          {showDots && photos.length > 1 && (
             <div
               style={{
                 display: "flex",

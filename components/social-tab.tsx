@@ -13,7 +13,8 @@ import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { peaks } from "@/data/peaks";
 import { countries } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
-import { UserRoundCheck } from "lucide-react";
+import { UserRoundCheck, ChartNoAxesColumn } from "lucide-react";
+import { StatsModal } from "./stats-modal";
 import { usePendingRequests } from "./use-pending-requests";
 
 type Profile = {
@@ -263,6 +264,7 @@ export function SocialTab({
 
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [mapLink, setMapLink] = useState(() => currentMode === "peaks" ? "/picos" : "/");
   const [mounted, setMounted] = useState(false);
   
@@ -867,7 +869,7 @@ export function SocialTab({
         </Link>
 
         {hasBothModes && (
-          <div className={`app-mode-switch hide-on-mobile ${currentMode === "peaks" ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}>
+          <div className={`app-mode-switch ${currentMode === "peaks" ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}>
             <div className="app-mode-switch__indicator" />
             <button
               className={`app-mode-btn ${currentMode === "peaks" ? "active" : ""}`}
@@ -934,6 +936,21 @@ export function SocialTab({
           >
             Ranking
           </Link>
+          {/* Mobile-only Stats button (a la izquierda de la foto de perfil) */}
+          {(myProfile || session) && (
+            <button
+              type="button"
+              className="topbar-stats-btn"
+              aria-label="Mis Estadísticas"
+              title="Mis Estadísticas"
+              onClick={() => {
+                window.location.hash = "estadisticas";
+                setStatsOpen(true);
+              }}
+            >
+              <ChartNoAxesColumn size={20} />
+            </button>
+          )}
           {(myProfile || session) ? (
             <button
               className="account-button"
@@ -1368,6 +1385,20 @@ export function SocialTab({
           session={session}
           onClose={() => setProfileOpen(false)}
           onProfileUpdate={() => refreshProfile()}
+        />
+      )}
+      {statsOpen && (
+        <StatsModal
+          session={session}
+          myProfile={myProfile}
+          ascents={userAscents}
+          initialMode={currentMode}
+          onClose={() => {
+            if (window.location.hash === "#estadisticas") {
+              window.history.back();
+            }
+            setStatsOpen(false);
+          }}
         />
       )}
       <ConfirmModal
