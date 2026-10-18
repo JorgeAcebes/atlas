@@ -300,7 +300,10 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           }
           // Ranking does not have experiences view parameter
         } else if (tab === "map") {
-          finalPath = targetMode === "peaks" ? "/picos" : "/";
+          const hashIdx = targetPath.indexOf("#");
+          const hashPart = hashIdx >= 0 ? targetPath.slice(hashIdx) : "";
+          const baseMap = targetMode === "peaks" ? "/picos" : "/";
+          finalPath = `${baseMap}${hashPart}`;
         }
 
         setSharedMode(targetMode);
@@ -314,6 +317,10 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         } else {
           window.history.pushState(null, "", finalPath);
           lastPathRef.current = finalPath;
+
+          if (finalPath.includes("#")) {
+            window.dispatchEvent(new Event("hashchange"));
+          }
 
           resetScrollToTop(false);
           requestAnimationFrame(() => {

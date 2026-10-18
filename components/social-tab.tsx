@@ -16,6 +16,7 @@ import { predefinedCategories } from "@/data/experiences";
 import { UserRoundCheck, ChartNoAxesColumn } from "lucide-react";
 import { StatsModal } from "./stats-modal";
 import { usePendingRequests } from "./use-pending-requests";
+import { getLocationInfo } from "@/lib/stats-utils";
 
 type Profile = {
   id: string;
@@ -264,12 +265,21 @@ export function SocialTab({
 
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(() => (typeof window !== "undefined" ? window.location.hash === "#estadisticas" : false));
   const [mapLink, setMapLink] = useState(() => currentMode === "peaks" ? "/picos" : "/");
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
     setMounted(true);
+    const handleHash = () => {
+      setStatsOpen(window.location.hash === "#estadisticas");
+    };
+    window.addEventListener("hashchange", handleHash);
+    window.addEventListener("popstate", handleHash);
+    return () => {
+      window.removeEventListener("hashchange", handleHash);
+      window.removeEventListener("popstate", handleHash);
+    };
   }, []);
 
   useEffect(() => {
@@ -343,7 +353,7 @@ export function SocialTab({
     async function fetchUserProgress() {
       try {
         const [ascentsRes, expRes, customRes] = await Promise.all([
-          supabase!.from("ascents").select("summit_id, is_wishlist").eq("user_id", uid),
+          supabase!.from("ascents").select("*").eq("user_id", uid),
           supabase!.from("experience_records").select("experience_id, sub_item_id, is_wishlist").eq("user_id", uid),
           supabase!.from("custom_experiences").select("id, name, sub_items").eq("user_id", uid),
         ]);
@@ -1398,6 +1408,26 @@ export function SocialTab({
               window.history.back();
             }
             setStatsOpen(false);
+          }}
+          onGoToRecord={(summitId) => {
+            setStatsOpen(false);
+            const loc = getLocationInfo(summitId);
+            const cleanId = summitId.split("::")[0];
+            const isPeak =
+              loc.type === "peak" ||
+              peaks.some(
+                (p) =>
+                  p.id === cleanId ||
+                  p.name.toLowerCase() === cleanId.toLowerCase()
+              );
+            const targetPath = isPeak
+              ? `/picos#panel=${encodeURIComponent(cleanId)}`
+              : `/#panel=${encodeURIComponent(cleanId)}`;
+            if (onNavigate) {
+              onNavigate(targetPath);
+            } else {
+              window.location.href = targetPath;
+            }
           }}
         />
       )}

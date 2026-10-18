@@ -11,6 +11,8 @@ import { ProfileSettings } from "./profile-settings";
 import { usePendingRequests } from "./use-pending-requests";
 import { UserRoundCheck, ChartNoAxesColumn } from "lucide-react";
 import { StatsModal } from "./stats-modal";
+import { peaks } from "@/data/peaks";
+import { getLocationInfo } from "@/lib/stats-utils";
 import "./ranking.css";
 
 const CollectiveMap = dynamic(
@@ -77,13 +79,22 @@ export function RankingTab({
   const hasPendingRequests = usePendingRequests();
   const [mounted, setMounted] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(() => (typeof window !== "undefined" ? window.location.hash === "#estadisticas" : false));
   const [mapLink, setMapLink] = useState("/");
   const [showCollectiveMap, setShowCollectiveMap] = useState(false);
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
 
   useEffect(() => {
     setMounted(true);
+    const handleHash = () => {
+      setStatsOpen(window.location.hash === "#estadisticas");
+    };
+    window.addEventListener("hashchange", handleHash);
+    window.addEventListener("popstate", handleHash);
+    return () => {
+      window.removeEventListener("hashchange", handleHash);
+      window.removeEventListener("popstate", handleHash);
+    };
   }, []);
 
   useEffect(() => {
@@ -774,6 +785,26 @@ export function RankingTab({
               window.history.back();
             }
             setStatsOpen(false);
+          }}
+          onGoToRecord={(summitId) => {
+            setStatsOpen(false);
+            const loc = getLocationInfo(summitId);
+            const cleanId = summitId.split("::")[0];
+            const isPeak =
+              loc.type === "peak" ||
+              peaks.some(
+                (p) =>
+                  p.id === cleanId ||
+                  p.name.toLowerCase() === cleanId.toLowerCase()
+              );
+            const targetPath = isPeak
+              ? `/picos#panel=${encodeURIComponent(cleanId)}`
+              : `/#panel=${encodeURIComponent(cleanId)}`;
+            if (onNavigate) {
+              onNavigate(targetPath);
+            } else {
+              window.location.href = targetPath;
+            }
           }}
         />
       )}

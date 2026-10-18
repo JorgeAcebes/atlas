@@ -41,6 +41,7 @@ type Props = {
   photosCount?: number;
   initialMode?: "peaks" | "countries";
   onClose: () => void;
+  onGoToRecord?: (summitId: string) => void;
 };
 
 // 5 Cumbres Compartidas Oficiales de España
@@ -111,6 +112,7 @@ export function StatsModal({
   photosCount: propPhotosCount,
   initialMode = "countries",
   onClose,
+  onGoToRecord,
 }: Props) {
   const [activeMode, setActiveMode] = useState<StatsMode>(() =>
     initialMode === "peaks" ? "peaks" : "countries"
@@ -182,9 +184,39 @@ export function StatsModal({
     if (!summitId) return;
     setLightboxIndex(null);
     setGalleryOpen(false);
+
+    if (onGoToRecord) {
+      onGoToRecord(summitId);
+      return;
+    }
+
+    const loc = getLocationInfo(summitId);
+    const cleanId = summitId.split("::")[0];
+    const isPeak =
+      loc.type === "peak" ||
+      peaks.some(
+        (p) =>
+          p.id === cleanId ||
+          p.name.toLowerCase() === cleanId.toLowerCase()
+      );
+    const targetPath = isPeak
+      ? `/picos#panel=${encodeURIComponent(cleanId)}`
+      : `/#panel=${encodeURIComponent(cleanId)}`;
+
     onClose();
-    const panelId = encodeURIComponent(summitId);
-    window.location.hash = `panel=${panelId}`;
+
+    if (typeof window !== "undefined") {
+      if (
+        window.location.pathname === "/picos" ||
+        window.location.pathname === "/" ||
+        window.location.pathname === "/paises"
+      ) {
+        window.history.replaceState({ hasPanel: true }, "", `#panel=${encodeURIComponent(cleanId)}`);
+        window.dispatchEvent(new Event("hashchange"));
+      } else {
+        window.location.href = targetPath;
+      }
+    }
   }
 
   // Lock scroll
@@ -213,6 +245,30 @@ export function StatsModal({
         });
     }
   }, [propAscents, propPhotos, session]);
+
+  // Fetch full ascents with achieved_on if missing or empty
+  useEffect(() => {
+    if (!session?.user?.id || !supabase) return;
+    const isMissingDates =
+      ascents.length > 0 &&
+      ascents.some((a) => !a.is_wishlist && a.achieved_on === undefined);
+    const isEmpty = ascents.length === 0;
+
+    if (isMissingDates || isEmpty) {
+      supabase
+        .from("ascents")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setAscents(data);
+            try {
+              localStorage.setItem(`app_tracker_ascents_${session.user.id}`, JSON.stringify(data));
+            } catch {}
+          }
+        });
+    }
+  }, [session, ascents]);
 
   // ── Compute Analytics & Metrics ─────────────
   const metrics = useMemo(() => {
@@ -248,7 +304,7 @@ export function StatsModal({
 
     // 4 Tresmiles
     const threeThousanders = [
-      { id: "teide", name: "Teide", altitude: 3718, province: "Santa Cruz de Tenerife", completed: completedPeakIds.has("teide") },
+      { id: "santa-cruz-tenerife", name: "Teide", altitude: 3718, province: "Santa Cruz de Tenerife", completed: completedPeakIds.has("santa-cruz-tenerife") || completedPeakIds.has("teide") },
       { id: "granada", name: "Mulhacén", altitude: 3479, province: "Granada", completed: completedPeakIds.has("granada") },
       { id: "huesca", name: "Aneto", altitude: 3404, province: "Huesca", completed: completedPeakIds.has("huesca") },
       { id: "lleida", name: "Pica d'Estats", altitude: 3143, province: "Lleida", completed: completedPeakIds.has("lleida") },

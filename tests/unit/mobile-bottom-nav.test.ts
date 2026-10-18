@@ -93,5 +93,20 @@ describe("Mobile Bottom Navigation (Tab Bar)", () => {
     // Redundant hero mode switch on mobile is suppressed to save vertical hero space
     expect(globalsCss).toMatch(/@media\s*\(max-width:\s*768px\)[\s\S]*?\.hero\s+\.app-mode-switch\.hide-on-desktop\s*\{[^}]*display:\s*none\s*!important;/);
   });
+
+  it("5. Ranking Tab Theming: Bottom nav stays in standard color on ranking tab unless viewing another user's experiences", () => {
+    const navFile = fs.readFileSync(path.join(rootDir, "components/mobile-bottom-nav.tsx"), "utf-8");
+
+    // Tracks bodyHasExperiences with MutationObserver
+    expect(navFile).toContain("bodyHasExperiences");
+    expect(navFile).toContain("MutationObserver");
+
+    // Ranking on main route is strictly non-experiences (standard colors)
+    expect(navFile).toContain('activeTab === "ranking" && isMainRoute');
+    expect(navFile).toMatch(/activeTab === "ranking" && isMainRoute\s*\?\s*false/);
+
+    // Visiting another user's profile from ranking enables mode-experiences only if they have experiences
+    expect(navFile).toMatch(/activeTab === "ranking" && !isMainRoute\s*\?\s*bodyHasExperiences/);
+  });
 });
 

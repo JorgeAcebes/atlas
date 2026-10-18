@@ -1031,6 +1031,11 @@ nav a:hover::after {
   padding: 0;
 }
 
+.leaflet-zoom-anim .summit-pin,
+.leaflet-zooming .summit-pin {
+  transition: none !important;
+}
+
 .summit-pin svg,
 .legend-pin svg,
 .legend-wishlist svg,

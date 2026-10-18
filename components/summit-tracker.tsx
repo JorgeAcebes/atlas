@@ -29,6 +29,7 @@ import { ProfileSettings } from "./profile-settings";
 import { InstallPrompt } from "./install-prompt";
 import { ConfirmModal } from "./confirm-modal";
 import { StatsModal } from "./stats-modal";
+import { getLocationInfo } from "@/lib/stats-utils";
 import PhotoEditor from "./photo-editor";
 import { PhotoLightbox } from "./photo-lightbox";
 import { getIconComponent, IconLogo } from "./icons";
@@ -761,7 +762,12 @@ export function SummitTracker({
   }, [panelIdToOpen]);
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.location.hash === "#estadisticas";
+    }
+    return false;
+  });
   const [recordOpen, setRecordOpen] = useState(false);
   const [climbDate, setClimbDate] = useState<Date | null>(new Date());
   const [climbEndDate, setClimbEndDate] = useState<Date | null>(null);
@@ -1278,6 +1284,7 @@ export function SummitTracker({
         }
       }
     };
+    handleHashChange();
     window.addEventListener("hashchange", handleHashChange);
     window.addEventListener("popstate", handleHashChange);
     return () => {
@@ -1293,7 +1300,7 @@ export function SummitTracker({
       return;
     }
     setTimeout(() => window.dispatchEvent(new Event("resize")), 50);
-    if (experiencesMode && !isPeaks && session) {
+    if (experiencesMode && !isPeaks && (session || isReadOnly)) {
       document.body.classList.add("mode-experiences");
       document.body.classList.remove("mode-countries");
     } else if (isPeaks) {
@@ -1308,7 +1315,7 @@ export function SummitTracker({
       document.body.classList.remove("mode-experiences");
       document.body.classList.remove("mode-countries");
     };
-  }, [experiencesMode, isPeaks, isActive, session]);
+  }, [experiencesMode, isPeaks, isActive, session, isReadOnly]);
 
   // ── Mode config ────────────────────────────
   const dynamicCategories = useMemo(() => {
@@ -1517,14 +1524,28 @@ export function SummitTracker({
         }
 
         // Check if it's a peak and we need to switch mode
-        if (!isPeaks && peaks.some((p) => p.id === baseId)) {
+        const isPeakMatch = peaks.some(
+          (p) =>
+            p.id === baseId ||
+            p.name.toLowerCase() === baseId.toLowerCase() ||
+            p.province.toLowerCase() === baseId.toLowerCase()
+        );
+        if (!isPeaks && isPeakMatch) {
           if (!canShowPeaks) return;
           setCurrentMode("peaks");
           return;
         }
 
         // Check if it's a country and we need to switch mode
-        if (isPeaks && (baseId.startsWith("country-") || countries.some((c) => c.id === baseId))) {
+        const isCountryMatch =
+          baseId.startsWith("country-") ||
+          countries.some(
+            (c) =>
+              c.id === baseId ||
+              c.name.toLowerCase() === baseId.toLowerCase() ||
+              c.iso_a2.toLowerCase() === baseId.toLowerCase()
+          );
+        if (isPeaks && isCountryMatch) {
           if (!canShowCountries) return;
           setCurrentMode("countries");
           return;
@@ -1533,6 +1554,28 @@ export function SummitTracker({
         let item: SelectedItem | undefined = allItems.find(
           (i) => i.id === baseId || i.id === id,
         );
+        if (!item && isPeaks) {
+          const matchedPeak = peaks.find(
+            (p) =>
+              p.id === baseId ||
+              p.name.toLowerCase() === baseId.toLowerCase() ||
+              p.province.toLowerCase() === baseId.toLowerCase()
+          );
+          if (matchedPeak) {
+            item = allItems.find((i) => i.id === matchedPeak.id);
+          }
+        }
+        if (!item && !isPeaks) {
+          const matchedCountry = countries.find(
+            (c) =>
+              c.id === baseId ||
+              c.name.toLowerCase() === baseId.toLowerCase() ||
+              c.iso_a2.toLowerCase() === baseId.toLowerCase()
+          );
+          if (matchedCountry) {
+            item = allItems.find((i) => i.id === matchedCountry.id);
+          }
+        }
         if (item) {
           let selectedItem: SelectedItem = item;
           if (subItemId) {
@@ -7726,6 +7769,29 @@ export function SummitTracker({
               window.history.back();
             }
             setStatsOpen(false);
+          }}
+          onGoToRecord={(summitId) => {
+            setStatsOpen(false);
+            const loc = getLocationInfo(summitId);
+            const cleanId = summitId.split("::")[0];
+            const isPeak =
+              loc.type === "peak" ||
+              peaks.some(
+                (p) =>
+                  p.id === cleanId ||
+                  p.name.toLowerCase() === cleanId.toLowerCase()
+              );
+
+            if (isPeak && !isPeaks) {
+              if (canShowPeaks) setCurrentMode("peaks");
+            } else if (!isPeak && isPeaks) {
+              if (canShowCountries) setCurrentMode("countries");
+            }
+
+            setPanelIdToOpen(cleanId);
+            const targetHash = `#panel=${encodeURIComponent(cleanId)}`;
+            window.history.replaceState({ hasPanel: true }, "", targetHash);
+            window.dispatchEvent(new Event("hashchange"));
           }}
         />
       )}

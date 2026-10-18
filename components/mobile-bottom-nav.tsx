@@ -21,8 +21,30 @@ export function MobileBottomNav({
   isMainRoute = true,
 }: MobileBottomNavProps) {
   const hasPendingRequests = usePendingRequests();
+  const [bodyHasExperiences, setBodyHasExperiences] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkBodyTheme = () => {
+      if (typeof document !== "undefined") {
+        setBodyHasExperiences(document.body.classList.contains("mode-experiences"));
+      }
+    };
+    checkBodyTheme();
+    const observer = new MutationObserver(checkBodyTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
   const isPeaks = mode === "peaks";
-  const isExp = !isPeaks && experiencesMode;
+  // En la pestaña de ranking principal (isMainRoute), no existe la modalidad de experiencias y debe mantenerse siempre en color estándar.
+  // Solo se colorea en modo experiencias si entramos en las experiencias de otro usuario (!isMainRoute) estando en ranking.
+  const isExp = isPeaks
+    ? false
+    : activeTab === "ranking" && isMainRoute
+    ? false
+    : activeTab === "ranking" && !isMainRoute
+    ? bodyHasExperiences
+    : experiencesMode || bodyHasExperiences;
 
   const mapUrl = isPeaks ? "/picos" : "/";
   const socialUrl = isPeaks

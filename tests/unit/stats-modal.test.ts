@@ -285,4 +285,30 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(statsModalCss).toContain(".stats-range-peak-text");
     expect(statsModalCss).toMatch(/\.stats-range-peak-province\s*\{[^}]*white-space:\s*nowrap;/);
   });
+
+  it("7. Record links, timeline date integrity, and hash persistence on refresh", () => {
+    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
+    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+    const socialFile = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+    const rankingFile = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
+
+    // onGoToRecord callback is passed and invoked
+    expect(statsModalFile).toContain("onGoToRecord?: (summitId: string) => void;");
+    expect(statsModalFile).toContain("onGoToRecord(summitId);");
+    expect(trackerFile).toContain("onGoToRecord={(summitId) => {");
+    expect(socialFile).toContain("onGoToRecord={(summitId) => {");
+    expect(rankingFile).toContain("onGoToRecord={(summitId) => {");
+
+    // All columns fetched for ascents to prevent stripping achieved_on
+    expect(socialFile).toMatch(/supabase!\.from\("ascents"\)\.select\("\*"\)/);
+
+    // Initial state on refresh maintains #estadisticas open in all 3 tabs
+    expect(trackerFile).toMatch(/const \[statsOpen, setStatsOpen\] = useState\(\(\) => [^}]*window\.location\.hash === "#estadisticas"/);
+    expect(socialFile).toMatch(/const \[statsOpen, setStatsOpen\] = useState\(\(\) => [^}]*window\.location\.hash === "#estadisticas"/);
+    expect(rankingFile).toMatch(/const \[statsOpen, setStatsOpen\] = useState\(\(\) => [^}]*window\.location\.hash === "#estadisticas"/);
+
+    // Teide has correct Santa Cruz de Tenerife ID in threeThousanders
+    expect(statsModalFile).toContain('id: "santa-cruz-tenerife"');
+    expect(statsModalFile).toContain('completed: completedPeakIds.has("santa-cruz-tenerife") || completedPeakIds.has("teide")');
+  });
 });

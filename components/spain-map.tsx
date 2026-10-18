@@ -17,8 +17,8 @@ import { peakByCode, type Peak } from "@/data/peaks";
 import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
 
-// Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
-L.Canvas.prototype.options.padding = 0.5;
+// Override Leaflet's default canvas padding to preload vector shapes outside the viewport
+L.Canvas.prototype.options.padding = 0.2;
 
 const PROVINCES_TOPO_URL = "/provincias_spain.topo.json";
 const PROVINCES_URL = "/provincias_spain.geojson";
@@ -179,7 +179,10 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
       if (isActive === false) return;
       const container = map.getContainer();
       if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
-      container.setAttribute("data-zoom", Math.round(map.getZoom()).toString());
+      const rounded = Math.round(map.getZoom()).toString();
+      if (container.getAttribute("data-zoom") !== rounded) {
+        container.setAttribute("data-zoom", rounded);
+      }
     },
     zoomend: () => {
       if (isActive === false) return;
@@ -190,7 +193,10 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
       if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
         sessionStorage.setItem("mapState_spain", JSON.stringify({ zoom, center }));
       }
-      container.setAttribute("data-zoom", Math.round(zoom).toString());
+      const rounded = Math.round(zoom).toString();
+      if (container.getAttribute("data-zoom") !== rounded) {
+        container.setAttribute("data-zoom", rounded);
+      }
     },
     moveend: () => {
       if (isActive === false) return;
@@ -207,7 +213,10 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
     if (isActive === false) return;
     const container = map.getContainer();
     if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
-    container.setAttribute("data-zoom", Math.round(map.getZoom()).toString());
+    const rounded = Math.round(map.getZoom()).toString();
+    if (container.getAttribute("data-zoom") !== rounded) {
+      container.setAttribute("data-zoom", rounded);
+    }
   }, [map, isActive]);
   return null;
 }
