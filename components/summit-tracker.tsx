@@ -1962,6 +1962,28 @@ export function SummitTracker({
     loadProgress();
   }, [session, profileOpen, isReadOnly, targetProfile, authLoading, authProfile?.id, targetConnStatus]);
 
+  // Precargar inmediatamente las fotos del elemento seleccionado para que aparezcan al instante al abrir el registro
+  useEffect(() => {
+    if (!selected || typeof window === "undefined") return;
+    const targetSummitId = selected.sub_item_id
+      ? `${selected.id}::${selected.sub_item_id}`
+      : selected.id;
+    const currentPhotos = photos.filter(
+      (p) => p.summit_id === targetSummitId || p.summit_id === selected.id,
+    );
+    currentPhotos.forEach((p) => {
+      const url =
+        p.public_url ||
+        (p.storage_path && supabase
+          ? supabase.storage.from("summit-photos").getPublicUrl(p.storage_path).data.publicUrl
+          : null);
+      if (url) {
+        const img = new Image();
+        img.src = url;
+      }
+    });
+  }, [selected, photos]);
+
   /* ── Derived state ────────────────────── */
   // Completed set for SpainMap (province codes)
   const completedPeakCodes = useMemo(
@@ -3672,7 +3694,8 @@ export function SummitTracker({
     const existingPhotosCount = photos.filter(
       (p) =>
         (p.summit_id === expectedSummitId || p.summit_id === selected?.id) &&
-        p.taken_on === targetDate,
+        p.taken_on === targetDate &&
+        !selectedPhotosForEdit.includes(p.id),
     ).length;
     if (existingPhotosCount + selectedPhotosForEdit.length > 4) {
       setNotice(
@@ -4263,7 +4286,8 @@ export function SummitTracker({
                     <img
                       src={publicUrl}
                       alt="Foto de la experiencia"
-                      loading="lazy"
+                      loading="eager"
+                      decoding="async"
                     />
                     {photo.caption && (
                       <figcaption>
@@ -5943,7 +5967,8 @@ export function SummitTracker({
                                               <img
                                                 src={photo.public_url}
                                                 alt="Foto de la experiencia"
-                                                loading="lazy"
+                                                loading="eager"
+                                                decoding="async"
                                               />
                                               {photo.caption && (
                                                 <figcaption>
@@ -6329,7 +6354,8 @@ export function SummitTracker({
                                     <img
                                       src={photo.public_url}
                                       alt={`Foto en ${selected.title}`}
-                                      loading="lazy"
+                                      loading="eager"
+                                      decoding="async"
                                     />
                                     {photo.caption && (
                                       <figcaption>
@@ -6473,7 +6499,8 @@ export function SummitTracker({
                               <img
                                 src={photo.public_url}
                                 alt={`Foto en ${selected.title}`}
-                                loading="lazy"
+                                loading="eager"
+                                decoding="async"
                               />
                               {photo.caption && (
                                 <figcaption>
@@ -6599,7 +6626,8 @@ export function SummitTracker({
                             <img
                               src={photo.public_url}
                               alt={`Foto en ${selected.title}`}
-                              loading="lazy"
+                              loading="eager"
+                              decoding="async"
                             />
                             {photo.caption && (
                               <figcaption>
@@ -7588,7 +7616,7 @@ export function SummitTracker({
             bottom: "25px",
             left: "50%",
             transform: "translateX(-50%)",
-            zIndex: 100,
+            zIndex: 100050,
             background: "#18342d",
             padding: "12px 24px",
             borderRadius: "100px",
@@ -7598,6 +7626,7 @@ export function SummitTracker({
             boxShadow: "0 8px 30px rgba(0,0,0,0.3)",
             color: "white",
             animation: "fadeUp 0.3s ease",
+            pointerEvents: "auto",
           }}
         >
           <span style={{ fontSize: "14px", fontWeight: 500 }}>
@@ -7605,28 +7634,26 @@ export function SummitTracker({
             {selectedPhotosForEdit.length}
           </span>
 
-          {selectedAscents.length > 0 && (
-            <button
-              title="Asignar a registro"
-              onClick={() => {
-                if (selectedPhotosForEdit.length > 4) {
-                  setNotice("No puedes asignar más de 4 fotos a un registro.");
-                  setTimeout(() => setNotice(""), 3000);
-                  return;
-                }
-                setAssignToRecordModalOpen(true);
-              }}
-              className="photo-batch-action"
-              style={
-                selectedPhotosForEdit.length > 4
-                  ? { opacity: 0.5, cursor: "not-allowed" }
-                  : {}
+          <button
+            title="Asignar o mover a registro"
+            onClick={() => {
+              if (selectedPhotosForEdit.length > 4) {
+                setNotice("No puedes asignar más de 4 fotos a un registro.");
+                setTimeout(() => setNotice(""), 3000);
+                return;
               }
-            >
-              <IconFolderMove style={{ width: 16, height: 16 }} />
-              <span className="hide-on-mobile">Asignar</span>
-            </button>
-          )}
+              setAssignToRecordModalOpen(true);
+            }}
+            className="photo-batch-action"
+            style={
+              selectedPhotosForEdit.length > 4
+                ? { opacity: 0.5, cursor: "not-allowed" }
+                : {}
+            }
+          >
+            <IconFolderMove style={{ width: 16, height: 16 }} />
+            <span className="hide-on-mobile">Mover</span>
+          </button>
           <button
             title="Eliminar"
             onClick={handleBatchDeletePhotos}
@@ -7651,7 +7678,7 @@ export function SummitTracker({
           className="modal-backdrop"
           onClick={() => setAssignToRecordModalOpen(false)}
           onWheel={(e) => e.stopPropagation()}
-          style={{ zIndex: 200 }}
+          style={{ zIndex: 100060 }}
         >
           <div className="auth-dialog" onClick={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} style={{ overscrollBehavior: "contain" }}>
             <h2>Asignar a registro</h2>
@@ -7669,24 +7696,30 @@ export function SummitTracker({
             <div
               style={{ display: "flex", flexDirection: "column", gap: "8px" }}
             >
-              {selectedAscents.map((ascent) => (
-                <button
-                  key={ascent.achieved_on}
-                  className="button button--outline button--wide"
-                  style={{
-                    textAlign: "left",
-                    justifyContent: "flex-start",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                  onClick={() => handleAssignPhotosToRecord(ascent.achieved_on)}
-                  disabled={saving}
-                >
-                  <Check size={14} strokeWidth={2.5} />
-                  <span>{formatDate(ascent.achieved_on)}</span>
-                </button>
-              ))}
+              {selectedAscents.length > 0 ? (
+                selectedAscents.map((ascent) => (
+                  <button
+                    key={ascent.achieved_on}
+                    className="button button--outline button--wide"
+                    style={{
+                      textAlign: "left",
+                      justifyContent: "flex-start",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                    onClick={() => handleAssignPhotosToRecord(ascent.achieved_on)}
+                    disabled={saving}
+                  >
+                    <Check size={14} strokeWidth={2.5} />
+                    <span>{formatDate(ascent.achieved_on)}</span>
+                  </button>
+                ))
+              ) : (
+                <p style={{ color: "var(--muted)", fontSize: "13px", margin: "4px 0 8px" }}>
+                  Aún no tienes registros guardados en esta ubicación.
+                </p>
+              )}
               <button
                 className="button button--outline button--wide"
                 style={{

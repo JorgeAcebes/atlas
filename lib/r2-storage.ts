@@ -125,6 +125,7 @@ export async function createPresignedUploadUrl(options: {
     Bucket: bucket,
     Key: key,
     ContentType: contentType,
+    CacheControl: "public, max-age=31536000, immutable",
   });
 
   const uploadUrl = await getSignedUrl(client, command, { expiresIn: expiresInSeconds });

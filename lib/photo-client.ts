@@ -53,6 +53,7 @@ export async function uploadPhotoBlob(options: {
       method: "PUT",
       headers: {
         "Content-Type": blob.type || "image/webp",
+        "Cache-Control": "public, max-age=31536000, immutable",
       },
       body: blob,
     });

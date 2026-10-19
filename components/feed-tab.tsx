@@ -150,13 +150,17 @@ function renderFeedLink(link?: string | null, linkName?: string | null) {
   );
 }
 
-function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired }: { item: any, session?: Session | null, onAuthRequired?: () => void }) {
+function FeedItemCard({ item, index, session: _session, onAuthRequired: _onAuthRequired }: { item: any, index?: number, session?: Session | null, onAuthRequired?: () => void }) {
   const router = useRouter();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const photos: any[] = sortPhotosByTime((item.photos || []).filter((p: any) => p && p.public_url));
   const hasPhotos = photos.length > 0;
   const isLightboxOpen = lightboxIndex !== null;
+
+  const isEager = index !== undefined && index < 2;
+  const imgLoading = isEager ? ("eager" as const) : ("lazy" as const);
+  const imgPriority = isEager ? ("high" as const) : undefined;
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
@@ -419,63 +423,73 @@ function FeedItemCard({ item, session: _session, onAuthRequired: _onAuthRequired
       </div>
 
       {photos.length > 0 && (
-        <div style={{ position: 'relative', width: '100%', marginBottom: 0 }}>
+        <div style={{ position: 'relative', width: '100%', marginBottom: 0, backgroundColor: 'rgba(92, 155, 125, 0.08)', borderRadius: 4, overflow: 'hidden' }}>
           {photos.length === 1 ? (
             <img 
               src={photos[0].public_url} 
               onClick={() => openLightbox(0)} 
               alt="Activity media" 
               className="feed-card-media" 
-              loading="lazy"
+              loading={imgLoading}
+              decoding="async"
+              {...(imgPriority ? { fetchPriority: imgPriority } : {})}
               style={{ width: '100%', height: '300px', objectFit: 'cover', cursor: 'pointer', display: 'block' }} 
             />
           ) : photos.length === 3 ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', overflow: 'hidden', height: '300px', width: '100%' }}>
-              <div style={{ gridRow: '1 / span 2', gridColumn: '1', position: 'relative', width: '100%', height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ gridRow: '1 / span 2', gridColumn: '1', position: 'relative', width: '100%', height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden', backgroundColor: 'rgba(92, 155, 125, 0.05)' }}>
                 <img 
                   src={photos[0].public_url} 
                   onClick={() => openLightbox(0)} 
                   alt="" 
-                  loading="lazy"
+                  loading={imgLoading}
+                  decoding="async"
+                  {...(imgPriority ? { fetchPriority: imgPriority } : {})}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} 
                 />
               </div>
-              <div style={{ gridRow: '1', gridColumn: '2', position: 'relative', width: '100%', height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ gridRow: '1', gridColumn: '2', position: 'relative', width: '100%', height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden', backgroundColor: 'rgba(92, 155, 125, 0.05)' }}>
                 <img 
                   src={photos[1].public_url} 
                   onClick={() => openLightbox(1)} 
                   alt="" 
-                  loading="lazy"
+                  loading={imgLoading}
+                  decoding="async"
+                  {...(imgPriority ? { fetchPriority: imgPriority } : {})}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} 
                 />
               </div>
-              <div style={{ gridRow: '2', gridColumn: '2', position: 'relative', width: '100%', height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ gridRow: '2', gridColumn: '2', position: 'relative', width: '100%', height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden', backgroundColor: 'rgba(92, 155, 125, 0.05)' }}>
                 <img 
                   src={photos[2].public_url} 
                   onClick={() => openLightbox(2)} 
                   alt="" 
-                  loading="lazy"
+                  loading={imgLoading}
+                  decoding="async"
+                  {...(imgPriority ? { fetchPriority: imgPriority } : {})}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} 
                 />
               </div>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', overflow: 'hidden', width: '100%' }}>
-              {photos.slice(0, 4).map((photo: any, index: number) => {
-                const isLast = index === 3;
+              {photos.slice(0, 4).map((photo: any, pIndex: number) => {
+                const isLast = pIndex === 3;
                 const hasMore = photos.length > 4;
                 return (
-                  <div key={photo.id || index} style={{ position: 'relative', aspectRatio: '1', width: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+                  <div key={photo.id || pIndex} style={{ position: 'relative', aspectRatio: '1', width: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden', backgroundColor: 'rgba(92, 155, 125, 0.05)' }}>
                     <img 
                       src={photo.public_url} 
-                      onClick={() => openLightbox(index)} 
+                      onClick={() => openLightbox(pIndex)} 
                       alt="" 
-                      loading="lazy"
+                      loading={imgLoading}
+                      decoding="async"
+                      {...(imgPriority ? { fetchPriority: imgPriority } : {})}
                       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} 
                     />
                     {isLast && hasMore && (
                       <div 
-                        onClick={() => openLightbox(index)} 
+                        onClick={() => openLightbox(pIndex)} 
                         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer' }}
                       >
                         +{photos.length - 4}
@@ -781,6 +795,22 @@ export function FeedTab({
         try {
           sessionStorage.setItem("app_cached_feed_items", JSON.stringify(combined.slice(0, 50)));
         } catch { /* ignore */ }
+
+        // Precargar inmediatamente las fotos de los primeros elementos en el navegador
+        try {
+          const topPhotosToPreload: string[] = [];
+          for (const feedItem of combined.slice(0, 6)) {
+            if (feedItem.photos && Array.isArray(feedItem.photos)) {
+              for (const p of feedItem.photos) {
+                if (p?.public_url) topPhotosToPreload.push(p.public_url);
+              }
+            }
+          }
+          topPhotosToPreload.slice(0, 8).forEach((url) => {
+            const img = new Image();
+            img.src = url;
+          });
+        } catch { /* ignore */ }
       }
       setFeedItems(combined);
       setLoading(false);
@@ -960,8 +990,8 @@ export function FeedTab({
         </div>
       ) : (
         <div>
-          {visibleFeedItems.map(item => (
-            <FeedItemCard key={`${item.type}-${item.id}`} item={item} session={session} onAuthRequired={onAuthRequired} />
+          {visibleFeedItems.map((item, index) => (
+            <FeedItemCard key={`${item.type}-${item.id}`} item={item} index={index} session={session} onAuthRequired={onAuthRequired} />
           ))}
         </div>
       )}

@@ -18,7 +18,7 @@ import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
 
 // Override Leaflet's default canvas padding to preload vector shapes outside the viewport
-L.Canvas.prototype.options.padding = 0.2;
+L.Canvas.prototype.options.padding = 0.5;
 
 const PROVINCES_TOPO_URL = "/provincias_spain.topo.json";
 const PROVINCES_URL = "/provincias_spain.geojson";
@@ -174,18 +174,28 @@ function MapActiveSynchronizer({ isActive }: { isActive?: boolean }) {
 }
 
 function MapZoomListener({ isActive }: { isActive?: boolean }) {
+  const rafRef = useRef<number | null>(null);
+
   const map = useMapEvents({
     zoom: () => {
       if (isActive === false) return;
-      const container = map.getContainer();
-      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
-      const rounded = Math.round(map.getZoom()).toString();
-      if (container.getAttribute("data-zoom") !== rounded) {
-        container.setAttribute("data-zoom", rounded);
-      }
+      if (rafRef.current !== null) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const container = map.getContainer();
+        if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+        const rounded = Math.round(map.getZoom()).toString();
+        if (container.getAttribute("data-zoom") !== rounded) {
+          container.setAttribute("data-zoom", rounded);
+        }
+      });
     },
     zoomend: () => {
       if (isActive === false) return;
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       const container = map.getContainer();
       if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
       const zoom = map.getZoom();
@@ -209,6 +219,14 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
       }
     },
   });
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (isActive === false) return;
     const container = map.getContainer();
@@ -518,10 +536,10 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
         minZoom={4}
         maxZoom={10}
         maxBounds={[
-          [24, -22],
-          [46, 8]
+          [18, -28],
+          [52, 18]
         ]}
-        maxBoundsViscosity={1.0}
+        maxBoundsViscosity={0.5}
       >
         <FitSpain isActive={isActive} />
         <MapInvalidator panelOpen={panelOpen} isActive={isActive} />

@@ -172,5 +172,51 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
       expect(rankingCss).toMatch(/\.mode-peaks \.collective-visitor-link:hover\s*\{[^}]*background:/);
     });
   });
+
+  describe("8. Spain map zoom responsiveness & fluidity", () => {
+    it("should configure non-rigid maxBoundsViscosity and 0.5 canvas padding in spain-map.tsx", () => {
+      const spainMapPath = path.resolve(process.cwd(), "components/spain-map.tsx");
+      const content = fs.readFileSync(spainMapPath, "utf-8");
+
+      expect(content).toContain("maxBoundsViscosity={0.5}");
+      expect(content).toContain("L.Canvas.prototype.options.padding = 0.5;");
+      expect(content).toContain("rafRef.current");
+    });
+  });
+
+  describe("9. Photo loading acceleration in feed and records", () => {
+    it("should use eager loading and async decoding for top feed items and prefetch in feed-tab.tsx", () => {
+      const feedPath = path.resolve(process.cwd(), "components/feed-tab.tsx");
+      const content = fs.readFileSync(feedPath, "utf-8");
+
+      expect(content).toContain("decoding=\"async\"");
+      expect(content).toContain("imgLoading");
+      expect(content).toContain("topPhotosToPreload");
+    });
+
+    it("should use eager loading, async decoding and preloading in summit-tracker.tsx", () => {
+      const trackerPath = path.resolve(process.cwd(), "components/summit-tracker.tsx");
+      const content = fs.readFileSync(trackerPath, "utf-8");
+
+      expect(content).toContain("targetSummitId");
+      expect(content).toContain("new Image()");
+      expect(content).toContain('decoding="async"');
+    });
+  });
+
+  describe("10. Mobile photo batch selector and assignment modal", () => {
+    it("should ensure photo-batch-bar has high zIndex (100050) above mobile info-panel and correct assignment calculation", () => {
+      const trackerPath = path.resolve(process.cwd(), "components/summit-tracker.tsx");
+      const content = fs.readFileSync(trackerPath, "utf-8");
+
+      expect(content).toContain("zIndex: 100050");
+      expect(content).toContain("zIndex: 100060");
+      expect(content).toContain("!selectedPhotosForEdit.includes(p.id)");
+
+      const globalsCss = fs.readFileSync(path.resolve(process.cwd(), "app/globals.css"), "utf-8");
+      expect(globalsCss).toContain(".photo-batch-bar");
+      expect(globalsCss).toMatch(/\.photo-batch-bar\s*\{[^}]*z-index:\s*100050\s*!important/);
+    });
+  });
 });
 

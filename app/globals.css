@@ -4095,15 +4095,27 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.photo-batch-bar {
+  z-index: 100050 !important;
+  pointer-events: auto !important;
+}
+
 @media (max-width: 600px) {
   .photo-batch-bar {
     padding: 10px 16px !important;
     gap: 12px !important;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 100050 !important;
   }
 
   .photo-batch-action {
     padding: 10px;
     border-radius: 50%;
+    min-width: 40px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .photo-batch-action .hide-on-mobile {
