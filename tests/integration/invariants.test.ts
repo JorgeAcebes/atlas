@@ -932,7 +932,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     it("Invariant 11.32: App layout must preload local GeoJSON/TopoJSON files instead of third-party CDNs", () => {
       const layout = fs.readFileSync(path.join(rootDir, "app/layout.tsx"), "utf-8");
       expect(layout).toContain('href="/world-countries.topo.json"');
-      expect(layout).toContain('href="/provincias_spain.geojson"');
+      expect(layout).toMatch(/href="\/provincias_spain\.(topo\.json|geojson)"/);
       expect(layout).not.toContain('href="https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json"');
       expect(layout).not.toContain('href="https://gist.githubusercontent.com');
     });
