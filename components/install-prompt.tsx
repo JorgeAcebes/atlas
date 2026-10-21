@@ -87,7 +87,10 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
 
     const handlePromptReady = () => {
       const p = getInstallPrompt();
-      if (p) setDeferredPrompt(p);
+      if (p) {
+        setDeferredPrompt(p);
+        setShowManualAndroidSteps(false);
+      }
     };
 
     const handleAppInstalled = () => {
@@ -167,7 +170,28 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
   }, [manualOpen, onManualClose]);
 
   const handleInstall = useCallback(async () => {
-    const promptEvent = deferredPrompt || getInstallPrompt();
+    let promptEvent = deferredPrompt || getInstallPrompt();
+    if (!promptEvent) {
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const onReady = () => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        };
+        window.addEventListener("atlas-install-prompt-ready", onReady);
+        setTimeout(() => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        }, 800);
+      });
+      promptEvent = deferredPrompt || getInstallPrompt();
+    }
     if (promptEvent) {
       try {
         await promptEvent.prompt();
@@ -269,6 +293,9 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
           <div className="install-prompt-ios-steps">
             <p>
               Pulsa el menú de tu navegador (los tres puntos <strong>⋮</strong>) y selecciona <strong>&quot;Instalar aplicación&quot;</strong> o <strong>&quot;Añadir a pantalla de inicio&quot;</strong>.
+            </p>
+            <p style={{ marginTop: "10px", fontSize: "12px", opacity: 0.8, lineHeight: 1.4 }}>
+              Si la descarga se queda en espera, revisa en Ajustes de tu móvil que no tengas una versión anterior instalada o borra la caché del navegador.
             </p>
           </div>
         ) : (

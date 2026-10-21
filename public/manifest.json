@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Atlas",
   "short_name": "Atlas",
   "description": "El mapa para registrar cada país del mundo que has visitado y conquistar los 47 picos de España.",
@@ -20,12 +21,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ]
 }

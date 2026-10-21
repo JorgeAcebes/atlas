@@ -1,4 +1,4 @@
-const CACHE_NAME = 'atlas-cache-v7';
+const CACHE_NAME = 'atlas-cache-v8';
 
 // Recursos estáticos iniciales a cachear durante instalación.
 // Solo archivos PNG que existen en /public y son esenciales para la PWA.
@@ -70,8 +70,13 @@ self.addEventListener('fetch', (event) => {
   // 2. Network First (con fallback a Cache) para llamadas a Supabase API 
   if (url.hostname.endsWith('supabase.co')) {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request);
+      fetch(event.request).catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        return new Response(JSON.stringify({ error: 'offline' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        });
       })
     );
     return;
@@ -90,7 +95,17 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => caches.match(event.request) || caches.match('/'))
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          const cachedRoot = await caches.match('/');
+          if (cachedRoot) return cachedRoot;
+          return new Response('Sin conexión', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+        })
     );
     return;
   }
@@ -107,10 +122,16 @@ self.addEventListener('fetch', (event) => {
             });
           }
           return networkResponse;
-        }).catch(() => null);
+        });
 
-        // Devolver lo que haya en caché inmediatamente, si no, esperar a la red
-        return cachedResponse || fetchPromise;
+        // Devolver lo que haya en caché inmediatamente y revalidar en segundo plano
+        if (cachedResponse) {
+          fetchPromise.catch(() => {});
+          return cachedResponse;
+        }
+
+        // Si no está en caché, esperar a la red directamente
+        return fetchPromise;
       })
     );
     return;

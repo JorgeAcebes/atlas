@@ -789,7 +789,28 @@ export function SummitTracker({
   }, []);
   const handleHeroInstallClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const promptEvent = getInstallPrompt();
+    let promptEvent = getInstallPrompt();
+    if (!promptEvent) {
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const onReady = () => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        };
+        window.addEventListener("atlas-install-prompt-ready", onReady);
+        setTimeout(() => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        }, 800);
+      });
+      promptEvent = getInstallPrompt();
+    }
     if (promptEvent) {
       try {
         await promptEvent.prompt();

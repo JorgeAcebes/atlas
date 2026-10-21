@@ -120,9 +120,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                           reg.update();
                         });
                       });
+                      var hadControllerStandalone = !!navigator.serviceWorker.controller;
                       var refreshingStandalone = false;
                       navigator.serviceWorker.addEventListener('controllerchange', function() {
-                        if (!refreshingStandalone) {
+                        if (hadControllerStandalone && !refreshingStandalone) {
                           refreshingStandalone = true;
                           window.location.reload();
                         }
@@ -138,9 +139,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                       reg.update();
                     });
                   });
+                  var hadController = !!navigator.serviceWorker.controller;
                   var refreshing = false;
                   navigator.serviceWorker.addEventListener('controllerchange', function() {
-                    if (!refreshing) {
+                    if (hadController && !refreshing) {
                       refreshing = true;
                       window.location.reload();
                     }
