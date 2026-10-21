@@ -65,6 +65,22 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <link rel="preload" href="/world-countries.topo.json" as="fetch" crossOrigin="anonymous" />
         <link rel="prefetch" href="/provincias_spain.topo.json" as="fetch" crossOrigin="anonymous" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.__atlasInstallPrompt = null;
+              window.addEventListener('beforeinstallprompt', function(e) {
+                e.preventDefault();
+                window.__atlasInstallPrompt = e;
+                window.dispatchEvent(new CustomEvent('atlas-install-prompt-ready'));
+              });
+              window.addEventListener('appinstalled', function() {
+                window.__atlasInstallPrompt = null;
+                window.dispatchEvent(new CustomEvent('atlas-app-installed'));
+              });
+            `,
+          }}
+        />
       </head>
       <body>
         <Providers initialProfile={initialProfile}>

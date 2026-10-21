@@ -5309,14 +5309,14 @@ textarea:focus {
     min-height: 0 !important;
     max-height: none !important;
     margin: 0 auto !important;
-    gap: 8px !important;
+    gap: 4px !important;
   }
   .hero-main--social .hero-profile-wrap {
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
     width: 100% !important;
-    gap: 8px !important;
+    gap: 6px !important;
     padding-left: 6px !important;
     margin-top: 4px !important;
     margin-bottom: 0 !important;
@@ -5354,23 +5354,31 @@ textarea:focus {
     width: 100% !important;
     margin: 0 auto !important;
   }
+  .hero-main--social .hero-profile-info {
+    overflow: visible !important;
+    min-width: 0 !important;
+  }
   .hero-main--social .hero-profile-avatar {
-    width: 36px !important;
-    height: 36px !important;
-    min-width: 36px !important;
-    font-size: 15px !important;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    font-size: 14px !important;
   }
   .hero-main--social .hero-profile-username {
-    font-size: 14px !important;
+    font-size: 13.5px !important;
     margin: 0 !important;
   }
   .hero-main--social .hero-profile-connections {
-    font-size: 10.5px !important;
-    gap: 3px !important;
+    font-size: 9.75px !important;
+    gap: 2px !important;
+    letter-spacing: -0.015em !important;
+    white-space: nowrap !important;
   }
   .hero-main--social .hero-profile-conn-btn {
-    font-size: 10.5px !important;
-    gap: 2px !important;
+    font-size: 9.75px !important;
+    gap: 1.5px !important;
+    letter-spacing: -0.015em !important;
+    white-space: nowrap !important;
   }
 }
 

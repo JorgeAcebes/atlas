@@ -27,6 +27,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { AuthDialog } from "./auth-dialog";
 import { ProfileSettings } from "./profile-settings";
 import { InstallPrompt, isStandalone } from "./install-prompt";
+import { getInstallPrompt, clearInstallPrompt } from "./install-prompt";
 import { ConfirmModal } from "./confirm-modal";
 import { StatsModal } from "./stats-modal";
 import { getLocationInfo } from "@/lib/stats-utils";
@@ -774,8 +775,37 @@ export function SummitTracker({
     };
     checkMobileBrowser();
     window.addEventListener("resize", checkMobileBrowser);
-    return () => window.removeEventListener("resize", checkMobileBrowser);
+    const handleInstalled = () => {
+      setCanInstallMobile(false);
+      setInstallPromptOpen(false);
+    };
+    window.addEventListener("appinstalled", handleInstalled);
+    window.addEventListener("atlas-app-installed", handleInstalled);
+    return () => {
+      window.removeEventListener("resize", checkMobileBrowser);
+      window.removeEventListener("appinstalled", handleInstalled);
+      window.removeEventListener("atlas-app-installed", handleInstalled);
+    };
   }, []);
+  const handleHeroInstallClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const promptEvent = getInstallPrompt();
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === "accepted") {
+          clearInstallPrompt();
+          setCanInstallMobile(false);
+        }
+      } catch (err) {
+        console.error("Hero direct install error:", err);
+        setInstallPromptOpen(true);
+      }
+    } else {
+      setInstallPromptOpen(true);
+    }
+  };
   const [statsOpen, setStatsOpen] = useState(() => {
     if (typeof window !== "undefined") {
       return window.location.hash === "#estadisticas";
@@ -4631,10 +4661,7 @@ export function SummitTracker({
           <button
             type="button"
             className="hero-install-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              setInstallPromptOpen(true);
-            }}
+            onClick={handleHeroInstallClick}
             onTouchStart={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}
             aria-label="Instalar app"

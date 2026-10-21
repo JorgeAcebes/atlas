@@ -35,10 +35,23 @@ export function isMobile(): boolean {
 // Module-level captured prompt event so it isn't lost if fired before component mounts
 let globalDeferredPrompt: BeforeInstallPromptEvent | null = null;
 
+export function getInstallPrompt(): BeforeInstallPromptEvent | null {
+  if (typeof window === "undefined") return null;
+  return (window as any).__atlasInstallPrompt || globalDeferredPrompt || null;
+}
+
+export function clearInstallPrompt(): void {
+  if (typeof window !== "undefined") {
+    (window as any).__atlasInstallPrompt = null;
+  }
+  globalDeferredPrompt = null;
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (e: Event) => {
     e.preventDefault();
     globalDeferredPrompt = e as BeforeInstallPromptEvent;
+    (window as any).__atlasInstallPrompt = e;
   });
 }
 
@@ -48,7 +61,7 @@ export interface InstallPromptProps {
 }
 
 export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps = {}) {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => globalDeferredPrompt);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(getInstallPrompt);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isManual, setIsManual] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -59,45 +72,78 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
   useScrollLock(showPrompt);
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      const pEvent = e as BeforeInstallPromptEvent;
+      globalDeferredPrompt = pEvent;
+      if (typeof window !== "undefined") {
+        (window as any).__atlasInstallPrompt = pEvent;
+      }
+      setDeferredPrompt(pEvent);
+      if (!manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone() && isMobile()) {
+        setShowPrompt(true);
+      }
+    };
+
+    const handlePromptReady = () => {
+      const p = getInstallPrompt();
+      if (p) setDeferredPrompt(p);
+    };
+
+    const handleAppInstalled = () => {
+      clearInstallPrompt();
+      setDeferredPrompt(null);
+      setShowPrompt(false);
+      onManualClose?.();
+    };
+
+    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("atlas-install-prompt-ready", handlePromptReady);
+    window.addEventListener("atlas-app-installed", handleAppInstalled);
+
+    const existingPrompt = getInstallPrompt();
+    if (existingPrompt) {
+      setDeferredPrompt(existingPrompt);
+    }
+
     if (manualOpen) {
       setIsManual(true);
       if (isIOS()) {
         setIsApple(true);
       }
       setShowPrompt(true);
-      return;
+      return () => {
+        window.removeEventListener("beforeinstallprompt", handler);
+        window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
+        window.removeEventListener("atlas-app-installed", handleAppInstalled);
+      };
     }
 
     // Don't show automatic prompt if:
     // 1. Already installed (standalone mode)
     // 2. User dismissed permanently
     // 3. Not on mobile
-    if (isStandalone()) return;
-    if (!isMobile()) return;
-    if (typeof localStorage !== "undefined" && localStorage.getItem(DISMISS_KEY) === "true") return;
+    if (isStandalone() || !isMobile() || (typeof localStorage !== "undefined" && localStorage.getItem(DISMISS_KEY) === "true")) {
+      return () => {
+        window.removeEventListener("beforeinstallprompt", handler);
+        window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
+        window.removeEventListener("atlas-app-installed", handleAppInstalled);
+      };
+    }
 
     // Check if iOS
     if (isIOS()) {
       setIsApple(true);
       setShowPrompt(true);
-      return;
+      return () => {
+        window.removeEventListener("beforeinstallprompt", handler);
+        window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
+        window.removeEventListener("atlas-app-installed", handleAppInstalled);
+      };
     }
 
-    // Listen for beforeinstallprompt (Chrome/Edge/Samsung etc.)
-    const handler = (e: Event) => {
-      e.preventDefault();
-      globalDeferredPrompt = e as BeforeInstallPromptEvent;
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      if (localStorage.getItem(DISMISS_KEY) !== "true") {
-        setShowPrompt(true);
-      }
-    };
-
-    window.addEventListener("beforeinstallprompt", handler);
-
-    // If global event was already captured earlier
-    if (globalDeferredPrompt && localStorage.getItem(DISMISS_KEY) !== "true") {
-      setDeferredPrompt(globalDeferredPrompt);
+    // If prompt already captured
+    if (existingPrompt) {
       setShowPrompt(true);
     }
 
@@ -114,12 +160,14 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
+      window.removeEventListener("atlas-app-installed", handleAppInstalled);
       clearTimeout(timer);
     };
-  }, [manualOpen]);
+  }, [manualOpen, onManualClose]);
 
   const handleInstall = useCallback(async () => {
-    const promptEvent = deferredPrompt || globalDeferredPrompt;
+    const promptEvent = deferredPrompt || getInstallPrompt();
     if (promptEvent) {
       try {
         await promptEvent.prompt();
@@ -129,7 +177,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
           onManualClose?.();
         }
         setDeferredPrompt(null);
-        globalDeferredPrompt = null;
+        clearInstallPrompt();
       } catch (err) {
         console.error("Error prompting install:", err);
         setShowManualAndroidSteps(true);
