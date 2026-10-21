@@ -294,8 +294,8 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
             <p>
               Pulsa el menú de tu navegador (los tres puntos <strong>⋮</strong>) y selecciona <strong>&quot;Instalar aplicación&quot;</strong> o <strong>&quot;Añadir a pantalla de inicio&quot;</strong>.
             </p>
-            <p style={{ marginTop: "10px", fontSize: "12px", opacity: 0.8, lineHeight: 1.4 }}>
-              Si la descarga se queda en espera, revisa en Ajustes de tu móvil que no tengas una versión anterior instalada o borra la caché del navegador.
+            <p style={{ marginTop: "10px", fontSize: "12px", opacity: 0.9, lineHeight: 1.45 }}>
+              📱 <strong>En Xiaomi / Redmi / POCO:</strong> MIUI/HyperOS bloquea la instalación por defecto. Ve a <em>Ajustes &gt; Aplicaciones &gt; Gestionar aplicaciones &gt; Chrome &gt; Otros permisos</em> y activa <strong>&quot;Accesos directos en la pantalla de inicio&quot;</strong>.
             </p>
           </div>
         ) : (
