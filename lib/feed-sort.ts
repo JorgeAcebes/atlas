@@ -5,8 +5,8 @@
  * Por tanto, el que tiene fecha de fin es más reciente y se posiciona por delante (arriba en feed).
  */
 export function compareFeedRecords(
-  a: { record_date: string; end_date?: string | null; created_at?: string },
-  b: { record_date: string; end_date?: string | null; created_at?: string }
+  a: { record_date: string; end_date?: string | null; created_at?: string; trip_group_id?: string | null; user_id?: string },
+  b: { record_date: string; end_date?: string | null; created_at?: string; trip_group_id?: string | null; user_id?: string }
 ): number {
   const timeA = new Date(a.record_date).getTime();
   const timeB = new Date(b.record_date).getTime();
@@ -30,6 +30,17 @@ export function compareFeedRecords(
     const endB = new Date(b.end_date!).getTime();
     if (endA !== endB) {
       return endB - endA;
+    }
+  }
+
+  // Si ambos o alguno pertenece a un viaje compartido en la misma fecha, agrupar por trip_group_id
+  if (a.trip_group_id || b.trip_group_id) {
+    if (a.trip_group_id && b.trip_group_id && a.trip_group_id === b.trip_group_id) {
+      return (a.user_id || "").localeCompare(b.user_id || "");
+    }
+    const groupCompare = (b.trip_group_id || "").localeCompare(a.trip_group_id || "");
+    if (groupCompare !== 0) {
+      return groupCompare;
     }
   }
 

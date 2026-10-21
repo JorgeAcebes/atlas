@@ -150,9 +150,36 @@ function renderFeedLink(link?: string | null, linkName?: string | null) {
   );
 }
 
-function FeedItemCard({ item, index, session: _session, onAuthRequired: _onAuthRequired }: { item: any, index?: number, session?: Session | null, onAuthRequired?: () => void }) {
+function FeedItemCard({
+  item,
+  index,
+  session: _session,
+  onAuthRequired: _onAuthRequired,
+  isConnectedToPrev,
+  isConnectedToNext,
+  followingUserIdsSet,
+}: {
+  item: any;
+  index?: number;
+  session?: Session | null;
+  onAuthRequired?: () => void;
+  isConnectedToPrev?: boolean;
+  isConnectedToNext?: boolean;
+  followingUserIdsSet?: Set<string>;
+}) {
   const router = useRouter();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const visibleCompanions = useMemo(() => {
+    const comps: any[] = item.companions || [];
+    return comps.filter((comp) => {
+      if (comp.id === item.user_id) return false;
+      if (comp.is_public !== false) return true;
+      if (_session?.user?.id === comp.id) return true;
+      if (followingUserIdsSet && followingUserIdsSet.has(comp.id)) return true;
+      return false;
+    });
+  }, [item.companions, item.user_id, _session?.user?.id, followingUserIdsSet]);
 
   const photos: any[] = sortPhotosByTime((item.photos || []).filter((p: any) => p && p.public_url));
   const hasPhotos = photos.length > 0;
@@ -333,7 +360,27 @@ function FeedItemCard({ item, index, session: _session, onAuthRequired: _onAuthR
   };
 
   return (
-    <div className="feed-card">
+    <div
+      className={`feed-item-wrapper ${isConnectedToNext ? "feed-item-wrapper--connected-next" : ""}`}
+      style={{ position: "relative", marginBottom: "24px" }}
+    >
+      {isConnectedToNext && (
+        <div
+          className="feed-thread-connector"
+          title="Ruta compartida"
+          style={{
+            position: "absolute",
+            bottom: "-25px",
+            left: "35px",
+            width: "3px",
+            height: "26px",
+            backgroundColor: "var(--pine, #2d5a43)",
+            zIndex: 5,
+            borderRadius: "2px",
+          }}
+        />
+      )}
+      <div className="feed-card" style={{ marginBottom: 0 }}>
       <div className="feed-card-header">
         <Link href={`/perfil/${item.profiles?.username}?challenge=${recordChallenge}&from=social`} style={{ textDecoration: 'none' }}>
           <div className="feed-card-avatar" style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--pine)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'white' }}>
@@ -355,6 +402,26 @@ function FeedItemCard({ item, index, session: _session, onAuthRequired: _onAuthR
             {dateRangeStr || formatDateSafe(item.created_at)}
           </div>
         </div>
+        {(isConnectedToPrev || isConnectedToNext || visibleCompanions.length > 0) && (
+          <span
+            className="feed-thread-badge"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "11px",
+              fontWeight: 600,
+              color: "var(--pine, #2d5a43)",
+              backgroundColor: "rgba(92, 155, 125, 0.12)",
+              padding: "3px 8px",
+              borderRadius: "12px",
+              marginLeft: "auto",
+              marginRight: "6px",
+            }}
+          >
+            🧵 {isPeak ? "Ruta compartida" : isCountry ? "Viaje compartido" : "Experiencia compartida"}
+          </span>
+        )}
         <button
           className="feed-share-btn"
           onClick={handleShare}
@@ -420,6 +487,60 @@ function FeedItemCard({ item, index, session: _session, onAuthRequired: _onAuthR
           </div>
         )}
 
+        {visibleCompanions.length > 0 && (
+          <div
+            className="feed-card-companions"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              marginTop: item.notes || item.link || item.link_2 ? "10px" : "6px",
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: "11px", color: "var(--muted, #6b7280)", fontWeight: 600 }}>
+              {isPeak ? "Compañeros de ruta:" : isCountry ? "Compañeros de viaje:" : "Compañeros de experiencia:"}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              {visibleCompanions.map((comp) => (
+                <Link
+                  key={comp.id}
+                  href={`/perfil/${comp.username}`}
+                  title={`@${comp.username}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <div
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "50%",
+                      backgroundColor: "var(--pine, #2d5a43)",
+                      color: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: "bold",
+                      fontSize: "11px",
+                      overflow: "hidden",
+                      border: "1.5px solid var(--card-bg, #fff)",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    {comp.avatar_url ? (
+                      <img
+                        src={comp.avatar_url}
+                        alt={comp.username}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      comp.username.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {photos.length > 0 && (
@@ -502,6 +623,8 @@ function FeedItemCard({ item, index, session: _session, onAuthRequired: _onAuthR
           )}
         </div>
       )}
+
+      </div>
 
       {/* Lightbox Modal con soporte de zoom, galería sin sobreposición de títulos y fondo negro */}
       {isLightboxOpen && photos[lightboxIndex] && (
@@ -586,7 +709,7 @@ export function FeedTab({
       // Fetch ascents
       const { data: ascData, error: ascErr } = await supabase
         .from("ascents")
-        .select("id, user_id, summit_id, created_at, achieved_on, end_date, notes, link, link_name, link_2, link_name_2, profiles!ascents_user_id_profiles_fkey(username, avatar_url, is_public, is_test)")
+        .select("id, user_id, summit_id, trip_group_id, created_at, achieved_on, end_date, notes, link, link_name, link_2, link_name_2, profiles!ascents_user_id_profiles_fkey(username, avatar_url, is_public, is_test)")
         .eq('is_wishlist', false)
         .or('summit_id.not.ilike.country-%,achieved_on.gt.1900-01-01')
         .order("created_at", { ascending: false })
@@ -613,7 +736,7 @@ export function FeedTab({
       // Fetch experiences
       const { data: expData, error: expErr } = await supabase
         .from("experience_records")
-        .select("id, user_id, experience_id, sub_item_id, created_at, achieved_on, notes, link, link_name, link_2, link_name_2, location_name, profiles!experience_records_user_id_profiles_fkey(username, avatar_url, is_public, is_test)")
+        .select("id, user_id, experience_id, sub_item_id, trip_group_id, created_at, achieved_on, notes, link, link_name, link_2, link_name_2, location_name, profiles!experience_records_user_id_profiles_fkey(username, avatar_url, is_public, is_test)")
         .eq('is_wishlist', false)
         .order("created_at", { ascending: false })
         .limit(limit);
@@ -694,6 +817,48 @@ export function FeedTab({
           return { ...item, experience_title: title, sub_item_title: subTitle };
         }
         return item;
+      });
+
+      // Fetch companions for trip_group_ids
+      const tripGroupIds = Array.from(
+        new Set(combinedBase.map((item) => item.trip_group_id).filter(Boolean))
+      );
+      const companionsByTripGroup: Record<string, any[]> = {};
+      if (tripGroupIds.length > 0) {
+        try {
+          const { data: compData } = await supabase
+            .from("record_companions")
+            .select(`
+              trip_group_id,
+              status,
+              companion_profile:profiles!record_companions_companion_id_fkey(id, username, avatar_url, is_public),
+              inviter_profile:profiles!record_companions_inviter_id_fkey(id, username, avatar_url, is_public)
+            `)
+            .in("trip_group_id", tripGroupIds)
+            .eq("status", "accepted");
+
+          if (compData) {
+            compData.forEach((row: any) => {
+              const gid = row.trip_group_id;
+              if (!companionsByTripGroup[gid]) {
+                companionsByTripGroup[gid] = [];
+              }
+              if (row.companion_profile && !companionsByTripGroup[gid].some((p) => p.id === row.companion_profile.id)) {
+                companionsByTripGroup[gid].push(row.companion_profile);
+              }
+              if (row.inviter_profile && !companionsByTripGroup[gid].some((p) => p.id === row.inviter_profile.id)) {
+                companionsByTripGroup[gid].push(row.inviter_profile);
+              }
+            });
+          }
+        } catch (err) {
+          console.warn("Could not fetch companions for feed:", err);
+        }
+      }
+
+      // Attach companions to combined items
+      combined.forEach((item) => {
+        item.companions = item.trip_group_id ? companionsByTripGroup[item.trip_group_id] || [] : [];
       });
 
       // Fetch photos for these users and summits
@@ -990,9 +1155,30 @@ export function FeedTab({
         </div>
       ) : (
         <div>
-          {visibleFeedItems.map((item, index) => (
-            <FeedItemCard key={`${item.type}-${item.id}`} item={item} index={index} session={session} onAuthRequired={onAuthRequired} />
-          ))}
+          {visibleFeedItems.map((item, index) => {
+            const prevItem = index > 0 ? visibleFeedItems[index - 1] : null;
+            const nextItem = index < visibleFeedItems.length - 1 ? visibleFeedItems[index + 1] : null;
+
+            const isConnectedToPrev = Boolean(
+              item.trip_group_id && prevItem?.trip_group_id && item.trip_group_id === prevItem.trip_group_id
+            );
+            const isConnectedToNext = Boolean(
+              item.trip_group_id && nextItem?.trip_group_id && item.trip_group_id === nextItem.trip_group_id
+            );
+
+            return (
+              <FeedItemCard
+                key={`${item.type}-${item.id}`}
+                item={item}
+                index={index}
+                session={session}
+                onAuthRequired={onAuthRequired}
+                isConnectedToPrev={isConnectedToPrev}
+                isConnectedToNext={isConnectedToNext}
+                followingUserIdsSet={followingUserIdsSet}
+              />
+            );
+          })}
         </div>
       )}
     </div>

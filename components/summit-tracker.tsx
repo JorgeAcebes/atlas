@@ -57,6 +57,8 @@ import {
   ChartNoAxesColumn, Download,
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
+import { CompanionSelector } from "./companion-selector";
+import { CompanionProfile, datesOverlap, syncMutualTripInvitations } from "@/lib/companions";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
 import { uploadPhotoBlob, deleteStoragePhotos } from "@/lib/photo-client";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
@@ -85,7 +87,9 @@ const WorldMap = dynamic(
 );
 
 type Ascent = {
+  id?: string;
   summit_id: string;
+  trip_group_id?: string | null;
   achieved_on: string;
   end_date?: string | null;
   notes: string | null;
@@ -693,6 +697,28 @@ export function SummitTracker({
 
   const isPeaks = currentMode === "peaks";
   const hasPendingRequests = usePendingRequests();
+  const [selectedCompanions, setSelectedCompanions] = useState<CompanionProfile[]>([]);
+  const [companionStatuses, setCompanionStatuses] = useState<Record<string, "pending" | "accepted" | "rejected" | "separated">>({});
+  const [currentTripGroupId, setCurrentTripGroupId] = useState<string | null>(null);
+  const [originalTripDates, setOriginalTripDates] = useState<{ start: string; end?: string | null } | null>(null);
+  const [tripCompanionsMap, setTripCompanionsMap] = useState<Record<string, CompanionProfile[]>>({});
+  const [userFollowingSet, setUserFollowingSet] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!supabase || !session) return;
+    supabase
+      .from("connections")
+      .select("following_id")
+      .eq("follower_id", session.user.id)
+      .eq("status", "accepted")
+      .then(({ data }) => {
+        if (data) {
+          setUserFollowingSet(new Set(data.map((c: any) => c.following_id)));
+        }
+      });
+  }, [session]);
+
+
 
   useEffect(() => {
     if (initialModeProp && initialModeProp !== currentMode) {
@@ -984,6 +1010,50 @@ export function SummitTracker({
 
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
+
+  useEffect(() => {
+    if (!supabase || !selected) return;
+    const currentAscents = ascents.filter((a) => a.summit_id === selected.id);
+    const currentExp = (experienceRecords || []).filter((e: any) => e.experience_id === selected.id);
+    const tripGroupIds = Array.from(
+      new Set(
+        [
+          ...currentAscents.map((a: any) => a.trip_group_id),
+          ...currentExp.map((e: any) => e.trip_group_id),
+        ].filter(Boolean)
+      )
+    );
+
+    if (tripGroupIds.length === 0) return;
+
+    supabase
+      .from("record_companions")
+      .select(`
+        trip_group_id,
+        companion_id,
+        status,
+        companion_profile:profiles!record_companions_companion_id_fkey(id, username, avatar_url, is_public),
+        inviter_profile:profiles!record_companions_inviter_id_fkey(id, username, avatar_url, is_public)
+      `)
+      .in("trip_group_id", tripGroupIds)
+      .eq("status", "accepted")
+      .then(({ data }) => {
+        if (data) {
+          const map: Record<string, CompanionProfile[]> = {};
+          data.forEach((row: any) => {
+            const gid = row.trip_group_id;
+            if (!map[gid]) map[gid] = [];
+            if (row.companion_profile && !map[gid].some((p: any) => p.id === row.companion_profile.id)) {
+              map[gid].push(row.companion_profile);
+            }
+            if (row.inviter_profile && !map[gid].some((p: any) => p.id === row.inviter_profile.id)) {
+              map[gid].push(row.inviter_profile);
+            }
+          });
+          setTripCompanionsMap((prev) => ({ ...prev, ...map }));
+        }
+      });
+  }, [selected, ascents, experienceRecords]);
 
   const customExperiencesRef = useRef(customExperiences);
   customExperiencesRef.current = customExperiences;
@@ -1875,7 +1945,7 @@ export function SummitTracker({
         if (isReadOnly && session) {
           const { data: myData } = await supabase
             .from("ascents")
-            .select("summit_id, achieved_on, end_date, notes, is_wishlist, link, link_name, link_2, link_name_2")
+            .select("id, summit_id, achieved_on, end_date, trip_group_id, notes, is_wishlist, link, link_name, link_2, link_name_2")
             .eq("user_id", session.user.id);
           if (myData && !areRecordsEqual(myAscents, myData)) setMyAscents(myData as Ascent[]);
         }
@@ -1907,7 +1977,7 @@ export function SummitTracker({
       ] = await Promise.all([
         supabase!
           .from("ascents")
-          .select("summit_id, achieved_on, end_date, notes, is_wishlist, link, link_name, link_2, link_name_2")
+          .select("id, summit_id, achieved_on, end_date, trip_group_id, notes, is_wishlist, link, link_name, link_2, link_name_2")
           .eq("user_id", targetId)
           .order("achieved_on", { ascending: false }),
         supabase!
@@ -2616,6 +2686,45 @@ export function SummitTracker({
       } else {
         setSelected(item);
         if (ascentToEdit) {
+          const tripGrpId = (ascentToEdit as any).trip_group_id || null;
+          if (tripGrpId && supabase) {
+            setCurrentTripGroupId(tripGrpId);
+            supabase
+              .from("record_companions")
+              .select(`
+                id,
+                companion_id,
+                status,
+                original_start_date,
+                original_end_date,
+                companion_profile:profiles!record_companions_companion_id_fkey(id, username, avatar_url, is_public)
+              `)
+              .eq("trip_group_id", tripGrpId)
+              .then(({ data }) => {
+                if (data && data.length > 0) {
+                  const comps: CompanionProfile[] = [];
+                  const statuses: Record<string, any> = {};
+                  data.forEach((row: any) => {
+                    if (row.companion_profile) {
+                      comps.push(row.companion_profile);
+                      statuses[row.companion_profile.id] = row.status;
+                    }
+                  });
+                  setSelectedCompanions(comps);
+                  setCompanionStatuses(statuses);
+                  setOriginalTripDates({
+                    start: data[0].original_start_date,
+                    end: data[0].original_end_date,
+                  });
+                }
+              });
+          } else {
+            setCurrentTripGroupId(null);
+            setSelectedCompanions([]);
+            setCompanionStatuses({});
+            setOriginalTripDates(null);
+          }
+
           if (item?.itemType === 'experience') {
             const recId =
               (ascentToEdit as any).record_id || (ascentToEdit as any).id;
@@ -2651,6 +2760,10 @@ export function SummitTracker({
           setLinkName2((ascentToEdit as any).link_name_2 ?? "");
           setShowSecondLink(hasSecondLink);
         } else {
+          setCurrentTripGroupId(null);
+          setSelectedCompanions([]);
+          setCompanionStatuses({});
+          setOriginalTripDates(null);
           // Si no es ascentToEdit pero setSelectedLatLng ya se configuró (ej. click en mapa), no lo borramos.
           setEditingExpRecordId(null);
           if (item?.itemType !== 'experience') {
@@ -2948,6 +3061,20 @@ export function SummitTracker({
       return;
     }
 
+    let tripGroupIdToSave = currentTripGroupId;
+    if (selectedCompanions.length > 0 && !tripGroupIdToSave) {
+      tripGroupIdToSave = crypto.randomUUID();
+    }
+
+    let isSeparated = false;
+    if (originalTripDates && currentTripGroupId) {
+      const overlaps = datesOverlap(finalDate, finalEndDate, originalTripDates.start, originalTripDates.end);
+      if (!overlaps) {
+        isSeparated = true;
+        tripGroupIdToSave = null;
+      }
+    }
+
     let dbError = null;
 
     if (isExperience) {
@@ -2964,6 +3091,7 @@ export function SummitTracker({
             lat: selectedLatLng?.lat,
             lng: selectedLatLng?.lng,
             location_name: locationName || null,
+            trip_group_id: tripGroupIdToSave,
           })
           .eq("id", editingExpRecordId);
         dbError = error;
@@ -2981,6 +3109,7 @@ export function SummitTracker({
           lat: selectedLatLng?.lat,
           lng: selectedLatLng?.lng,
           location_name: locationName || null,
+          trip_group_id: tripGroupIdToSave,
         });
         dbError = error;
       }
@@ -2996,6 +3125,7 @@ export function SummitTracker({
           link_name: linkName || null,
           link_2: link2 || null,
           link_name_2: linkName2 || null,
+          trip_group_id: tripGroupIdToSave,
           is_wishlist: false,
         },
         { onConflict: "user_id,summit_id,achieved_on" },
@@ -3019,6 +3149,75 @@ export function SummitTracker({
       setNotice(dbError.message);
       setSaving(false);
       return;
+    }
+
+    if (isSeparated && currentTripGroupId) {
+      await supabase
+        .from("record_companions")
+        .update({
+          status: "separated",
+          companion_record_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("trip_group_id", currentTripGroupId)
+        .eq("companion_id", session.user.id);
+    } else if (tripGroupIdToSave && selectedCompanions.length > 0) {
+      for (const comp of selectedCompanions) {
+        // Automatic mutual linking if companion also invited current user for overlapping dates
+        const syncResult = await syncMutualTripInvitations({
+          currentUserId: session.user.id,
+          companionId: comp.id,
+          itemId: selected.id,
+          subItemId: selected.sub_item_id || null,
+          startDate: finalDate,
+          endDate: finalEndDate,
+          currentRecordId: editingExpRecordId || null,
+          currentTripGroupId: tripGroupIdToSave,
+          recordType: isExperience ? "experience" : "ascent",
+        });
+
+        const effectiveTripGroupId = syncResult.resolvedTripGroupId || tripGroupIdToSave;
+        const effectiveStatus = syncResult.isMutual ? "accepted" : (companionStatuses[comp.id] || "pending");
+
+        if (syncResult.isMutual && !isExperience) {
+          await supabase
+            .from("ascents")
+            .update({ trip_group_id: effectiveTripGroupId })
+            .match({
+              user_id: session.user.id,
+              summit_id: selected.id,
+              achieved_on: finalDate,
+            });
+        }
+
+        await supabase.from("record_companions").upsert({
+          trip_group_id: effectiveTripGroupId,
+          inviter_id: session.user.id,
+          companion_id: comp.id,
+          record_type: isExperience ? "experience" : "ascent",
+          item_type: isPeaks ? "peaks" : isExperience ? "experience" : "countries",
+          item_id: selected.id,
+          sub_item_id: selected.sub_item_id || null,
+          location_name: locationName || selected.title || null,
+          start_date: finalDate,
+          end_date: finalEndDate,
+          original_start_date: finalDate,
+          original_end_date: finalEndDate,
+          lat: selectedLatLng?.lat || null,
+          lng: selectedLatLng?.lng || null,
+          status: effectiveStatus,
+        }, { onConflict: "trip_group_id,companion_id" });
+      }
+
+      const selectedCompIds = selectedCompanions.map((c: any) => c.id);
+      if (selectedCompIds.length > 0) {
+        await supabase
+          .from("record_companions")
+          .delete()
+          .eq("trip_group_id", tripGroupIdToSave)
+          .eq("inviter_id", session.user.id)
+          .not("companion_id", "in", `(${selectedCompIds.join(",")})`);
+      }
     }
 
     const totalCountToSave =
@@ -6379,6 +6578,61 @@ export function SummitTracker({
                           </div>
                         )}
 
+                        {(() => {
+                          const tripGrpId = (ascent as any).trip_group_id; const tripComps = tripGrpId ? tripCompanionsMap[tripGrpId] : null;
+                          if (!tripComps || tripComps.length === 0) return null;
+                          const filteredComps = tripComps.filter((c: any) => {
+                            if (c.id === targetId) return false;
+                            if (c.is_public !== false) return true;
+                            if (session?.user?.id === c.id) return true;
+                            if (userFollowingSet.has(c.id)) return true;
+                            return false;
+                          });
+                          if (filteredComps.length === 0) return null;
+
+                          return (
+                            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>
+                                {isPeaks ? "Compañeros de ruta:" : isExp ? "Compañeros de experiencia:" : "Compañeros de viaje:"}
+                              </span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                {filteredComps.map((comp: any) => (
+                                  <Link
+                                    key={comp.id}
+                                    href={`/perfil/${comp.username}`}
+                                    title={`@${comp.username}`}
+                                    style={{ textDecoration: "none" }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: 22,
+                                        height: 22,
+                                        borderRadius: "50%",
+                                        backgroundColor: "var(--pine)",
+                                        color: "#fff",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 10,
+                                        fontWeight: "bold",
+                                        overflow: "hidden",
+                                        border: "1.5px solid var(--card-bg, #fff)",
+                                        boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                                      }}
+                                    >
+                                      {comp.avatar_url ? (
+                                        <img src={comp.avatar_url} alt={comp.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                      ) : (
+                                        comp.username.charAt(0).toUpperCase()
+                                      )}
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {ascentPhotos.length > 0 && (
                           <div
                             className="photo-section"
@@ -7285,6 +7539,13 @@ export function SummitTracker({
                 .
               </p>
             )}
+
+            <CompanionSelector
+              mode={isPeaks ? "peaks" : isExp ? "experience" : "countries"}
+              selectedCompanions={selectedCompanions}
+              onChange={setSelectedCompanions}
+              existingStatuses={companionStatuses}
+            />
 
             <label className="field-label" style={{ marginBottom: 12 }}>
               Notas

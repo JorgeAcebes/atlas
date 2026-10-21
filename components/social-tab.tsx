@@ -3,6 +3,9 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { usePendingTripInvitations } from "./use-pending-trip-invitations";
+import { InboxModal } from "./inbox-modal";
 import { AuthDialog } from "./auth-dialog";
 import { IconLogo } from "./icons";
 import { ProfileSettings } from "./profile-settings";
@@ -68,6 +71,9 @@ export function SocialTab({
   isActive?: boolean;
 }) {
   const { session, profile: myProfile, refreshProfile } = useAuth();
+  const router = useRouter();
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const { hasPendingInvitations, refreshPending: refreshPendingInvitations } = usePendingTripInvitations();
   const enablePeaks = !myProfile || myProfile.enable_peaks !== false;
   const enableCountries = !myProfile || myProfile.enable_countries !== false;
   const enableExperiences = enableCountries && (!myProfile || myProfile.enable_experiences !== false);
@@ -1004,17 +1010,40 @@ export function SocialTab({
               <div className="hero-profile-wrap">
                 <div
                   className="hero-profile-avatar"
-                  onClick={() => onNavigate?.('profile')}
-                  title="Ver mi perfil"
+                  onClick={() => setInboxOpen(true)}
+                  title="Bandeja de entrada"
+                  style={{ position: 'relative', cursor: 'pointer' }}
                 >
                   {myProfile.avatar_url ? (
                     <img src={myProfile.avatar_url} alt={myProfile.username} />
                   ) : (
                     myProfile.username.charAt(0).toUpperCase()
                   )}
+                  {hasPendingInvitations && (
+                    <span
+                      className="hero-pending-dot"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        width: '10px',
+                        height: '10px',
+                        backgroundColor: '#e53e3e',
+                        borderRadius: '50%',
+                        border: '2px solid var(--bg, #fdfbf7)',
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="hero-profile-info">
-                  <h2 className="hero-profile-username" onClick={() => onNavigate?.('profile')}>
+                  <h2
+                    className="hero-profile-username"
+                    onClick={() => {
+                      const path = `/perfil/${myProfile.username}`;
+                      if (onNavigate) onNavigate(path);
+                      else router.push(path);
+                    }}
+                  >
                     @{myProfile.username}
                   </h2>
                   <div className="hero-profile-connections">
@@ -1431,6 +1460,13 @@ export function SocialTab({
           }}
         />
       )}
+      <InboxModal
+        isOpen={inboxOpen}
+        onClose={() => setInboxOpen(false)}
+        onInvitationAccepted={() => {
+          refreshPendingInvitations();
+        }}
+      />
       <ConfirmModal
         isOpen={!!confirmConfig?.isOpen}
         message={confirmConfig?.message || ""}
