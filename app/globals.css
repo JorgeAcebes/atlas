@@ -3411,6 +3411,10 @@ textarea:focus {
   }
 }
 
+.hero-install-btn {
+  display: none;
+}
+
 /* Ranking Feature */
 .ranking-button {
   background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
@@ -4472,6 +4476,41 @@ textarea:focus {
     max-height: 76px !important;
     padding: 0 14px !important;
     gap: 0 !important;
+  }
+  .hero-install-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    z-index: 10;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(36, 95, 82, 0.18);
+    color: #245f52;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .hero-install-btn:active {
+    transform: scale(0.92);
+    background: #ffffff;
+  }
+  .mode-experiences .hero-install-btn {
+    background: rgba(30, 30, 46, 0.9);
+    border-color: #313244;
+    color: #cba6f7;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  }
+  .mode-experiences .hero-install-btn:active {
+    background: #313244;
   }
   .hero-main {
     gap: 10px !important;

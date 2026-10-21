@@ -26,7 +26,7 @@ import {
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { AuthDialog } from "./auth-dialog";
 import { ProfileSettings } from "./profile-settings";
-import { InstallPrompt } from "./install-prompt";
+import { InstallPrompt, isStandalone } from "./install-prompt";
 import { ConfirmModal } from "./confirm-modal";
 import { StatsModal } from "./stats-modal";
 import { getLocationInfo } from "@/lib/stats-utils";
@@ -53,7 +53,7 @@ import {
   UserRoundArrowLeft,
   NotebookPen,
   Share2,
-  ChartNoAxesColumn,
+  ChartNoAxesColumn, Download,
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
@@ -762,6 +762,20 @@ export function SummitTracker({
   }, [panelIdToOpen]);
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [installPromptOpen, setInstallPromptOpen] = useState(false);
+  const [canInstallMobile, setCanInstallMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobileBrowser = () => {
+      if (typeof window === "undefined") return;
+      const standalone = isStandalone();
+      const isMobileWidth = window.innerWidth <= 700;
+      setCanInstallMobile(!standalone && isMobileWidth);
+    };
+    checkMobileBrowser();
+    window.addEventListener("resize", checkMobileBrowser);
+    return () => window.removeEventListener("resize", checkMobileBrowser);
+  }, []);
   const [statsOpen, setStatsOpen] = useState(() => {
     if (typeof window !== "undefined") {
       return window.location.hash === "#estadisticas";
@@ -4613,6 +4627,22 @@ export function SummitTracker({
         onTouchStart={handleSwipeTouchStart}
         onTouchEnd={handleSwipeTouchEnd}
       >
+        {!targetProfile && canInstallMobile && (
+          <button
+            type="button"
+            className="hero-install-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setInstallPromptOpen(true);
+            }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            aria-label="Instalar app"
+            title="Instalar aplicación"
+          >
+            <Download size={17} strokeWidth={2.2} />
+          </button>
+        )}
         <div
           className={`hero-main ${!targetProfile
               ? "hero-main--motto"
@@ -7839,7 +7869,7 @@ export function SummitTracker({
       />
 
       {/* ── PWA Install Prompt ────────── */}
-      <InstallPrompt />
+      <InstallPrompt manualOpen={installPromptOpen} onManualClose={() => setInstallPromptOpen(false)} />
       {/* ── Experience Selector Modal ───── */}
       {expSelectorOpen && (
         <div

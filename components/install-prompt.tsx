@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useScrollLock } from "@/lib/scroll-lock";
 
 // Key for localStorage
 const DISMISS_KEY = "pwa_install_dismissed";
@@ -10,12 +11,15 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-function isIOS(): boolean {
+export function isIOS(): boolean {
   if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  return (
+    (/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
 }
 
-function isStandalone(): boolean {
+export function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
@@ -23,20 +27,48 @@ function isStandalone(): boolean {
   );
 }
 
-function isMobile(): boolean {
+export function isMobile(): boolean {
   if (typeof window === "undefined") return false;
   return window.innerWidth <= 700;
 }
 
-export function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+// Module-level captured prompt event so it isn't lost if fired before component mounts
+let globalDeferredPrompt: BeforeInstallPromptEvent | null = null;
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e: Event) => {
+    e.preventDefault();
+    globalDeferredPrompt = e as BeforeInstallPromptEvent;
+  });
+}
+
+export interface InstallPromptProps {
+  manualOpen?: boolean;
+  onManualClose?: () => void;
+}
+
+export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps = {}) {
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => globalDeferredPrompt);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [isManual, setIsManual] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isApple, setIsApple] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [showManualAndroidSteps, setShowManualAndroidSteps] = useState(false);
+
+  useScrollLock(showPrompt);
 
   useEffect(() => {
-    // Don't show if:
+    if (manualOpen) {
+      setIsManual(true);
+      if (isIOS()) {
+        setIsApple(true);
+      }
+      setShowPrompt(true);
+      return;
+    }
+
+    // Don't show automatic prompt if:
     // 1. Already installed (standalone mode)
     // 2. User dismissed permanently
     // 3. Not on mobile
@@ -54,17 +86,25 @@ export function InstallPrompt() {
     // Listen for beforeinstallprompt (Chrome/Edge/Samsung etc.)
     const handler = (e: Event) => {
       e.preventDefault();
+      globalDeferredPrompt = e as BeforeInstallPromptEvent;
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShowPrompt(true);
+      if (localStorage.getItem(DISMISS_KEY) !== "true") {
+        setShowPrompt(true);
+      }
     };
 
     window.addEventListener("beforeinstallprompt", handler);
 
+    // If global event was already captured earlier
+    if (globalDeferredPrompt && localStorage.getItem(DISMISS_KEY) !== "true") {
+      setDeferredPrompt(globalDeferredPrompt);
+      setShowPrompt(true);
+    }
+
     // Also show after a short delay for browsers that support PWA
     // but might not fire beforeinstallprompt immediately
     const timer = setTimeout(() => {
-      if (!isStandalone() && isMobile()) {
-        // If no beforeinstallprompt fired, check if it's iOS
+      if (!isStandalone() && isMobile() && localStorage.getItem(DISMISS_KEY) !== "true") {
         if (isIOS()) {
           setIsApple(true);
           setShowPrompt(true);
@@ -76,34 +116,53 @@ export function InstallPrompt() {
       window.removeEventListener("beforeinstallprompt", handler);
       clearTimeout(timer);
     };
-  }, []);
+  }, [manualOpen]);
 
   const handleInstall = useCallback(async () => {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      setShowPrompt(false);
+    const promptEvent = deferredPrompt || globalDeferredPrompt;
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === "accepted") {
+          setShowPrompt(false);
+          onManualClose?.();
+        }
+        setDeferredPrompt(null);
+        globalDeferredPrompt = null;
+      } catch (err) {
+        console.error("Error prompting install:", err);
+        setShowManualAndroidSteps(true);
+      }
+    } else {
+      setShowManualAndroidSteps(true);
     }
-    setDeferredPrompt(null);
-  }, [deferredPrompt]);
+  }, [deferredPrompt, onManualClose]);
 
   const handleClose = useCallback(() => {
     setClosing(true);
-    if (dontShowAgain) {
+    if (dontShowAgain && !isManual) {
       localStorage.setItem(DISMISS_KEY, "true");
     }
     setTimeout(() => {
       setShowPrompt(false);
       setClosing(false);
+      setShowManualAndroidSteps(false);
+      onManualClose?.();
     }, 280);
-  }, [dontShowAgain]);
+  }, [dontShowAgain, isManual, onManualClose]);
 
   if (!showPrompt) return null;
 
   return (
-    <div className={`install-prompt-overlay${closing ? " install-prompt-overlay--closing" : ""}`}>
-      <div className={`install-prompt-dialog${closing ? " install-prompt-dialog--closing" : ""}`}>
+    <div
+      className={`install-prompt-overlay${closing ? " install-prompt-overlay--closing" : ""}`}
+      onClick={handleClose}
+    >
+      <div
+        className={`install-prompt-dialog${closing ? " install-prompt-dialog--closing" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close button */}
         <button
           className="install-prompt-close"
@@ -139,7 +198,7 @@ export function InstallPrompt() {
         <p className="install-prompt-subtitle">
           {isApple
             ? "Añade esta app a tu pantalla de inicio para una mejor experiencia."
-            : "Instala la app para acceder más rápido y disfrutar de una experiencia completa."
+            : "¿Quieres instalar la app en tu dispositivo para acceder más rápido y disfrutar de una experiencia completa?"
           }
         </p>
 
@@ -158,6 +217,12 @@ export function InstallPrompt() {
               <strong>Compartir</strong> y luego <strong>&quot;Añadir a pantalla de inicio&quot;</strong>.
             </p>
           </div>
+        ) : showManualAndroidSteps ? (
+          <div className="install-prompt-ios-steps">
+            <p>
+              Pulsa el menú de tu navegador (los tres puntos <strong>⋮</strong>) y selecciona <strong>&quot;Instalar aplicación&quot;</strong> o <strong>&quot;Añadir a pantalla de inicio&quot;</strong>.
+            </p>
+          </div>
         ) : (
           <button
             className="button button--green button--wide install-prompt-btn"
@@ -172,15 +237,17 @@ export function InstallPrompt() {
           </button>
         )}
 
-        {/* Don't show again checkbox */}
-        <label className="install-prompt-dismiss">
-          <input
-            type="checkbox"
-            checked={dontShowAgain}
-            onChange={(e) => setDontShowAgain(e.target.checked)}
-          />
-          No volver a mostrar
-        </label>
+        {/* Don't show again checkbox only for automatic prompt */}
+        {!isManual && (
+          <label className="install-prompt-dismiss">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+            />
+            No volver a mostrar
+          </label>
+        )}
       </div>
     </div>
   );
