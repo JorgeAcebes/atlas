@@ -170,28 +170,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
   }, [manualOpen, onManualClose]);
 
   const handleInstall = useCallback(async () => {
-    let promptEvent = deferredPrompt || getInstallPrompt();
-    if (!promptEvent) {
-      await new Promise<void>((resolve) => {
-        let done = false;
-        const onReady = () => {
-          if (!done) {
-            done = true;
-            window.removeEventListener("atlas-install-prompt-ready", onReady);
-            resolve();
-          }
-        };
-        window.addEventListener("atlas-install-prompt-ready", onReady);
-        setTimeout(() => {
-          if (!done) {
-            done = true;
-            window.removeEventListener("atlas-install-prompt-ready", onReady);
-            resolve();
-          }
-        }, 800);
-      });
-      promptEvent = deferredPrompt || getInstallPrompt();
-    }
+    const promptEvent = deferredPrompt || getInstallPrompt();
     if (promptEvent) {
       try {
         await promptEvent.prompt();
