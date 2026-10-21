@@ -1,15 +1,15 @@
-const CACHE_NAME = 'atlas-cache-v6';
+const CACHE_NAME = 'atlas-cache-v7';
 
-// Recursos estáticos iniciales a cachear durante instalación (Stale-While-Revalidate)
-// NO precacheamos '/' para que el HTML nunca quede congelado
+// Recursos estáticos iniciales a cachear durante instalación.
+// Solo archivos PNG que existen en /public y son esenciales para la PWA.
+// NO precacheamos '/' para que el HTML nunca quede congelado.
+// Los SVGs servidos por Next.js (app/icon.svg) pueden devolver redirects
+// o headers especiales que rompen cache.addAll() — los excluimos del precache.
 const PRECACHE_URLS = [
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
-  '/apple-touch-icon.png',
-  '/icon.svg',
-  '/icon-192.svg',
-  '/icon-512.svg'
+  '/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
