@@ -271,10 +271,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
         ) : showManualAndroidSteps ? (
           <div className="install-prompt-ios-steps">
             <p>
-              Pulsa el menú de tu navegador (los tres puntos <strong>⋮</strong>) y selecciona <strong>&quot;Instalar aplicación&quot;</strong> o <strong>&quot;Añadir a pantalla de inicio&quot;</strong>.
-            </p>
-            <p style={{ marginTop: "10px", fontSize: "12px", opacity: 0.9, lineHeight: 1.45 }}>
-              📱 <strong>En Xiaomi / Redmi / POCO:</strong> MIUI/HyperOS bloquea la instalación por defecto. Ve a <em>Ajustes &gt; Aplicaciones &gt; Gestionar aplicaciones &gt; Chrome &gt; Otros permisos</em> y activa <strong>&quot;Accesos directos en la pantalla de inicio&quot;</strong>.
+              Pulsa el menú de tu navegador (los tres puntos <strong>⋮</strong>) y selecciona <strong>&quot;Instalar aplicación&quot;</strong>.
             </p>
           </div>
         ) : (
