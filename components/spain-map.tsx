@@ -124,14 +124,28 @@ function FitSpain({ isActive }: { isActive?: boolean }) {
 
 // Calls invalidateSize() repeatedly during the CSS panel transition (300ms)
 // so Leaflet always knows the real container dimensions.
+function safeCloseTooltip(layer: any) {
+  try {
+    if (layer && layer._tooltip && typeof layer.closeTooltip === 'function') {
+      layer.closeTooltip();
+    }
+  } catch {}
+}
+
 function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive?: boolean }) {
   const map = useMap();
   useEffect(() => {
     if (isActive === false) return;
-    if (!panelOpen) {
-      map.closeTooltip();
-    }
     const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+
+    if (!panelOpen) {
+      try {
+        container.querySelectorAll(".leaflet-tooltip").forEach((el) => {
+          el.parentElement?.removeChild(el);
+        });
+      } catch {}
+    }
     if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
 
     const TRANSITION_MS = 350; // slightly longer than the 0.3s CSS transition
@@ -369,7 +383,7 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
             fillOpacity: completedRef.current.has(oldCode) ? 0.83 : isWishlist ? 0.83 : 0.72,
           });
         }
-        (layer as any).closeTooltip?.();
+        safeCloseTooltip(layer);
       }
     }
 
@@ -388,7 +402,7 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
       }
     } else {
       layerRefs.current.forEach((layer, code) => {
-        (layer as any).closeTooltip?.();
+        safeCloseTooltip(layer);
         if (diffModeRef.current) {
           const ds = getDiffStyleRef(code);
           layer.setStyle({ weight: ds.weight, fillOpacity: ds.fillOpacity });
@@ -437,7 +451,7 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
           className: `summit-tooltip ${statusClass}`,
         });
         layer.on("click", () => {
-          (layer as any).closeTooltip?.();
+          safeCloseTooltip(layer);
           onInformationRef.current(peak);
         });
 

@@ -159,14 +159,28 @@ function FitWorld({ isActive }: { isActive?: boolean }) {
 
 // Calls invalidateSize() repeatedly during the CSS panel transition (300ms)
 // so Leaflet always knows the real container dimensions.
+function safeCloseTooltip(layer: any) {
+  try {
+    if (layer && layer._tooltip && typeof layer.closeTooltip === 'function') {
+      layer.closeTooltip();
+    }
+  } catch {}
+}
+
 function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive?: boolean }) {
   const map = useMap();
   useEffect(() => {
     if (isActive === false) return;
-    if (!panelOpen) {
-      map.closeTooltip();
-    }
     const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+
+    if (!panelOpen) {
+      try {
+        container.querySelectorAll(".leaflet-tooltip").forEach((el) => {
+          el.parentElement?.removeChild(el);
+        });
+      } catch {}
+    }
     if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
 
     const TRANSITION_MS = 350; // slightly longer than the 0.3s CSS transition
@@ -570,7 +584,7 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
             });
           }
         }
-        (layer as any).closeTooltip?.();
+        safeCloseTooltip(layer);
       }
     }
 
@@ -591,7 +605,7 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
       }
     } else {
       layerRefs.current.forEach((layer, id) => {
-        (layer as any).closeTooltip?.();
+        safeCloseTooltip(layer);
         if (diffModeRef.current) {
           const ds = getDiffGeoStyleRef(id);
           (layer as Path).setStyle({ weight: ds.weight, fillOpacity: ds.fillOpacity });
@@ -650,7 +664,7 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         });
         layer.on("click", (e: L.LeafletMouseEvent) => {
           if (selectingLocationRef.current) return;
-          (layer as any).closeTooltip?.();
+          safeCloseTooltip(layer);
           onInformationRef.current(country);
         });
 

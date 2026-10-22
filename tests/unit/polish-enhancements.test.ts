@@ -235,12 +235,12 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
       expect(globalsCss).toContain("display: none !important;");
 
       const worldMapContent = fs.readFileSync(path.resolve(process.cwd(), "components/world-map.tsx"), "utf-8");
-      expect(worldMapContent).toContain("map.closeTooltip()");
-      expect(worldMapContent).toContain("(layer as any).closeTooltip?.()");
+      expect(worldMapContent).toContain("safeCloseTooltip(layer)");
+      expect(worldMapContent).toContain("container.querySelectorAll(\".leaflet-tooltip\")");
 
       const spainMapContent = fs.readFileSync(path.resolve(process.cwd(), "components/spain-map.tsx"), "utf-8");
-      expect(spainMapContent).toContain("map.closeTooltip()");
-      expect(spainMapContent).toContain("(layer as any).closeTooltip?.()");
+      expect(spainMapContent).toContain("safeCloseTooltip(layer)");
+      expect(spainMapContent).toContain("container.querySelectorAll(\".leaflet-tooltip\")");
 
       const trackerContent = fs.readFileSync(path.resolve(process.cwd(), "components/summit-tracker.tsx"), "utf-8");
       expect(trackerContent).toContain('.querySelectorAll(".leaflet-tooltip")');
