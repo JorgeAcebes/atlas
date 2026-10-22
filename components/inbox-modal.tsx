@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./auth-context";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
@@ -52,6 +53,12 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
     }
   }, [session]);
 
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       lockScroll();
@@ -64,6 +71,21 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
       unlockScroll();
     };
   }, [isOpen, fetchInvitations]);
+
+  // Escape key closes inbox modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [isOpen, onClose]);
 
   const handleAccept = async (inv: RecordCompanion) => {
     if (!session) return;
@@ -175,36 +197,46 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
     }
   }
 
-  return (
+  if (!isOpen || !mounted || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="modal-backdrop"
+      className="inbox-modal-overlay"
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.65)",
-        zIndex: 9999,
+        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+        zIndex: 100060,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "16px",
+        overscrollBehavior: "contain",
       }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={onClose}
+      onWheel={(e) => e.stopPropagation()}
     >
       <div
         className="inbox-modal-card"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: "var(--card-bg, #fff)",
           color: "var(--ink, #1f2937)",
-          borderRadius: "12px",
+          borderRadius: "14px",
           width: "100%",
           maxWidth: "520px",
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.4)",
           overflow: "hidden",
+          position: "relative",
+          border: "1px solid var(--border, #e5e7eb)",
+          animation: "fadeScale 0.2s ease",
         }}
       >
         {/* Header */}
@@ -576,6 +608,7 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

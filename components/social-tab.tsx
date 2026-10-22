@@ -1432,8 +1432,19 @@ export function SocialTab({
           myProfile={myProfile}
           ascents={userAscents}
           initialMode={currentMode}
+          onModeChange={(mode) => {
+            if (mode === "peaks" && enablePeaks) {
+              setCurrentMode("peaks");
+            } else if (mode === "countries" && enableCountries) {
+              setCurrentMode("countries");
+            }
+          }}
           onClose={() => {
-            if (window.location.hash === "#estadisticas") {
+            if (
+              window.location.hash === "#estadisticas" ||
+              window.location.hash === "#galeria" ||
+              window.location.hash === "#lightbox"
+            ) {
               window.history.back();
             }
             setStatsOpen(false);

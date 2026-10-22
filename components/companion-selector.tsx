@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "./auth-context";
 import { CompanionProfile, getMutualFollowers } from "@/lib/companions";
 import { Users, UserPlus, X, Check, Clock, Search } from "lucide-react";
@@ -23,6 +24,11 @@ export function CompanionSelector({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tempSelected, setTempSelected] = useState<CompanionProfile[]>([]);
   const [search, setSearch] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const label =
     mode === "peaks"
@@ -40,18 +46,18 @@ export function CompanionSelector({
 
   useEffect(() => {
     if (!session) return;
-    let mounted = true;
+    let isSubscribed = true;
     setLoading(true);
 
     getMutualFollowers(session.user.id).then((followers) => {
-      if (mounted) {
+      if (isSubscribed) {
         setMutualFollowers(followers);
         setLoading(false);
       }
     });
 
     return () => {
-      mounted = false;
+      isSubscribed = false;
     };
   }, [session]);
 
@@ -72,6 +78,21 @@ export function CompanionSelector({
     setIsModalOpen(false);
     unlockScroll();
   };
+
+  // Keyboard navigation: Escape closes this popup without bubbling to parent modal
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        handleCloseModal();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [isModalOpen]);
 
   const tempSelectedIds = useMemo(
     () => new Set(tempSelected.map((c) => c.id)),
@@ -106,7 +127,7 @@ export function CompanionSelector({
         </span>
         {selectedCompanions.length > 0 && (
           <span style={{ fontSize: "11px", color: "var(--muted, #6b7280)" }}>
-            {selectedCompanions.length + 1} / 30 personas
+            {selectedCompanions.length} compañero{selectedCompanions.length !== 1 ? "s" : ""} ({selectedCompanions.length + 1} / 30)
           </span>
         )}
       </div>
@@ -130,8 +151,8 @@ export function CompanionSelector({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
-                  backgroundColor: "rgba(92, 155, 125, 0.12)",
-                  border: "1px solid rgba(92, 155, 125, 0.25)",
+                  backgroundColor: "color-mix(in srgb, var(--pine, #2d5a43) 10%, transparent)",
+                  border: "1px solid color-mix(in srgb, var(--pine, #2d5a43) 24%, transparent)",
                   borderRadius: "20px",
                   padding: "3px 8px 3px 4px",
                   fontSize: "12px",
@@ -229,7 +250,7 @@ export function CompanionSelector({
             padding: selectedCompanions.length > 0 ? "5px 12px" : "7px 14px",
             borderRadius: "20px",
             border: "1px dashed var(--pine, #2d5a43)",
-            backgroundColor: selectedCompanions.length > 0 ? "transparent" : "rgba(92, 155, 125, 0.06)",
+            backgroundColor: selectedCompanions.length > 0 ? "transparent" : "color-mix(in srgb, var(--pine, #2d5a43) 6%, transparent)",
             color: "var(--pine, #2d5a43)",
             fontSize: "12px",
             fontWeight: 600,
@@ -237,10 +258,10 @@ export function CompanionSelector({
             transition: "all 0.15s ease",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "rgba(92, 155, 125, 0.14)";
+            e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--pine, #2d5a43) 14%, transparent)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = selectedCompanions.length > 0 ? "transparent" : "rgba(92, 155, 125, 0.06)";
+            e.currentTarget.style.backgroundColor = selectedCompanions.length > 0 ? "transparent" : "color-mix(in srgb, var(--pine, #2d5a43) 6%, transparent)";
           }}
         >
           <UserPlus size={14} />
@@ -248,77 +269,98 @@ export function CompanionSelector({
         </button>
       </div>
 
-      {/* Modal / Popup for selecting companions */}
-      {isModalOpen && (
+      {/* Modal / Popup rendered via Portal into document.body to avoid stacking context & overflow issues */}
+      {isModalOpen && mounted && typeof document !== "undefined" && createPortal(
         <div
-          className="modal-backdrop"
+          className="companion-modal-overlay"
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.65)",
-            zIndex: 10000,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+            zIndex: 100060,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             padding: "16px",
+            overscrollBehavior: "contain",
           }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) handleCloseModal();
-          }}
+          onClick={handleCloseModal}
+          onWheel={(e) => e.stopPropagation()}
         >
           <div
             className="companion-modal-card"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: "var(--card-bg, #fff)",
+              backgroundColor: "var(--card-bg, #ffffff)",
               color: "var(--ink, #1f2937)",
-              borderRadius: "12px",
+              borderRadius: "14px",
               width: "100%",
-              maxWidth: "460px",
+              maxWidth: "440px",
               maxHeight: "85vh",
               display: "flex",
               flexDirection: "column",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.4)",
               overflow: "hidden",
+              position: "relative",
+              border: "1px solid var(--border, #e5e7eb)",
+              animation: "fadeScale 0.2s ease",
             }}
           >
             {/* Modal Header */}
             <div
               style={{
-                padding: "14px 18px",
+                padding: "16px 20px 14px",
                 borderBottom: "1px solid var(--border, #e5e7eb)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                backgroundColor: "var(--card-bg, #ffffff)",
               }}
             >
               <div>
                 <h3
                   style={{
                     margin: 0,
-                    fontSize: "16px",
+                    fontSize: "17px",
                     fontWeight: 700,
                     fontFamily: "var(--font-heading, serif)",
+                    color: "var(--ink, #1f2937)",
                   }}
                 >
                   {label}
                 </h3>
-                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--muted, #6b7280)" }}>
-                  {tempSelected.length + 1} / 30 personas seleccionadas
+                <p style={{ margin: "3px 0 0", fontSize: "12px", color: "var(--muted, #6b7280)" }}>
+                  {tempSelected.length === 0
+                    ? "Ningún compañero seleccionado (máx. 29)"
+                    : `${tempSelected.length} compañero${tempSelected.length !== 1 ? "s" : ""} seleccionado${tempSelected.length !== 1 ? "s" : ""} · ${tempSelected.length + 1} / 30 en total`}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleCloseModal}
+                title="Cerrar ventana"
+                aria-label="Cerrar ventana"
                 style={{
                   background: "none",
                   border: "none",
                   cursor: "pointer",
-                  padding: "4px",
+                  padding: "6px",
                   color: "var(--muted, #6b7280)",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
                 }}
               >
                 <X size={18} />
@@ -326,7 +368,7 @@ export function CompanionSelector({
             </div>
 
             {/* Search Input inside Modal */}
-            <div style={{ padding: "12px 18px 8px" }}>
+            <div style={{ padding: "14px 20px 8px", backgroundColor: "var(--card-bg, #ffffff)" }}>
               <div
                 style={{
                   display: "flex",
@@ -335,10 +377,10 @@ export function CompanionSelector({
                   border: "1px solid var(--border, #d1d5db)",
                   borderRadius: "8px",
                   padding: "8px 12px",
-                  backgroundColor: "var(--card-bg, #fff)",
+                  backgroundColor: "var(--sand, #f8f7f4)",
                 }}
               >
-                <Search size={15} style={{ color: "var(--muted, #6b7280)" }} />
+                <Search size={15} style={{ color: "var(--muted, #6b7280)", flexShrink: 0 }} />
                 <input
                   type="text"
                   placeholder="Buscar amigo por @usuario..."
@@ -358,12 +400,16 @@ export function CompanionSelector({
                   <button
                     type="button"
                     onClick={() => setSearch("")}
+                    title="Borrar búsqueda"
                     style={{
                       background: "none",
                       border: "none",
                       cursor: "pointer",
                       padding: 0,
                       color: "var(--muted, #6b7280)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
                     <X size={14} />
@@ -375,29 +421,30 @@ export function CompanionSelector({
             {/* List of Mutual Followers */}
             <div
               style={{
-                padding: "4px 18px 12px",
+                padding: "6px 20px 14px",
                 overflowY: "auto",
                 flex: 1,
                 maxHeight: "340px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "4px",
+                gap: "6px",
+                backgroundColor: "var(--card-bg, #ffffff)",
               }}
             >
               {loading ? (
-                <div style={{ textAlign: "center", padding: "24px 0", color: "var(--muted, #6b7280)", fontSize: "13px" }}>
+                <div style={{ textAlign: "center", padding: "28px 0", color: "var(--muted, #6b7280)", fontSize: "13px" }}>
                   Cargando amigos mutuos...
                 </div>
               ) : mutualFollowers.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "28px 12px", color: "var(--muted, #6b7280)" }}>
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--muted, #6b7280)" }}>
                   <Users size={32} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
                   <p style={{ margin: 0, fontWeight: 600, fontSize: "13px" }}>Sin seguidores mutuos todavía</p>
-                  <p style={{ margin: "4px 0 0", fontSize: "11px" }}>
+                  <p style={{ margin: "6px 0 0", fontSize: "11px", lineHeight: "1.4" }}>
                     Solo puedes añadir a personas a las que sigues y que te siguen a ti.
                   </p>
                 </div>
               ) : filteredFollowers.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "20px 0", color: "var(--muted, #6b7280)", fontSize: "13px" }}>
+                <div style={{ textAlign: "center", padding: "24px 0", color: "var(--muted, #6b7280)", fontSize: "13px" }}>
                   No se encontró ningún seguidor mutuo con &ldquo;{search}&rdquo;.
                 </div>
               ) : (
@@ -410,20 +457,22 @@ export function CompanionSelector({
                       key={follower.id}
                       onClick={() => !isLimitReached && handleToggleCompanion(follower)}
                       style={{
-                        padding: "8px 10px",
+                        padding: "8px 12px",
                         borderRadius: "8px",
                         display: "flex",
                         alignItems: "center",
-                        gap: "10px",
+                        gap: "12px",
                         cursor: isLimitReached ? "not-allowed" : "pointer",
                         opacity: isLimitReached ? 0.45 : 1,
-                        backgroundColor: isChecked ? "rgba(92, 155, 125, 0.1)" : "transparent",
-                        border: isChecked ? "1px solid rgba(92, 155, 125, 0.3)" : "1px solid transparent",
+                        backgroundColor: isChecked ? "color-mix(in srgb, var(--pine, #2d5a43) 12%, transparent)" : "transparent",
+                        border: isChecked
+                          ? "1px solid color-mix(in srgb, var(--pine, #2d5a43) 30%, transparent)"
+                          : "1px solid transparent",
                         transition: "background-color 0.15s ease",
                       }}
                       onMouseEnter={(e) => {
                         if (!isChecked && !isLimitReached) {
-                          e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.03)";
+                          e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.04)";
                         }
                       }}
                       onMouseLeave={(e) => {
@@ -432,7 +481,7 @@ export function CompanionSelector({
                         }
                       }}
                     >
-                      {/* Checkbox circle */}
+                      {/* Checkbox square */}
                       <div
                         style={{
                           width: "20px",
@@ -498,25 +547,25 @@ export function CompanionSelector({
             {/* Modal Footer */}
             <div
               style={{
-                padding: "12px 18px",
+                padding: "12px 20px",
                 borderTop: "1px solid var(--border, #e5e7eb)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "flex-end",
-                gap: "8px",
-                backgroundColor: "rgba(0, 0, 0, 0.01)",
+                gap: "10px",
+                backgroundColor: "var(--sand, #f8f7f4)",
               }}
             >
               <button
                 type="button"
                 onClick={handleCloseModal}
                 style={{
-                  padding: "7px 14px",
+                  padding: "8px 16px",
                   borderRadius: "6px",
                   border: "1px solid var(--border, #d1d5db)",
                   background: "#fff",
                   color: "var(--muted, #6b7280)",
-                  fontSize: "12px",
+                  fontSize: "13px",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
@@ -527,12 +576,12 @@ export function CompanionSelector({
                 type="button"
                 onClick={handleSaveModal}
                 style={{
-                  padding: "7px 16px",
+                  padding: "8px 18px",
                   borderRadius: "6px",
                   border: "none",
                   backgroundColor: "var(--pine, #2d5a43)",
                   color: "#fff",
-                  fontSize: "12px",
+                  fontSize: "13px",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
@@ -541,7 +590,8 @@ export function CompanionSelector({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

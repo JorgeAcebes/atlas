@@ -758,6 +758,7 @@ export function SummitTracker({
   const [selectedCountry, setSelectedCountry] = useState<SelectedItem | null>(null);
   const [selectedExperience, setSelectedExperience] = useState<SelectedItem | null>(null);
   const panelPushedRef = useRef(false);
+  const panelOpenedFromStatsRef = useRef(false);
   const recordOpenedFromPanelRef = useRef(false);
   const [panelIdToOpen, setPanelIdToOpen] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
@@ -1370,11 +1371,21 @@ export function SummitTracker({
         // Let it stay open
       } else if (hash === "#lightbox") {
         setEditorPhoto(null);
-      } else if (hash === "#estadisticas") {
+      } else if (hash === "#estadisticas" || hash === "#galeria") {
         setStatsOpen(true);
+        setSelected(null);
+        setSelectedPeak(null);
+        setSelectedCountry(null);
+        setSelectedExperience(null);
+        setPanelIdToOpen(null);
+        setRecordOpen(false);
+        panelPushedRef.current = false;
+        panelOpenedFromStatsRef.current = false;
+        recordOpenedFromPanelRef.current = false;
       } else if (hash.startsWith("#panel")) {
         setEditorPhoto(null);
         setLightboxPhoto(null);
+        setStatsOpen(false);
         const panelId = decodeURIComponent(hash.startsWith("#panel=") ? hash.substring(7) : hash.substring(6));
         if (panelId) {
           if (!selected || selected.id !== panelId.split("::")[0]) {
@@ -1394,6 +1405,7 @@ export function SummitTracker({
           setStatsOpen(false);
           setAuthOpen(false);
           panelPushedRef.current = false;
+          panelOpenedFromStatsRef.current = false;
           recordOpenedFromPanelRef.current = false;
         }
       }
@@ -4112,9 +4124,13 @@ export function SummitTracker({
     setSelectedLatLng(null);
     setFiles([]);
     setDeletedRecordPhotoIds([]);
+    const fromStats = panelOpenedFromStatsRef.current;
     panelPushedRef.current = false;
+    panelOpenedFromStatsRef.current = false;
     recordOpenedFromPanelRef.current = false;
-    if (window.location.hash) {
+    if (fromStats) {
+      window.history.back();
+    } else if (window.location.hash) {
       window.history.replaceState(
         null,
         "",
@@ -8115,8 +8131,31 @@ export function SummitTracker({
           photos={photos}
           photosCount={photos?.length}
           initialMode={isPeaks ? "peaks" : "countries"}
+          onModeChange={(mode) => {
+            if (mode === "peaks") {
+              if (canShowPeaks) {
+                setCurrentMode("peaks");
+                localStorage.setItem("last_active_mode", "peaks");
+                localStorage.setItem("last_map_path", "/picos");
+                const currentHash = window.location.hash || "#estadisticas";
+                window.history.replaceState(null, "", `/picos${currentHash}`);
+              }
+            } else if (mode === "countries") {
+              if (canShowCountries) {
+                setCurrentMode("countries");
+                localStorage.setItem("last_active_mode", "countries");
+                localStorage.setItem("last_map_path", "/");
+                const currentHash = window.location.hash || "#estadisticas";
+                window.history.replaceState(null, "", `/${currentHash}`);
+              }
+            }
+          }}
           onClose={() => {
-            if (window.location.hash === "#estadisticas") {
+            if (
+              window.location.hash === "#estadisticas" ||
+              window.location.hash === "#galeria" ||
+              window.location.hash === "#lightbox"
+            ) {
               window.history.back();
             }
             setStatsOpen(false);
@@ -8139,9 +8178,16 @@ export function SummitTracker({
               if (canShowCountries) setCurrentMode("countries");
             }
 
+            panelOpenedFromStatsRef.current = true;
+            panelPushedRef.current = true;
             setPanelIdToOpen(cleanId);
             const targetHash = `#panel=${encodeURIComponent(cleanId)}`;
-            window.history.replaceState({ hasPanel: true }, "", targetHash);
+            const targetPath = isPeak ? `/picos${targetHash}` : `/${targetHash}`;
+            if (window.location.pathname !== (isPeak ? "/picos" : "/")) {
+              window.history.pushState({ hasPanel: true, fromStats: true }, "", targetPath);
+            } else {
+              window.history.pushState({ hasPanel: true, fromStats: true }, "", targetHash);
+            }
             window.dispatchEvent(new Event("hashchange"));
           }}
         />

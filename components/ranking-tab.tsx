@@ -780,8 +780,21 @@ export function RankingTab({
           session={session}
           myProfile={myProfile}
           initialMode={mode}
+          onModeChange={(newMode) => {
+            if (newMode === "peaks" && enablePeaks) {
+              setMode("peaks");
+              setMapLink("/picos");
+            } else if (newMode === "countries" && enableCountries) {
+              setMode("countries");
+              setMapLink("/");
+            }
+          }}
           onClose={() => {
-            if (window.location.hash === "#estadisticas") {
+            if (
+              window.location.hash === "#estadisticas" ||
+              window.location.hash === "#galeria" ||
+              window.location.hash === "#lightbox"
+            ) {
               window.history.back();
             }
             setStatsOpen(false);

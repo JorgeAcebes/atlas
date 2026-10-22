@@ -40,6 +40,7 @@ type Props = {
   photos?: any[];
   photosCount?: number;
   initialMode?: "peaks" | "countries";
+  onModeChange?: (mode: "peaks" | "countries") => void;
   onClose: () => void;
   onGoToRecord?: (summitId: string) => void;
 };
@@ -111,12 +112,35 @@ export function StatsModal({
   photos: propPhotos,
   photosCount: propPhotosCount,
   initialMode = "countries",
+  onModeChange,
   onClose,
   onGoToRecord,
 }: Props) {
-  const [activeMode, setActiveMode] = useState<StatsMode>(() =>
-    initialMode === "peaks" ? "peaks" : "countries"
-  );
+  const [activeMode, setActiveMode] = useState<StatsMode>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = sessionStorage.getItem("stats_active_mode");
+        if (saved === "peaks" || saved === "countries") return saved;
+      } catch {}
+    }
+    return initialMode === "peaks" ? "peaks" : "countries";
+  });
+
+  const switchStatsMode = (mode: StatsMode) => {
+    setActiveMode(mode);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("stats_active_mode", mode);
+      } catch {}
+    }
+    onModeChange?.(mode);
+  };
+
+  useEffect(() => {
+    if (activeMode && activeMode !== initialMode) {
+      onModeChange?.(activeMode);
+    }
+  }, [activeMode, initialMode, onModeChange]);
   const [ascents, setAscents] = useState<any[]>(() => {
     if (propAscents && propAscents.length > 0) return propAscents;
     if (typeof window !== "undefined" && session?.user?.id) {
@@ -142,8 +166,78 @@ export function StatsModal({
     return [];
   });
 
-  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.location.hash === "#galeria" || window.location.hash === "#lightbox";
+    }
+    return false;
+  });
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const openGallery = () => {
+    setGalleryOpen(true);
+    setLightboxIndex(null);
+    if (typeof window !== "undefined") {
+      if (window.location.hash !== "#galeria") {
+        window.history.pushState({ statsGallery: true }, "", "#galeria");
+      }
+    }
+  };
+
+  const closeGallery = () => {
+    setGalleryOpen(false);
+    setLightboxIndex(null);
+  };
+
+  const openLightbox = (idx: number) => {
+    setLightboxIndex(idx);
+    if (typeof window !== "undefined") {
+      if (window.location.hash !== "#lightbox") {
+        window.history.pushState({ statsLightbox: true }, "", "#lightbox");
+      }
+    }
+  };
+
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+  };
+
+  useEffect(() => {
+    if (!galleryOpen && typeof window !== "undefined" && window.location.hash === "#galeria") {
+      window.history.back();
+    }
+  }, [galleryOpen]);
+
+  useEffect(() => {
+    if (lightboxIndex === null && typeof window !== "undefined" && window.location.hash === "#lightbox") {
+      window.history.back();
+    }
+  }, [lightboxIndex]);
+
+  useEffect(() => {
+    const handleHashSync = () => {
+      const hash = window.location.hash;
+      if (hash === "#lightbox") {
+        setGalleryOpen(true);
+      } else if (hash === "#galeria") {
+        setGalleryOpen(true);
+        setLightboxIndex(null);
+      } else if (hash === "#estadisticas") {
+        setGalleryOpen(false);
+        setLightboxIndex(null);
+      } else if (!hash.startsWith("#panel")) {
+        setGalleryOpen(false);
+        setLightboxIndex(null);
+      }
+    };
+
+    window.addEventListener("hashchange", handleHashSync);
+    window.addEventListener("popstate", handleHashSync);
+    return () => {
+      window.removeEventListener("hashchange", handleHashSync);
+      window.removeEventListener("popstate", handleHashSync);
+    };
+  }, []);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [expandedRanges, setExpandedRanges] = useState<Record<string, boolean>>({});
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
@@ -166,9 +260,9 @@ export function StatsModal({
 
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) {
       if (dx < 0 && activeMode === "peaks") {
-        setActiveMode("countries");
+        switchStatsMode("countries");
       } else if (dx > 0 && activeMode === "countries") {
-        setActiveMode("peaks");
+        switchStatsMode("peaks");
       }
     }
   }
@@ -211,7 +305,7 @@ export function StatsModal({
         window.location.pathname === "/" ||
         window.location.pathname === "/paises"
       ) {
-        window.history.replaceState({ hasPanel: true }, "", `#panel=${encodeURIComponent(cleanId)}`);
+        window.history.pushState({ hasPanel: true }, "", `#panel=${encodeURIComponent(cleanId)}`);
         window.dispatchEvent(new Event("hashchange"));
       } else {
         window.location.href = targetPath;
@@ -435,7 +529,13 @@ export function StatsModal({
 
   // Desglose visual por años y meses de países visitados (incluyendo múltiples visitas y visitas repetidas en el mismo mes con (n))
   const visitsTimeline = useMemo(() => {
-    type CountryVisitGroup = { country: Country; summitId: string; count: number };
+    type CountryVisitGroup = {
+      country: Country;
+      summitId: string;
+      count: number;
+      earliestTime: number;
+      createdTime: number;
+    };
     type MonthEntry = { month: number; countries: CountryVisitGroup[] };
     type YearEntry = { year: number; months: MonthEntry[]; totalCount: number };
 
@@ -454,6 +554,9 @@ export function StatsModal({
         if (!isNaN(d.getTime())) {
           const y = d.getFullYear();
           const m = d.getMonth();
+          const time = d.getTime();
+          const createdTime = a.created_at ? new Date(a.created_at).getTime() : time;
+
           if (!yearMap[y]) yearMap[y] = {};
           if (!yearMap[y][m]) yearMap[y][m] = {};
 
@@ -462,9 +565,15 @@ export function StatsModal({
               country,
               summitId: a.summit_id || country.id,
               count: 1,
+              earliestTime: time,
+              createdTime,
             };
           } else {
             yearMap[y][m][country.id].count += 1;
+            if (time < yearMap[y][m][country.id].earliestTime) {
+              yearMap[y][m][country.id].earliestTime = time;
+              yearMap[y][m][country.id].summitId = a.summit_id || country.id;
+            }
           }
           return;
         }
@@ -476,6 +585,8 @@ export function StatsModal({
           country,
           summitId: a.summit_id || country.id,
           count: 1,
+          earliestTime: 0,
+          createdTime: a.created_at ? new Date(a.created_at).getTime() : 0,
         };
       } else {
         undatedMap[country.id].count += 1;
@@ -490,9 +601,15 @@ export function StatsModal({
           .map(Number)
           .sort((a, b) => b - a)
           .map((m) => {
-            const countriesList = Object.values(yearMap[y][m]).sort((a, b) =>
-              a.country.name.localeCompare(b.country.name)
-            );
+            const countriesList = Object.values(yearMap[y][m]).sort((a, b) => {
+              if (a.earliestTime !== b.earliestTime) {
+                return a.earliestTime - b.earliestTime;
+              }
+              if (a.createdTime !== b.createdTime) {
+                return a.createdTime - b.createdTime;
+              }
+              return a.country.name.localeCompare(b.country.name);
+            });
             return { month: m, countries: countriesList };
           });
 
@@ -520,7 +637,13 @@ export function StatsModal({
 
   // Desglose visual por años y meses de picos provinciales ascendidos (meses invertidos Dic -> Ene)
   const peaksTimeline = useMemo(() => {
-    type PeakAscentGroup = { peak: Peak; summitId: string; count: number };
+    type PeakAscentGroup = {
+      peak: Peak;
+      summitId: string;
+      count: number;
+      earliestTime: number;
+      createdTime: number;
+    };
     type MonthEntry = { month: number; peaks: PeakAscentGroup[] };
     type YearEntry = { year: number; months: MonthEntry[]; totalCount: number };
 
@@ -539,6 +662,9 @@ export function StatsModal({
         if (!isNaN(d.getTime())) {
           const y = d.getFullYear();
           const m = d.getMonth();
+          const time = d.getTime();
+          const createdTime = a.created_at ? new Date(a.created_at).getTime() : time;
+
           if (!yearMap[y]) yearMap[y] = {};
           if (!yearMap[y][m]) yearMap[y][m] = {};
 
@@ -547,9 +673,15 @@ export function StatsModal({
               peak,
               summitId: a.summit_id || peak.id,
               count: 1,
+              earliestTime: time,
+              createdTime,
             };
           } else {
             yearMap[y][m][peak.name].count += 1;
+            if (time < yearMap[y][m][peak.name].earliestTime) {
+              yearMap[y][m][peak.name].earliestTime = time;
+              yearMap[y][m][peak.name].summitId = a.summit_id || peak.id;
+            }
           }
           return;
         }
@@ -561,6 +693,8 @@ export function StatsModal({
           peak,
           summitId: a.summit_id || peak.id,
           count: 1,
+          earliestTime: 0,
+          createdTime: a.created_at ? new Date(a.created_at).getTime() : 0,
         };
       } else {
         undatedMap[peak.name].count += 1;
@@ -575,9 +709,15 @@ export function StatsModal({
           .map(Number)
           .sort((a, b) => b - a) // Invertido: meses de más reciente a más antiguo (Dic -> Ene)
           .map((m) => {
-            const peaksList = Object.values(yearMap[y][m]).sort((a, b) =>
-              a.peak.name.localeCompare(b.peak.name)
-            );
+            const peaksList = Object.values(yearMap[y][m]).sort((a, b) => {
+              if (a.earliestTime !== b.earliestTime) {
+                return a.earliestTime - b.earliestTime;
+              }
+              if (a.createdTime !== b.createdTime) {
+                return a.createdTime - b.createdTime;
+              }
+              return a.peak.name.localeCompare(b.peak.name);
+            });
             return { month: m, peaks: peaksList };
           });
 
@@ -655,7 +795,7 @@ export function StatsModal({
               role="tab"
               aria-selected={activeMode === "peaks"}
               className={`app-mode-btn ${activeMode === "peaks" ? "active" : ""}`}
-              onClick={() => setActiveMode("peaks")}
+              onClick={() => switchStatsMode("peaks")}
             >
               47 Picos
             </button>
@@ -664,7 +804,7 @@ export function StatsModal({
               role="tab"
               aria-selected={activeMode === "countries"}
               className={`app-mode-btn ${activeMode === "countries" ? "active" : ""}`}
-              onClick={() => setActiveMode("countries")}
+              onClick={() => switchStatsMode("countries")}
             >
               196 Países
             </button>
@@ -733,7 +873,7 @@ export function StatsModal({
               <button
                 type="button"
                 className="stats-open-gallery-action-btn"
-                onClick={() => setGalleryOpen(true)}
+                onClick={() => openGallery()}
               >
                 Ver galería
               </button>
@@ -1089,7 +1229,7 @@ export function StatsModal({
               <button
                 type="button"
                 className="stats-open-gallery-action-btn"
-                onClick={() => setGalleryOpen(true)}
+                onClick={() => openGallery()}
               >
                 Ver galería
               </button>
@@ -1390,7 +1530,7 @@ export function StatsModal({
                         key={photo.id || idx}
                         type="button"
                         className="stats-gallery-item"
-                        onClick={() => setLightboxIndex(idx)}
+                        onClick={() => openLightbox(idx)}
                         aria-label={`Ver foto de ${loc.name}`}
                       >
                         <img

@@ -311,4 +311,46 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(statsModalFile).toContain('id: "santa-cruz-tenerife"');
     expect(statsModalFile).toContain('completed: completedPeakIds.has("santa-cruz-tenerife") || completedPeakIds.has("teide")');
   });
+  it("8. Chronological ascending sort in timeline months and back navigation to statistics", () => {
+    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
+    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+
+    // Chronological ascending sort within month in visitsTimeline and peaksTimeline
+    expect(statsModalFile).toMatch(/countriesList\s*=\s*Object\.values\(yearMap\[y\]\[m\]\)\.sort\(\(\s*a,\s*b\s*\)\s*=>\s*\{[^}]*return\s+a\.earliestTime\s*-\s*b\.earliestTime/);
+    expect(statsModalFile).toMatch(/peaksList\s*=\s*Object\.values\(yearMap\[y\]\[m\]\)\.sort\(\(\s*a,\s*b\s*\)\s*=>\s*\{[^}]*return\s+a\.earliestTime\s*-\s*b\.earliestTime/);
+
+    // Navigating to record from stats pushes state to retain #estadisticas in browser history
+    expect(trackerFile).toMatch(/panelOpenedFromStatsRef\.current\s*=\s*true/);
+    expect(trackerFile).toMatch(/window\.history\.pushState\(\{\s*hasPanel:\s*true,\s*fromStats:\s*true\s*\},/);
+
+    // Going back to #estadisticas resets selected item and restores stats modal
+    expect(trackerFile).toMatch(/hash === "#estadisticas"[\s\S]*?setSelected\(null\)/);
+    expect(trackerFile).toMatch(/hash === "#estadisticas"[\s\S]*?setStatsOpen\(true\)/);
+
+    // Closing panel opened from stats triggers history.back()
+    expect(trackerFile).toMatch(/const fromStats = panelOpenedFromStatsRef\.current;[\s\S]*?if\s*\(fromStats\)\s*\{\s*window\.history\.back\(\);/);
+  });
+  it("9. Gallery and photo lightbox history stack and active mode preservation on return to map", () => {
+    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
+    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+
+    // Opening gallery pushes #galeria to history
+    expect(statsModalFile).toMatch(/openGallery[\s\S]*?window\.history\.pushState\(\{\s*statsGallery:\s*true\s*\},/);
+    expect(statsModalFile).toContain('"#galeria"');
+
+    // Opening photo in gallery pushes #lightbox to history
+    expect(statsModalFile).toMatch(/openLightbox[\s\S]*?window\.history\.pushState\(\{\s*statsLightbox:\s*true\s*\},/);
+    expect(statsModalFile).toContain('"#lightbox"');
+
+    // StatsModal synchronizes hash changes: #lightbox keeps gallery open, #galeria closes lightbox, #estadisticas closes gallery
+    expect(statsModalFile).toContain('hash === "#galeria"');
+    expect(statsModalFile).toContain('hash === "#estadisticas"');
+    expect(statsModalFile).toContain('setLightboxIndex(null)');
+
+    // StatsModal notifies mode changes and syncs mode with summit-tracker
+    expect(statsModalFile).toContain('onModeChange?: (mode: "peaks" | "countries") => void;');
+    expect(trackerFile).toMatch(/onModeChange=\{\(mode\)\s*=>\s*\{/);
+    expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*"peaks"\);[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*`\/picos/);
+    expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*"countries"\);[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*`\//);
+  });
 });
