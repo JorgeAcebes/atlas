@@ -41,6 +41,14 @@ export function usePendingTripInvitations() {
 
     checkPending();
 
+    const handlePendingChanged = () => {
+      if (mounted) {
+        checkPending();
+      }
+    };
+
+    window.addEventListener("atlas:pending-changed", handlePendingChanged);
+
     const uniqueId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const channelName = `pending-trip-invites:${userId}:${uniqueId}`;
 
@@ -64,6 +72,7 @@ export function usePendingTripInvitations() {
 
     return () => {
       mounted = false;
+      window.removeEventListener("atlas:pending-changed", handlePendingChanged);
       if (channel) {
         sb.removeChannel(channel);
       }

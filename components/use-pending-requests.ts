@@ -1,10 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './auth-context';
+import { notifyPendingChanged } from '@/lib/events';
+
+export { notifyPendingChanged };
 
 export function usePendingRequests() {
   const [hasPendingRequests, setHasPendingRequests] = useState(false);
-  const { session, profile } = useAuth();
+  const { session } = useAuth();
+
+  const checkPending = useCallback(async () => {
+    if (!supabase || !session) {
+      setHasPendingRequests(false);
+      return;
+    }
+
+    const sb = supabase;
+    const userId = session.user.id;
+
+    try {
+      const { data: pendingConns } = await sb
+        .from('connections')
+        .select('status')
+        .eq('following_id', userId)
+        .eq('status', 'pending')
+        .limit(1);
+      const hasPendingConns = Boolean(pendingConns && pendingConns.length > 0);
+
+      const { data: pendingComps } = await sb
+        .from('record_companions')
+        .select('id')
+        .eq('companion_id', userId)
+        .eq('status', 'pending')
+        .limit(1);
+      const hasPendingComps = Boolean(pendingComps && pendingComps.length > 0);
+
+      setHasPendingRequests(hasPendingConns || hasPendingComps);
+    } catch {
+      // Ignore
+    }
+  }, [session]);
 
   useEffect(() => {
     let mounted = true;
@@ -18,34 +53,15 @@ export function usePendingRequests() {
     const sb = supabase;
     const userId = session.user.id;
 
-    async function checkPending() {
-      if (!mounted) return;
-
-      let hasPendingConns = false;
-      if (!profile || !profile.is_public) {
-        const { data: pendingConns } = await sb
-          .from('connections')
-          .select('status')
-          .eq('following_id', userId)
-          .eq('status', 'pending')
-          .limit(1);
-        hasPendingConns = Boolean(pendingConns && pendingConns.length > 0);
-      }
-
-      const { data: pendingComps } = await sb
-        .from('record_companions')
-        .select('id')
-        .eq('companion_id', userId)
-        .eq('status', 'pending')
-        .limit(1);
-      const hasPendingComps = Boolean(pendingComps && pendingComps.length > 0);
-
-      if (mounted) {
-        setHasPendingRequests(hasPendingConns || hasPendingComps);
-      }
-    }
-
     checkPending();
+
+    const handlePendingChanged = () => {
+      if (mounted) {
+        checkPending();
+      }
+    };
+
+    window.addEventListener('atlas:pending-changed', handlePendingChanged);
 
     // Globally unique channel name to avoid collisions with
     // stale channels from React StrictMode double-mount or HMR.
@@ -63,7 +79,7 @@ export function usePendingRequests() {
           filter: `following_id=eq.${userId}`,
         },
         () => {
-          checkPending();
+          if (mounted) checkPending();
         }
       )
       .on(
@@ -75,18 +91,19 @@ export function usePendingRequests() {
           filter: `companion_id=eq.${userId}`,
         },
         () => {
-          checkPending();
+          if (mounted) checkPending();
         }
       )
       .subscribe();
 
     return () => {
       mounted = false;
+      window.removeEventListener('atlas:pending-changed', handlePendingChanged);
       if (channel) {
         sb.removeChannel(channel);
       }
     };
-  }, [session, profile]);
+  }, [session, checkPending]);
 
   return hasPendingRequests;
 }

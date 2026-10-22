@@ -3,66 +3,129 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./auth-context";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
+import { notifyPendingChanged } from "./use-pending-requests";
 import {
   RecordCompanion,
   acceptTripInvitation,
   rejectTripInvitation,
-  unlinkCompanion,
 } from "@/lib/companions";
 import { peaks } from "@/data/peaks";
 import { countries } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { X, Check, Inbox, Users, AlertCircle, Trash2 } from "lucide-react";
+import { X, Check, Inbox, Users, AlertCircle } from "lucide-react";
+
+export interface FollowRequest {
+  id: string;
+  follower_id: string;
+  following_id: string;
+  status: string;
+  created_at: string;
+  follower_profile?: {
+    id: string;
+    username: string;
+    avatar_url?: string | null;
+    is_public?: boolean;
+  } | null;
+}
 
 interface InboxModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInvitationAccepted?: () => void;
+  onInvitationRejected?: () => void;
+  onFollowAccepted?: (followerId: string) => void;
+  onFollowRejected?: (followerId: string) => void;
+  onPendingChanged?: () => void;
 }
 
-export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModalProps) {
+export function InboxModal({
+  isOpen,
+  onClose,
+  onInvitationAccepted,
+  onInvitationRejected,
+  onFollowAccepted,
+  onFollowRejected,
+  onPendingChanged,
+}: InboxModalProps) {
   const { session } = useAuth();
-  const [activeTab, setActiveTab] = useState<"pending" | "accepted">("pending");
-  const [invitations, setInvitations] = useState<RecordCompanion[]>([]);
+  const [activeTab, setActiveTab] = useState<"requests" | "shared">("requests");
+  const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
+  const [tripInvitations, setTripInvitations] = useState<RecordCompanion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const fetchInvitations = useCallback(async () => {
-    if (!supabase || !session) return;
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("record_companions")
-        .select(`
-          *,
-          inviter_profile:profiles!record_companions_inviter_id_fkey(id, username, avatar_url, is_public)
-        `)
-        .eq("companion_id", session.user.id)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setInvitations(data as RecordCompanion[]);
-      }
-    } catch (err) {
-      console.warn("Error fetching invitations:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [session]);
-
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const fetchInboxData = useCallback(
+    async (silent = false) => {
+      if (!supabase || !session) return;
+      if (!silent) setLoading(true);
+
+      const userId = session.user.id;
+      try {
+        const [connsRes, compsRes] = await Promise.all([
+          supabase
+            .from("connections")
+            .select("id, follower_id, following_id, status, created_at")
+            .eq("following_id", userId)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("record_companions")
+            .select(`
+              *,
+              inviter_profile:profiles!record_companions_inviter_id_fkey(id, username, avatar_url, is_public)
+            `)
+            .eq("companion_id", userId)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false }),
+        ]);
+
+        let enrichedRequests: FollowRequest[] = [];
+        if (connsRes.data && connsRes.data.length > 0) {
+          const followerIds = connsRes.data.map((c) => c.follower_id);
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, username, avatar_url, is_public")
+            .in("id", followerIds);
+
+          const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+          enrichedRequests = connsRes.data.map((c) => ({
+            ...c,
+            follower_profile: profileMap.get(c.follower_id) || null,
+          }));
+        }
+
+        const enrichedTrips = (compsRes.data as RecordCompanion[]) || [];
+
+        setFollowRequests(enrichedRequests);
+        setTripInvitations(enrichedTrips);
+        setHasLoadedOnce(true);
+
+        // If there are no follow requests but there ARE trip invitations, auto-switch to shared
+        if (!silent && enrichedRequests.length === 0 && enrichedTrips.length > 0) {
+          setActiveTab("shared");
+        }
+      } catch (err) {
+        console.warn("Error fetching inbox data:", err);
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [session]
+  );
+
   useEffect(() => {
     if (isOpen) {
       lockScroll();
-      fetchInvitations();
+      fetchInboxData();
     } else {
       unlockScroll();
       setNotice(null);
@@ -70,7 +133,7 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
     return () => {
       unlockScroll();
     };
-  }, [isOpen, fetchInvitations]);
+  }, [isOpen, fetchInboxData]);
 
   // Escape key closes inbox modal
   useEffect(() => {
@@ -87,10 +150,83 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
     };
   }, [isOpen, onClose]);
 
-  const handleAccept = async (inv: RecordCompanion) => {
+  // Handle follow requests
+  const handleAcceptFollow = async (req: FollowRequest) => {
+    if (!session || !supabase) return;
+    setActionLoadingId(req.id);
+    setNotice(null);
+
+    // Optimistic UI update
+    setFollowRequests((prev) => prev.filter((r) => r.id !== req.id));
+
+    try {
+      const { error } = await supabase
+        .from("connections")
+        .update({ status: "accepted" })
+        .eq("id", req.id);
+
+      if (error) {
+        // Rollback
+        setFollowRequests((prev) => [req, ...prev]);
+        setNotice("No se pudo aceptar la solicitud.");
+      } else {
+        const username = req.follower_profile?.username || "Usuario";
+        setNotice(`Has aceptado la solicitud de @${username}.`);
+        notifyPendingChanged();
+        onFollowAccepted?.(req.follower_id);
+        onPendingChanged?.();
+        setTimeout(() => setNotice(null), 3000);
+      }
+    } catch {
+      setFollowRequests((prev) => [req, ...prev]);
+      setNotice("Error al procesar la solicitud.");
+    } finally {
+      setActionLoadingId(null);
+      fetchInboxData(true);
+    }
+  };
+
+  const handleRejectFollow = async (req: FollowRequest) => {
+    if (!session || !supabase) return;
+    setActionLoadingId(req.id);
+    setNotice(null);
+
+    // Optimistic UI update
+    setFollowRequests((prev) => prev.filter((r) => r.id !== req.id));
+
+    try {
+      const { error } = await supabase
+        .from("connections")
+        .delete()
+        .eq("id", req.id);
+
+      if (error) {
+        setFollowRequests((prev) => [req, ...prev]);
+        setNotice("No se pudo rechazar la solicitud.");
+      } else {
+        setNotice("Solicitud rechazada.");
+        notifyPendingChanged();
+        onFollowRejected?.(req.follower_id);
+        onPendingChanged?.();
+        setTimeout(() => setNotice(null), 2500);
+      }
+    } catch {
+      setFollowRequests((prev) => [req, ...prev]);
+      setNotice("Error al procesar la solicitud.");
+    } finally {
+      setActionLoadingId(null);
+      fetchInboxData(true);
+    }
+  };
+
+  // Handle trip / record companions
+  const handleAcceptTrip = async (inv: RecordCompanion) => {
     if (!session) return;
     setActionLoadingId(inv.id);
     setNotice(null);
+
+    // Optimistic UI update
+    setTripInvitations((prev) => prev.filter((i) => i.id !== inv.id));
 
     const res = await acceptTripInvitation(inv, session.user.id);
     setActionLoadingId(null);
@@ -101,53 +237,40 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
           ? "¡Fecha actualizada y actividad completada con éxito!"
           : "¡Actividad añadida a tu mapa y completada con éxito!"
       );
-      await fetchInvitations();
+      notifyPendingChanged();
       onInvitationAccepted?.();
+      onPendingChanged?.();
       setTimeout(() => setNotice(null), 3500);
     } else {
+      setTripInvitations((prev) => [inv, ...prev]);
       setNotice(res.error || "No se pudo aceptar la invitación.");
     }
+    fetchInboxData(true);
   };
 
-  const handleReject = async (invId: string) => {
+  const handleRejectTrip = async (inv: RecordCompanion) => {
     if (!session) return;
-    setActionLoadingId(invId);
+    setActionLoadingId(inv.id);
     setNotice(null);
 
-    const res = await rejectTripInvitation(invId, session.user.id);
+    // Optimistic UI update
+    setTripInvitations((prev) => prev.filter((i) => i.id !== inv.id));
+
+    const res = await rejectTripInvitation(inv.id, session.user.id);
     setActionLoadingId(null);
 
     if (res.success) {
       setNotice("Invitación rechazada.");
-      await fetchInvitations();
+      notifyPendingChanged();
+      onInvitationRejected?.();
+      onPendingChanged?.();
       setTimeout(() => setNotice(null), 2500);
     } else {
+      setTripInvitations((prev) => [inv, ...prev]);
       setNotice(res.error || "No se pudo rechazar la invitación.");
     }
+    fetchInboxData(true);
   };
-
-  const handleUnlink = async (invId: string) => {
-    if (!session) return;
-    setActionLoadingId(invId);
-    setNotice(null);
-
-    const res = await unlinkCompanion(invId, session.user.id);
-    setActionLoadingId(null);
-
-    if (res.success) {
-      setNotice("Te has desvinculado de este viaje.");
-      await fetchInvitations();
-      onInvitationAccepted?.();
-      setTimeout(() => setNotice(null), 2500);
-    } else {
-      setNotice(res.error || "No se pudo desvincular.");
-    }
-  };
-
-  if (!isOpen) return null;
-
-  const pendingList = invitations.filter((i) => i.status === "pending");
-  const acceptedList = invitations.filter((i) => i.status === "accepted");
 
   function getActivityDetails(inv: RecordCompanion) {
     if (inv.item_type === "peaks") {
@@ -233,6 +356,7 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
           borderRadius: "14px",
           width: "100%",
           maxWidth: "520px",
+          minHeight: "440px",
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
@@ -281,7 +405,7 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
                 Bandeja de entrada
               </h2>
               <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--muted, #6b7280)" }}>
-                Invitaciones de compañeros de ruta y viaje
+                Solicitudes de seguimiento y viajes compartidos
               </p>
             </div>
           </div>
@@ -334,7 +458,7 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
         >
           <button
             type="button"
-            onClick={() => setActiveTab("pending")}
+            onClick={() => setActiveTab("requests")}
             style={{
               flex: 1,
               padding: "12px 16px",
@@ -342,34 +466,31 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
               background: "none",
               cursor: "pointer",
               fontSize: "13px",
-              fontWeight: activeTab === "pending" ? 700 : 500,
-              color: activeTab === "pending" ? "var(--pine, #2d5a43)" : "var(--muted, #6b7280)",
-              borderBottom: activeTab === "pending" ? "2px solid var(--pine, #2d5a43)" : "2px solid transparent",
+              fontWeight: activeTab === "requests" ? 700 : 500,
+              color: activeTab === "requests" ? "var(--pine, #2d5a43)" : "var(--muted, #6b7280)",
+              borderBottom: activeTab === "requests" ? "2px solid var(--pine, #2d5a43)" : "2px solid transparent",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px",
+              gap: "8px",
             }}
           >
-            <span>Pendientes</span>
-            {pendingList.length > 0 && (
+            <span>Solicitudes</span>
+            {followRequests.length > 0 && (
               <span
                 style={{
-                  backgroundColor: "#e53e3e",
-                  color: "#fff",
-                  fontSize: "11px",
-                  borderRadius: "10px",
-                  padding: "1px 7px",
-                  fontWeight: 700,
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  backgroundColor: "#ef4444",
+                  display: "inline-block",
                 }}
-              >
-                {pendingList.length}
-              </span>
+              />
             )}
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("accepted")}
+            onClick={() => setActiveTab("shared")}
             style={{
               flex: 1,
               padding: "12px 16px",
@@ -377,16 +498,27 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
               background: "none",
               cursor: "pointer",
               fontSize: "13px",
-              fontWeight: activeTab === "accepted" ? 700 : 500,
-              color: activeTab === "accepted" ? "var(--pine, #2d5a43)" : "var(--muted, #6b7280)",
-              borderBottom: activeTab === "accepted" ? "2px solid var(--pine, #2d5a43)" : "2px solid transparent",
+              fontWeight: activeTab === "shared" ? 700 : 500,
+              color: activeTab === "shared" ? "var(--pine, #2d5a43)" : "var(--muted, #6b7280)",
+              borderBottom: activeTab === "shared" ? "2px solid var(--pine, #2d5a43)" : "2px solid transparent",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px",
+              gap: "8px",
             }}
           >
-            <span>Viajes compartidos ({acceptedList.length})</span>
+            <span>Registros compartidos</span>
+            {tripInvitations.length > 0 && (
+              <span
+                style={{
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  backgroundColor: "#ef4444",
+                  display: "inline-block",
+                }}
+              />
+            )}
           </button>
         </div>
 
@@ -396,59 +528,60 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
             padding: "16px 20px",
             overflowY: "auto",
             flex: 1,
+            minHeight: "300px",
             display: "flex",
             flexDirection: "column",
             gap: "12px",
           }}
         >
-          {loading ? (
-            <div style={{ textAlign: "center", padding: "32px 0", color: "var(--muted, #6b7280)", fontSize: "14px" }}>
-              Cargando invitaciones...
+          {loading && !hasLoadedOnce ? (
+            <div style={{ textAlign: "center", padding: "48px 0", color: "var(--muted, #6b7280)", fontSize: "14px" }}>
+              Cargando solicitudes...
             </div>
-          ) : activeTab === "pending" ? (
-            pendingList.length === 0 ? (
+          ) : activeTab === "requests" ? (
+            followRequests.length === 0 ? (
               <div
                 style={{
                   textAlign: "center",
-                  padding: "36px 16px",
+                  padding: "48px 16px",
                   color: "var(--muted, #6b7280)",
                 }}
               >
                 <Users size={36} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
-                <p style={{ margin: 0, fontWeight: 600, fontSize: "14px" }}>No tienes invitaciones pendientes</p>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: "14px" }}>No tienes solicitudes de seguimiento</p>
                 <p style={{ margin: "4px 0 0", fontSize: "12px" }}>
-                  Cuando alguien que os sigáis mutuamente te añada a una ruta o viaje, aparecerá aquí.
+                  Cuando alguien te envíe una solicitud de seguimiento, aparecerá aquí.
                 </p>
               </div>
             ) : (
-              pendingList.map((inv) => {
-                const details = getActivityDetails(inv);
-                const inviter = inv.inviter_profile;
-                const isProcessing = actionLoadingId === inv.id;
+              followRequests.map((req) => {
+                const follower = req.follower_profile;
+                const isProcessing = actionLoadingId === req.id;
 
                 return (
                   <div
-                    key={inv.id}
+                    key={req.id}
                     style={{
                       border: "1px solid var(--border, #e5e7eb)",
                       borderRadius: "10px",
-                      padding: "14px",
+                      padding: "12px 14px",
                       backgroundColor: "rgba(0, 0, 0, 0.01)",
                       display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "12px",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
                       <div
                         style={{
-                          width: "38px",
-                          height: "38px",
+                          width: "40px",
+                          height: "40px",
                           borderRadius: "50%",
                           backgroundColor: "var(--pine, #2d5a43)",
                           color: "#fff",
                           fontWeight: 700,
-                          fontSize: "14px",
+                          fontSize: "15px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -456,50 +589,39 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
                           flexShrink: 0,
                         }}
                       >
-                        {inviter?.avatar_url ? (
+                        {follower?.avatar_url ? (
                           <img
-                            src={inviter.avatar_url}
-                            alt={inviter.username}
+                            src={follower.avatar_url}
+                            alt={follower.username}
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />
                         ) : (
-                          inviter?.username?.charAt(0).toUpperCase() || "?"
+                          follower?.username?.charAt(0).toUpperCase() || "?"
                         )}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "13px", lineHeight: 1.3 }}>
-                          <strong>@{inviter?.username || "Usuario"}</strong> te invitó como{" "}
-                          <span style={{ color: "var(--pine, #2d5a43)", fontWeight: 600 }}>{details.typeLabel}</span>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 700,
+                            color: "var(--ink, #1f2937)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          @{follower?.username || "Usuario"}
                         </div>
-                        <div style={{ fontSize: "11px", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
-                          Fecha: {formatDateRange(inv.start_date, inv.end_date)}
+                        <div style={{ fontSize: "12px", color: "var(--muted, #6b7280)", marginTop: "1px" }}>
+                          quiere seguirte
                         </div>
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        padding: "8px 12px",
-                        backgroundColor: "rgba(92, 155, 125, 0.08)",
-                        borderRadius: "6px",
-                      }}
-                    >
-                      <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink, #1f2937)" }}>
-                        {details.title}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
-                        {details.subtitle}
-                      </div>
-                    </div>
-
-                    <div style={{ fontSize: "11px", color: "var(--muted, #6b7280)", fontStyle: "italic" }}>
-                      * Al aceptar, se añadirá a tu mapa sin fotos ni notas personales.
-                    </div>
-
-                    <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "2px" }}>
+                    <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                       <button
                         type="button"
-                        onClick={() => handleReject(inv.id)}
+                        onClick={() => handleRejectFollow(req)}
                         disabled={isProcessing}
                         style={{
                           padding: "6px 14px",
@@ -517,7 +639,7 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleAccept(inv)}
+                        onClick={() => handleAcceptFollow(req)}
                         disabled={isProcessing}
                         style={{
                           padding: "6px 16px",
@@ -542,22 +664,22 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
                 );
               })
             )
-          ) : acceptedList.length === 0 ? (
+          ) : tripInvitations.length === 0 ? (
             <div
               style={{
                 textAlign: "center",
-                padding: "36px 16px",
+                padding: "48px 16px",
                 color: "var(--muted, #6b7280)",
               }}
             >
               <Users size={36} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
-              <p style={{ margin: 0, fontWeight: 600, fontSize: "14px" }}>No tienes viajes compartidos activos</p>
+              <p style={{ margin: 0, fontWeight: 600, fontSize: "14px" }}>No tienes registros compartidos pendientes</p>
               <p style={{ margin: "4px 0 0", fontSize: "12px" }}>
-                Las actividades que aceptes realizar con amigos aparecerán aquí.
+                Cuando un compañero de ruta o viaje te invite a compartir una actividad, aparecerá aquí.
               </p>
             </div>
           ) : (
-            acceptedList.map((inv) => {
+            tripInvitations.map((inv) => {
               const details = getActivityDetails(inv);
               const inviter = inv.inviter_profile;
               const isProcessing = actionLoadingId === inv.id;
@@ -568,44 +690,108 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
                   style={{
                     border: "1px solid var(--border, #e5e7eb)",
                     borderRadius: "10px",
-                    padding: "12px 14px",
+                    padding: "14px",
+                    backgroundColor: "rgba(0, 0, 0, 0.01)",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
+                    flexDirection: "column",
+                    gap: "10px",
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div
+                      style={{
+                        width: "38px",
+                        height: "38px",
+                        borderRadius: "50%",
+                        backgroundColor: "var(--pine, #2d5a43)",
+                        color: "#fff",
+                        fontWeight: 700,
+                        fontSize: "14px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {inviter?.avatar_url ? (
+                        <img
+                          src={inviter.avatar_url}
+                          alt={inviter.username}
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                      ) : (
+                        inviter?.username?.charAt(0).toUpperCase() || "?"
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "13px", lineHeight: 1.3 }}>
+                        <strong>@{inviter?.username || "Usuario"}</strong> te invitó como{" "}
+                        <span style={{ color: "var(--pine, #2d5a43)", fontWeight: 600 }}>{details.typeLabel}</span>
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
+                        Fecha: {formatDateRange(inv.start_date, inv.end_date)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      backgroundColor: "rgba(92, 155, 125, 0.08)",
+                      borderRadius: "6px",
+                    }}
+                  >
                     <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink, #1f2937)" }}>
                       {details.title}
                     </div>
                     <div style={{ fontSize: "12px", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
-                      Con @{inviter?.username || "amigo"} · {formatDateRange(inv.start_date, inv.end_date)}
+                      {details.subtitle}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleUnlink(inv.id)}
-                    disabled={isProcessing}
-                    title="Desvincularme de este viaje compartido"
-                    style={{
-                      background: "none",
-                      border: "1px solid #fed7d7",
-                      color: "#e53e3e",
-                      borderRadius: "6px",
-                      padding: "6px 10px",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      cursor: isProcessing ? "not-allowed" : "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Trash2 size={12} />
-                    <span>Desvincular</span>
-                  </button>
+
+                  <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "2px" }}>
+                    <button
+                      type="button"
+                      onClick={() => handleRejectTrip(inv)}
+                      disabled={isProcessing}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border, #d1d5db)",
+                        background: "#fff",
+                        color: "var(--muted, #6b7280)",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        cursor: isProcessing ? "not-allowed" : "pointer",
+                        opacity: isProcessing ? 0.6 : 1,
+                      }}
+                    >
+                      Rechazar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAcceptTrip(inv)}
+                      disabled={isProcessing}
+                      style={{
+                        padding: "6px 16px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "var(--pine, #2d5a43)",
+                        color: "#fff",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        cursor: isProcessing ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        opacity: isProcessing ? 0.6 : 1,
+                      }}
+                    >
+                      <Check size={14} />
+                      <span>Aceptar</span>
+                    </button>
+                  </div>
                 </div>
               );
             })

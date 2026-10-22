@@ -18,7 +18,7 @@ import { countries } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
 import { UserRoundCheck, ChartNoAxesColumn } from "lucide-react";
 import { StatsModal } from "./stats-modal";
-import { usePendingRequests } from "./use-pending-requests";
+import { usePendingRequests, notifyPendingChanged } from "./use-pending-requests";
 import { getLocationInfo } from "@/lib/stats-utils";
 
 type Profile = {
@@ -675,7 +675,12 @@ export function SocialTab({
       .eq('following_id', session.user.id);
       
     if (!error) {
-      setFollowerStatuses(prev => ({ ...prev, [profileId]: 'accepted' }));
+      setFollowerStatuses(prev => {
+        const next = { ...prev, [profileId]: 'accepted' as ConnectionStatus };
+        cachedFollowerStatuses = next;
+        return next;
+      });
+      notifyPendingChanged();
     }
   }
 
@@ -691,9 +696,15 @@ export function SocialTab({
       setFollowerStatuses(prev => {
         const next = { ...prev };
         delete next[profileId];
+        cachedFollowerStatuses = next;
         return next;
       });
-      setFollowers(prev => prev.filter(p => p.id !== profileId));
+      setFollowers(prev => {
+        const next = prev.filter(p => p.id !== profileId);
+        cachedFollowers = next;
+        return next;
+      });
+      notifyPendingChanged();
     }
   }
 
@@ -924,7 +935,7 @@ export function SocialTab({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setConnectionsModal('followers');
+                  setInboxOpen(true);
                 }}
                 style={{ 
                   position: 'absolute', 
@@ -1491,6 +1502,34 @@ export function SocialTab({
         isOpen={inboxOpen}
         onClose={() => setInboxOpen(false)}
         onInvitationAccepted={() => {
+          refreshPendingInvitations();
+        }}
+        onInvitationRejected={() => {
+          refreshPendingInvitations();
+        }}
+        onFollowAccepted={(followerId) => {
+          setFollowerStatuses((prev) => {
+            const next = { ...prev, [followerId]: "accepted" as ConnectionStatus };
+            cachedFollowerStatuses = next;
+            return next;
+          });
+          refreshPendingInvitations();
+        }}
+        onFollowRejected={(followerId) => {
+          setFollowerStatuses((prev) => {
+            const next = { ...prev };
+            delete next[followerId];
+            cachedFollowerStatuses = next;
+            return next;
+          });
+          setFollowers((prev) => {
+            const next = prev.filter((p) => p.id !== followerId);
+            cachedFollowers = next;
+            return next;
+          });
+          refreshPendingInvitations();
+        }}
+        onPendingChanged={() => {
           refreshPendingInvitations();
         }}
       />
