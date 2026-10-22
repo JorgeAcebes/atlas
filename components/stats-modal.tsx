@@ -20,11 +20,10 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
-  ChartNoAxesColumn,
 } from "lucide-react";
 import "./stats-modal.css";
 
-type StatsMode = "peaks" | "countries";
+export type StatsMode = "peaks" | "countries" | "experiences";
 
 type Props = {
   session?: Session | null;
@@ -44,10 +43,12 @@ type Props = {
   } | null;
   ascents?: any[];
   experienceRecords?: any[];
+  customExperiences?: any[];
+  customCategories?: any[];
   photos?: any[];
   photosCount?: number;
-  initialMode?: "peaks" | "countries";
-  onModeChange?: (mode: "peaks" | "countries") => void;
+  initialMode?: StatsMode;
+  onModeChange?: (mode: StatsMode) => void;
   onClose: () => void;
   onGoToRecord?: (summitId: string) => void;
 };
@@ -117,6 +118,8 @@ export function StatsModal({
   targetProfile,
   ascents: propAscents,
   experienceRecords: propExperiences,
+  customExperiences: propCustomExperiences,
+  customCategories: propCustomCategories,
   photos: propPhotos,
   photosCount: propPhotosCount,
   initialMode = "countries",
@@ -126,31 +129,51 @@ export function StatsModal({
 }: Props) {
   const isTargetOther = Boolean(targetProfile && session?.user?.id && targetProfile.id !== session.user.id);
   const effectiveUserId = targetProfile ? targetProfile.id : session?.user?.id;
+  const overlayRef = useRef<HTMLDivElement>(null);
+
   const [activeMode, setActiveMode] = useState<StatsMode>(() => {
+    if (initialMode === "experiences") return "experiences";
+    if (initialMode === "peaks") return "peaks";
     if (typeof window !== "undefined") {
       try {
         const saved = sessionStorage.getItem("stats_active_mode");
-        if (saved === "peaks" || saved === "countries") return saved;
+        if (saved === "peaks" || saved === "countries" || saved === "experiences") {
+          return saved as StatsMode;
+        }
       } catch {}
     }
-    return initialMode === "peaks" ? "peaks" : "countries";
+    return "countries";
   });
 
+  // Sincronizar activeMode si cambia el prop initialMode desde el padre
+  useEffect(() => {
+    if (initialMode) {
+      setActiveMode(initialMode);
+    }
+  }, [initialMode]);
+
   const switchStatsMode = (mode: StatsMode) => {
+    if (mode === activeMode) return;
     setActiveMode(mode);
     if (typeof window !== "undefined") {
       try {
         sessionStorage.setItem("stats_active_mode", mode);
       } catch {}
     }
-    onModeChange?.(mode);
+    // Defer parent synchronization so the toggle indicator animates instantly with 0ms latency
+    React.startTransition(() => {
+      onModeChange?.(mode);
+    });
   };
 
-  useEffect(() => {
-    if (activeMode && activeMode !== initialMode) {
-      onModeChange?.(activeMode);
+  const handleToggleExperiences = () => {
+    if (activeMode === "experiences") {
+      switchStatsMode("countries");
+    } else {
+      switchStatsMode("experiences");
     }
-  }, [activeMode, initialMode, onModeChange]);
+  };
+
   const [ascents, setAscents] = useState<any[]>(() => {
     if (propAscents !== undefined) return propAscents;
     if (!isTargetOther && typeof window !== "undefined" && session?.user?.id) {
@@ -163,11 +186,51 @@ export function StatsModal({
     }
     return [];
   });
+
   const [photos, setPhotos] = useState<any[]>(() => {
     if (propPhotos !== undefined) return propPhotos;
     if (!isTargetOther && typeof window !== "undefined" && session?.user?.id) {
       try {
         const stored = localStorage.getItem(`app_tracker_photos_${session.user.id}`);
+        if (stored) return JSON.parse(stored);
+      } catch {
+        /* ignore */
+      }
+    }
+    return [];
+  });
+
+  const [experienceRecords, setExperienceRecords] = useState<any[]>(() => {
+    if (propExperiences !== undefined) return propExperiences;
+    if (!isTargetOther && typeof window !== "undefined" && session?.user?.id) {
+      try {
+        const stored = localStorage.getItem(`app_tracker_exp_records_${session.user.id}`);
+        if (stored) return JSON.parse(stored);
+      } catch {
+        /* ignore */
+      }
+    }
+    return [];
+  });
+
+  const [customExperiences, setCustomExperiences] = useState<any[]>(() => {
+    if (propCustomExperiences !== undefined) return propCustomExperiences;
+    if (!isTargetOther && typeof window !== "undefined" && session?.user?.id) {
+      try {
+        const stored = localStorage.getItem(`app_tracker_custom_exp_${session.user.id}`);
+        if (stored) return JSON.parse(stored);
+      } catch {
+        /* ignore */
+      }
+    }
+    return [];
+  });
+
+  const [customCategories, setCustomCategories] = useState<any[]>(() => {
+    if (propCustomCategories !== undefined) return propCustomCategories;
+    if (!isTargetOther && typeof window !== "undefined" && session?.user?.id) {
+      try {
+        const stored = localStorage.getItem(`app_tracker_custom_cat_${session.user.id}`);
         if (stored) return JSON.parse(stored);
       } catch {
         /* ignore */
@@ -248,6 +311,7 @@ export function StatsModal({
       window.removeEventListener("popstate", handleHashSync);
     };
   }, []);
+
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [expandedRanges, setExpandedRanges] = useState<Record<string, boolean>>({});
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
@@ -256,26 +320,98 @@ export function StatsModal({
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  }
+  // Soporte de deslizamiento horizontal táctil (swipe) en toda la modal de estadísticas
+  useEffect(() => {
+    const el = overlayRef.current;
+    if (!el) return;
 
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    const dy = e.changedTouches[0].clientY - touchStartY.current;
-    touchStartX.current = null;
-    touchStartY.current = null;
-
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) {
-      if (dx < 0 && activeMode === "peaks") {
-        switchStatsMode("countries");
-      } else if (dx > 0 && activeMode === "countries") {
-        switchStatsMode("peaks");
+    const handleTouchStart = (e: TouchEvent) => {
+      if (galleryOpen || lightboxIndex !== null) return;
+      if (e.touches.length === 1) {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
       }
-    }
-  }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (galleryOpen || lightboxIndex !== null) {
+        touchStartX.current = null;
+        touchStartY.current = null;
+        return;
+      }
+      if (touchStartX.current === null || touchStartY.current === null) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const diffX = endX - touchStartX.current;
+      const diffY = endY - touchStartY.current;
+      touchStartX.current = null;
+      touchStartY.current = null;
+
+      // Distancia mínima de 45px, predominantemente horizontal
+      if (Math.abs(diffX) >= 45 && Math.abs(diffY) <= 50 && Math.abs(diffX) >= Math.abs(diffY) * 1.5) {
+        if (diffX < 0) {
+          // Deslizar izquierda (avanzar)
+          if (activeMode === "peaks") {
+            switchStatsMode("countries");
+          } else if (activeMode === "countries") {
+            switchStatsMode("experiences");
+          }
+        } else {
+          // Deslizar derecha (retroceder)
+          if (activeMode === "experiences") {
+            switchStatsMode("countries");
+          } else if (activeMode === "countries") {
+            switchStatsMode("peaks");
+          }
+        }
+      }
+    };
+
+    el.addEventListener("touchstart", handleTouchStart, { passive: true });
+    el.addEventListener("touchend", handleTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [activeMode, galleryOpen, lightboxIndex]);
+
+  // Soporte de desplazamiento horizontal con trackpad/rueda de ratón (gesto horizontal fluido)
+  useEffect(() => {
+    const el = overlayRef.current;
+    if (!el) return;
+
+    let lastWheelTime = 0;
+    const handleWheel = (e: WheelEvent) => {
+      if (galleryOpen || lightboxIndex !== null) return;
+      if (
+        Math.abs(e.deltaX) >= 40 &&
+        Math.abs(e.deltaX) >= Math.abs(e.deltaY) * 1.5
+      ) {
+        const now = Date.now();
+        if (now - lastWheelTime > 450) {
+          lastWheelTime = now;
+          if (e.deltaX > 0) {
+            if (activeMode === "peaks") {
+              switchStatsMode("countries");
+            } else if (activeMode === "countries") {
+              switchStatsMode("experiences");
+            }
+          } else {
+            if (activeMode === "experiences") {
+              switchStatsMode("countries");
+            } else if (activeMode === "countries") {
+              switchStatsMode("peaks");
+            }
+          }
+        }
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+    };
+  }, [activeMode, galleryOpen, lightboxIndex]);
 
   function toggleRange(id: string) {
     setExpandedRanges((prev) => ({
@@ -345,6 +481,24 @@ export function StatsModal({
   }, [propPhotos]);
 
   useEffect(() => {
+    if (propExperiences !== undefined) {
+      setExperienceRecords(propExperiences);
+    }
+  }, [propExperiences]);
+
+  useEffect(() => {
+    if (propCustomExperiences !== undefined) {
+      setCustomExperiences(propCustomExperiences);
+    }
+  }, [propCustomExperiences]);
+
+  useEffect(() => {
+    if (propCustomCategories !== undefined) {
+      setCustomCategories(propCustomCategories);
+    }
+  }, [propCustomCategories]);
+
+  useEffect(() => {
     if (!supabase || !effectiveUserId) return;
     if (propPhotos === undefined && photos.length === 0) {
       supabase
@@ -359,7 +513,23 @@ export function StatsModal({
     }
   }, [effectiveUserId, propPhotos, photos.length]);
 
-  // Fetch full ascents with achieved_on if missing or empty (for logged-in user only, not when inspecting someone else)
+  // Fetch experience records if missing
+  useEffect(() => {
+    if (!supabase || !effectiveUserId) return;
+    if (propExperiences === undefined && experienceRecords.length === 0) {
+      supabase
+        .from("experience_records")
+        .select("*")
+        .eq("user_id", effectiveUserId)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setExperienceRecords(data);
+          }
+        });
+    }
+  }, [effectiveUserId, propExperiences, experienceRecords.length]);
+
+  // Fetch full ascents with achieved_on if missing or empty
   useEffect(() => {
     if (!session?.user?.id || !supabase || isTargetOther) return;
     const isMissingDates =
@@ -383,7 +553,7 @@ export function StatsModal({
     }
   }, [session, ascents, isTargetOther, propAscents]);
 
-  // ── Compute Analytics & Metrics ─────────────
+  // ── Compute Analytics & Metrics (Picos & Países) ─────────────
   const metrics = useMemo(() => {
     const validDoneAscents = ascents.filter((a) => !a.is_wishlist);
     const completedPeakIds = new Set<string>();
@@ -546,7 +716,122 @@ export function StatsModal({
     };
   }, [ascents]);
 
-  // Desglose visual por años y meses de países visitados (incluyendo múltiples visitas y visitas repetidas en el mismo mes con (n))
+  // ── Compute Analytics & Metrics (Experiencias) ─────────────
+  const expMetrics = useMemo(() => {
+    // 1. Recopilar categorías estáticas y personalizadas
+    const allPredefined = predefinedCategories.map((cat) => {
+      const linkedCustomExps = customExperiences
+        .filter((ce) => ce.static_category_id === cat.id)
+        .map((ce) => ({ id: ce.id, name: ce.name, subItems: ce.sub_items }));
+      return {
+        ...cat,
+        experiences: [...cat.experiences, ...linkedCustomExps],
+      };
+    });
+
+    const customCats = customCategories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      iconName: cat.icon_name || "star",
+      experiences: customExperiences
+        .filter((ce) => ce.category_id === cat.id)
+        .map((ce) => ({ id: ce.id, name: ce.name, subItems: ce.sub_items })),
+    }));
+
+    const orphanedCustom = customExperiences.filter(
+      (ce) => !ce.category_id && !ce.static_category_id
+    );
+    const orphanCategories: any[] = [];
+    if (orphanedCustom.length > 0) {
+      orphanCategories.push({
+        id: "cat-custom-other",
+        name: "Otras Experiencias",
+        iconName: "star",
+        experiences: orphanedCustom.map((ce) => ({ id: ce.id, name: ce.name, subItems: ce.sub_items })),
+      });
+    }
+
+    const allCategories = [...allPredefined, ...customCats, ...orphanCategories];
+
+    // 2. Registros completados
+    const completedExpRecords = [
+      ...experienceRecords.filter((r) => !r.is_wishlist),
+      ...ascents
+        .filter(
+          (a) =>
+            !a.is_wishlist &&
+            (a.summit_id?.startsWith("exp-") || a.summit_id?.startsWith("custom-"))
+        )
+        .map((a) => ({
+          experience_id: a.summit_id,
+          sub_item_id: a.sub_item_id,
+        })),
+    ];
+
+    let totalCount = 0;
+    let completedCount = 0;
+
+    const categoriesStatus = allCategories.map((cat) => {
+      let catDone = 0;
+      const experiencesList = cat.experiences.map((exp: any) => {
+        totalCount++;
+        let isExpDone = false;
+        let subItemsDone = 0;
+        const subItemsTotal = exp.subItems?.length || 0;
+
+        if (!exp.subItems || exp.subItems.length === 0) {
+          isExpDone = completedExpRecords.some((r) => r.experience_id === exp.id);
+        } else {
+          const subItemIds = exp.subItems.map((s: any) => s.id);
+          const completedSubIds = new Set(
+            completedExpRecords
+              .filter((r) => r.experience_id === exp.id && r.sub_item_id)
+              .map((r) => r.sub_item_id)
+          );
+          subItemsDone = exp.subItems.filter((s: any) => completedSubIds.has(s.id)).length;
+          // Invariante 4.2: Con sub-items sólo se computa completada si TODOS sus sub-items están marcados
+          isExpDone = subItemIds.length > 0 && subItemIds.every((id: string) => completedSubIds.has(id));
+        }
+
+        if (isExpDone) {
+          catDone++;
+          completedCount++;
+        }
+
+        return {
+          id: exp.id,
+          name: exp.name,
+          completed: isExpDone,
+          subItemsDone,
+          subItemsTotal,
+        };
+      });
+
+      const catTotal = experiencesList.length;
+      const catPct = catTotal > 0 ? Math.round((catDone / catTotal) * 100) : 0;
+
+      return {
+        id: cat.id,
+        name: cat.name,
+        iconName: cat.iconName,
+        done: catDone,
+        total: catTotal,
+        pct: catPct,
+        experiencesList,
+      };
+    });
+
+    const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+    return {
+      totalCount,
+      completedCount,
+      pct,
+      categoriesStatus,
+    };
+  }, [experienceRecords, ascents, customExperiences, customCategories]);
+
+  // Desglose visual por años y meses de países visitados
   const visitsTimeline = useMemo(() => {
     type CountryVisitGroup = {
       country: Country;
@@ -558,7 +843,6 @@ export function StatsModal({
     type MonthEntry = { month: number; countries: CountryVisitGroup[] };
     type YearEntry = { year: number; months: MonthEntry[]; totalCount: number };
 
-    // year -> month -> country.id -> CountryVisitGroup
     const yearMap: Record<number, Record<number, Record<string, CountryVisitGroup>>> = {};
     const undatedMap: Record<string, CountryVisitGroup> = {};
 
@@ -654,7 +938,7 @@ export function StatsModal({
     };
   }, [ascents]);
 
-  // Desglose visual por años y meses de picos provinciales ascendidos (meses invertidos Dic -> Ene)
+  // Desglose visual por años y meses de picos provinciales ascendidos
   const peaksTimeline = useMemo(() => {
     type PeakAscentGroup = {
       peak: Peak;
@@ -666,7 +950,6 @@ export function StatsModal({
     type MonthEntry = { month: number; peaks: PeakAscentGroup[] };
     type YearEntry = { year: number; months: MonthEntry[]; totalCount: number };
 
-    // year -> month -> peak.name -> PeakAscentGroup
     const yearMap: Record<number, Record<number, Record<string, PeakAscentGroup>>> = {};
     const undatedMap: Record<string, PeakAscentGroup> = {};
 
@@ -726,7 +1009,7 @@ export function StatsModal({
       .map((y) => {
         const months: MonthEntry[] = Object.keys(yearMap[y])
           .map(Number)
-          .sort((a, b) => b - a) // Invertido: meses de más reciente a más antiguo (Dic -> Ene)
+          .sort((a, b) => b - a)
           .map((m) => {
             const peaksList = Object.values(yearMap[y][m]).sort((a, b) => {
               if (a.earliestTime !== b.earliestTime) {
@@ -762,17 +1045,140 @@ export function StatsModal({
     };
   }, [ascents]);
 
-  // Fotos filtradas exclusivamente por el modo activo (peaks vs countries)
+  // Desglose visual por años y meses de experiencias vividas
+  const experiencesTimeline = useMemo(() => {
+    type ExpVisitGroup = {
+      name: string;
+      summitId: string;
+      count: number;
+      earliestTime: number;
+      createdTime: number;
+    };
+    type MonthEntry = { month: number; experiences: ExpVisitGroup[] };
+    type YearEntry = { year: number; months: MonthEntry[]; totalCount: number };
+
+    const yearMap: Record<number, Record<number, Record<string, ExpVisitGroup>>> = {};
+    const undatedMap: Record<string, ExpVisitGroup> = {};
+
+    const allExpRecords = [
+      ...experienceRecords.filter((r) => !r.is_wishlist),
+      ...ascents
+        .filter(
+          (a) =>
+            !a.is_wishlist &&
+            (a.summit_id?.startsWith("exp-") || a.summit_id?.startsWith("custom-"))
+        )
+        .map((a) => ({
+          experience_id: a.summit_id,
+          sub_item_id: a.sub_item_id,
+          achieved_on: a.achieved_on,
+          created_at: a.created_at,
+          id: a.id || a.record_id,
+        })),
+    ];
+
+    allExpRecords.forEach((r) => {
+      const expId = r.experience_id;
+      const loc = getLocationInfo(r.sub_item_id ? `${expId}::${r.sub_item_id}` : expId);
+      const displayName = loc.name;
+      const summitId = r.sub_item_id ? `${expId}::${r.sub_item_id}` : expId;
+
+      const rawDate = r.achieved_on || r.created_at;
+      if (rawDate && rawDate !== "1900-01-01") {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = d.getMonth();
+          const time = d.getTime();
+          const createdTime = r.created_at ? new Date(r.created_at).getTime() : time;
+
+          if (!yearMap[y]) yearMap[y] = {};
+          if (!yearMap[y][m]) yearMap[y][m] = {};
+
+          if (!yearMap[y][m][summitId]) {
+            yearMap[y][m][summitId] = {
+              name: displayName,
+              summitId,
+              count: 1,
+              earliestTime: time,
+              createdTime,
+            };
+          } else {
+            yearMap[y][m][summitId].count += 1;
+            if (time < yearMap[y][m][summitId].earliestTime) {
+              yearMap[y][m][summitId].earliestTime = time;
+            }
+          }
+          return;
+        }
+      }
+
+      // Sin fecha
+      if (!undatedMap[summitId]) {
+        undatedMap[summitId] = {
+          name: displayName,
+          summitId,
+          count: 1,
+          earliestTime: 0,
+          createdTime: r.created_at ? new Date(r.created_at).getTime() : 0,
+        };
+      } else {
+        undatedMap[summitId].count += 1;
+      }
+    });
+
+    const yearsList: YearEntry[] = Object.keys(yearMap)
+      .map(Number)
+      .sort((a, b) => b - a)
+      .map((y) => {
+        const months: MonthEntry[] = Object.keys(yearMap[y])
+          .map(Number)
+          .sort((a, b) => b - a)
+          .map((m) => {
+            const list = Object.values(yearMap[y][m]).sort((a, b) => {
+              if (a.earliestTime !== b.earliestTime) return a.earliestTime - b.earliestTime;
+              return a.name.localeCompare(b.name);
+            });
+            return { month: m, experiences: list };
+          });
+        const totalCount = months.reduce(
+          (acc, curr) => acc + curr.experiences.reduce((cAcc, cItem) => cAcc + cItem.count, 0),
+          0
+        );
+        return { year: y, months, totalCount };
+      });
+
+    const undatedList = Object.values(undatedMap).sort((a, b) => a.name.localeCompare(b.name));
+    const totalUndated = undatedList.reduce((acc, curr) => acc + curr.count, 0);
+    const totalExperiencesCount =
+      yearsList.reduce((acc, curr) => acc + curr.totalCount, 0) + totalUndated;
+
+    return {
+      years: yearsList,
+      undated: undatedList,
+      totalUndated,
+      totalExperiencesCount,
+    };
+  }, [experienceRecords, ascents]);
+
+  // Fotos filtradas exclusivamente por el modo activo (peaks vs countries vs experiences)
   const modePhotos = useMemo(() => {
     return photos.filter((p) => {
       const loc = getLocationInfo(p.summit_id);
       if (activeMode === "peaks") {
         return loc.type === "peak";
-      } else {
+      } else if (activeMode === "countries") {
         return loc.type === "country";
+      } else {
+        return (
+          loc.type === "experience" ||
+          p.summit_id?.startsWith("exp-") ||
+          p.summit_id?.startsWith("custom-") ||
+          experienceRecords.some((r) => r.experience_id === p.summit_id || r.id === p.summit_id)
+        );
       }
     });
-  }, [photos, activeMode]);
+  }, [photos, activeMode, experienceRecords]);
 
   // Fotos ordenadas para Galería de Recuerdos
   const sortedPhotos = useMemo(() => {
@@ -791,19 +1197,51 @@ export function StatsModal({
 
   return (
     <div
-      className={`stats-overlay ${activeMode === "peaks" ? "stats-overlay--peaks stats-mode--peaks mode-peaks" : "stats-overlay--countries stats-mode--countries mode-countries"}`}
+      ref={overlayRef}
+      className={`stats-overlay ${
+        activeMode === "peaks"
+          ? "stats-overlay--peaks stats-mode--peaks mode-peaks"
+          : activeMode === "experiences"
+          ? "stats-overlay--experiences stats-mode--experiences mode-experiences"
+          : "stats-overlay--countries stats-mode--countries mode-countries"
+      }`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="stats-title"
     >
-      {/* ── Sticky Top Bar con Toggle Central y Logo de Stats ── */}
+      {/* ── Sticky Top Bar con Toggle Central y Botón de Experiencias ── */}
       <div className="stats-sticky-top">
         <header className="stats-header stats-header--centered">
-          <div className="stats-header-brand" aria-label="Modo Estadísticas" title="Modo Estadísticas">
-            <ChartNoAxesColumn size={20} className="stats-brand-icon" />
+          {/* Lado izquierdo: Botón de experiencias cuando se esté en modo países o experiencias */}
+          <div className="stats-header-left">
+            {activeMode !== "peaks" ? (
+              <button
+                type="button"
+                className={`stats-exp-toggle-btn ${activeMode === "experiences" ? "stats-exp-toggle-btn--active" : ""}`}
+                onClick={handleToggleExperiences}
+                aria-label={activeMode === "experiences" ? "Volver a países" : "Ver estadísticas de experiencias"}
+                title={activeMode === "experiences" ? "Volver a países" : "Ver estadísticas de experiencias"}
+              >
+                <svg
+                  className="stats-exp-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" />
+                </svg>
+              </button>
+            ) : (
+              <div className="stats-header-spacer" />
+            )}
           </div>
 
-          {/* Toggle Central: mismo toggle que el mapa */}
+          {/* Toggle Central: mismo nivel y posición canónica que la topbar */}
           <div
             className={`app-mode-switch ${activeMode === "peaks" ? "app-mode-switch--peaks" : "app-mode-switch--countries"}`}
             role="tablist"
@@ -829,6 +1267,7 @@ export function StatsModal({
             </button>
           </div>
 
+          {/* Lado derecho: botón de cerrar */}
           <button
             type="button"
             className="stats-close-btn"
@@ -840,12 +1279,8 @@ export function StatsModal({
         </header>
       </div>
 
-      {/* ── Content (con soporte de deslizamiento horizontal) ── */}
-      <main
-        className="stats-content"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
+      {/* ── Content (con soporte de deslizamiento horizontal táctil y trackpad) ── */}
+      <main className="stats-content">
         {/* ══════════════════════════════════════
             1. MODO 47 PICOS
             ══════════════════════════════════════ */}
@@ -898,7 +1333,7 @@ export function StatsModal({
               </button>
             </div>
 
-            {/* ── LÍNEA DEL TIEMPO DE PICOS (DESGLOSE POR AÑOS Y MESES CON COLORES CORPORATIVOS) ── */}
+            {/* ── LÍNEA DEL TIEMPO DE PICOS ── */}
             <div className={`stats-section-card stats-travel-timeline-card ${timelineCollapsed ? "stats-travel-timeline-card--collapsed" : ""}`}>
               <div className="stats-card-title-row">
                 <button
@@ -1030,7 +1465,7 @@ export function StatsModal({
               </div>
             )}
 
-            {/* Los 4 Tresmiles de las Provincias (sin icono en el título) */}
+            {/* Los 4 Tresmiles de las Provincias */}
             <div className="stats-section-card">
               <div className="stats-card-title-row">
                 <h3 className="stats-card-title">Techos de +3.000 metros</h3>
@@ -1116,7 +1551,6 @@ export function StatsModal({
                 </div>
               </div>
             </div>
-
 
             {/* Desglose por Cordilleras con Dropdown Interactivo */}
             <div className="stats-section-card">
@@ -1254,7 +1688,7 @@ export function StatsModal({
               </button>
             </div>
 
-            {/* ── LÍNEA DEL TIEMPO (DESGLOSE POR AÑOS Y MESES CON COLORES POR CONTINENTE) ── */}
+            {/* ── LÍNEA DEL TIEMPO ── */}
             <div className={`stats-section-card stats-travel-timeline-card ${timelineCollapsed ? "stats-travel-timeline-card--collapsed" : ""}`}>
               <div className="stats-card-title-row">
                 <button
@@ -1342,53 +1776,53 @@ export function StatsModal({
                         </div>
                       ))}
 
-                  {/* Países sin fecha específica */}
-                  {visitsTimeline.undated.length > 0 && (
-                    <div className="stats-timeline-year-block">
-                      <div className="stats-timeline-year-header">
-                        <span className="stats-timeline-year-label">Sin fecha</span>
-                        <span className="stats-timeline-year-count">
-                          <strong>{visitsTimeline.totalUndated}</strong> {visitsTimeline.totalUndated === 1 ? "visita" : "visitas"}
-                        </span>
-                      </div>
-                      <div className="stats-timeline-chips-wrap" style={{ marginTop: 6 }}>
-                        {visitsTimeline.undated.map((u) => {
-                          const colors = CONTINENT_COLOR_MAP[u.country.continent] || {
-                            bg: "rgba(100, 116, 139, 0.12)",
-                            text: "#475569",
-                            dot: "#64748b",
-                          };
-                          return (
-                            <button
-                              key={u.country.id}
-                              type="button"
-                              className="stats-travel-chip"
-                              style={{
-                                background: colors.bg,
-                                color: colors.text,
-                              }}
-                              onClick={() => handleGoToRecord(u.summitId)}
-                              title={`Abrir registro de ${u.country.name}${u.count > 1 ? ` (${u.count} visitas)` : ""}`}
-                            >
-                              <span
-                                className="stats-travel-chip-dot"
-                                style={{ background: colors.dot }}
-                              />
-                              <span className="stats-travel-chip-name">{u.country.name}</span>
-                              {u.count > 1 && (
-                                <span className="stats-travel-chip-count">({u.count})</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {/* Países sin fecha específica */}
+                      {visitsTimeline.undated.length > 0 && (
+                        <div className="stats-timeline-year-block">
+                          <div className="stats-timeline-year-header">
+                            <span className="stats-timeline-year-label">Sin fecha</span>
+                            <span className="stats-timeline-year-count">
+                              <strong>{visitsTimeline.totalUndated}</strong> {visitsTimeline.totalUndated === 1 ? "visita" : "visitas"}
+                            </span>
+                          </div>
+                          <div className="stats-timeline-chips-wrap" style={{ marginTop: 6 }}>
+                            {visitsTimeline.undated.map((u) => {
+                              const colors = CONTINENT_COLOR_MAP[u.country.continent] || {
+                                bg: "rgba(100, 116, 139, 0.12)",
+                                text: "#475569",
+                                dot: "#64748b",
+                              };
+                              return (
+                                <button
+                                  key={u.country.id}
+                                  type="button"
+                                  className="stats-travel-chip"
+                                  style={{
+                                    background: colors.bg,
+                                    color: colors.text,
+                                  }}
+                                  onClick={() => handleGoToRecord(u.summitId)}
+                                  title={`Abrir registro de ${u.country.name}${u.count > 1 ? ` (${u.count} visitas)` : ""}`}
+                                >
+                                  <span
+                                    className="stats-travel-chip-dot"
+                                    style={{ background: colors.dot }}
+                                  />
+                                  <span className="stats-travel-chip-name">{u.country.name}</span>
+                                  {u.count > 1 && (
+                                    <span className="stats-travel-chip-count">({u.count})</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
-            </>
-          )}
-        </div>
+            </div>
 
             {/* ── DESGLOSE POR CONTINENTES (GRÁFICO VISUAL) ── */}
             <div className="stats-section-card">
@@ -1486,6 +1920,248 @@ export function StatsModal({
             </div>
           </>
         )}
+
+        {/* ══════════════════════════════════════
+            3. MODO EXPERIENCIAS
+            ══════════════════════════════════════ */}
+        {activeMode === "experiences" && (
+          <>
+            {/* Resumen Superior Experiencias */}
+            <div className="stats-kpi-grid">
+              <div className="stats-kpi-card">
+                <div className="stats-kpi-header">
+                  <span className="stats-kpi-label">Experiencias Registradas</span>
+                  <svg
+                    className="stats-kpi-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ width: 16, height: 16 }}
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="6" />
+                    <circle cx="12" cy="12" r="2" />
+                  </svg>
+                </div>
+                <div className="stats-kpi-value">
+                  {expMetrics.completedCount} <small>/ {expMetrics.totalCount}</small>
+                </div>
+                <span className="stats-kpi-sub">
+                  {expMetrics.pct}% completado
+                </span>
+                <div className="stats-kpi-progress">
+                  <div
+                    className="stats-kpi-progress-bar stats-progress-bar-fill--experience"
+                    style={{ width: `${expMetrics.pct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="stats-kpi-card">
+                <div className="stats-kpi-header">
+                  <span className="stats-kpi-label">Por Vivir</span>
+                  <Sparkles size={16} className="stats-kpi-icon" />
+                </div>
+                <div className="stats-kpi-value">
+                  {Math.max(0, expMetrics.totalCount - expMetrics.completedCount)} <small>experiencias</small>
+                </div>
+                <span className="stats-kpi-sub">
+                  Retos y aventuras por descubrir
+                </span>
+              </div>
+            </div>
+
+            {/* Botón Ver Galería */}
+            <div className="stats-gallery-btn-wrap">
+              <button
+                type="button"
+                className="stats-open-gallery-action-btn"
+                onClick={() => openGallery()}
+              >
+                Ver galería
+              </button>
+            </div>
+
+            {/* ── LÍNEA DEL TIEMPO DE EXPERIENCIAS ── */}
+            <div className={`stats-section-card stats-travel-timeline-card ${timelineCollapsed ? "stats-travel-timeline-card--collapsed" : ""}`}>
+              <div className="stats-card-title-row">
+                <button
+                  type="button"
+                  className="stats-card-title-btn"
+                  onClick={() => setTimelineCollapsed(!timelineCollapsed)}
+                  aria-expanded={!timelineCollapsed}
+                  aria-label={`${timelineCollapsed ? "Expandir" : "Contraer"} línea del tiempo`}
+                >
+                  <h3 className="stats-card-title">Línea del tiempo</h3>
+                  {timelineCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                </button>
+                <span className="stats-card-chip">
+                  {experiencesTimeline.totalExperiencesCount} {experiencesTimeline.totalExperiencesCount === 1 ? "experiencia" : "experiencias"}
+                </span>
+              </div>
+
+              {!timelineCollapsed && (
+                <>
+                  {experiencesTimeline.years.length === 0 && experiencesTimeline.undated.length === 0 ? (
+                    <div className="stats-empty-notice">
+                      Aún no has registrado experiencias vividas. Selecciona cualquier experiencia en el mapa para inaugurar tu cronología de aventuras.
+                    </div>
+                  ) : (
+                    <div className="stats-timeline-years">
+                      {experiencesTimeline.years.map((y) => (
+                        <div key={y.year} className="stats-timeline-year-block">
+                          <div className="stats-timeline-year-header">
+                            <span className="stats-timeline-year-label">{y.year}</span>
+                            <span className="stats-timeline-year-count">
+                              <strong>{y.totalCount}</strong> {y.totalCount === 1 ? "experiencia" : "experiencias"}
+                            </span>
+                          </div>
+
+                          <div className="stats-timeline-months-grid">
+                            {y.months.map((m) => (
+                              <div key={m.month} className="stats-timeline-month-card">
+                                <span className="stats-timeline-month-name">
+                                  {MONTH_NAMES[m.month]}
+                                </span>
+                                <div className="stats-timeline-chips-wrap">
+                                  {m.experiences.map((expEntry) => (
+                                    <button
+                                      key={expEntry.summitId}
+                                      type="button"
+                                      className="stats-travel-chip stats-travel-chip--experience"
+                                      onClick={() => handleGoToRecord(expEntry.summitId)}
+                                      title={`Abrir registro de ${expEntry.name}${expEntry.count > 1 ? ` (${expEntry.count} registros)` : ""}`}
+                                    >
+                                      <span className="stats-travel-chip-dot stats-travel-chip-dot--experience" />
+                                      <span className="stats-travel-chip-name">{expEntry.name}</span>
+                                      {expEntry.count > 1 && (
+                                        <span className="stats-travel-chip-count">({expEntry.count})</span>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Experiencias sin fecha específica */}
+                      {experiencesTimeline.undated.length > 0 && (
+                        <div className="stats-timeline-year-block">
+                          <div className="stats-timeline-year-header">
+                            <span className="stats-timeline-year-label">Sin fecha</span>
+                            <span className="stats-timeline-year-count">
+                              <strong>{experiencesTimeline.totalUndated}</strong> {experiencesTimeline.totalUndated === 1 ? "experiencia" : "experiencias"}
+                            </span>
+                          </div>
+                          <div className="stats-timeline-chips-wrap" style={{ marginTop: 6 }}>
+                            {experiencesTimeline.undated.map((u) => (
+                              <button
+                                key={u.summitId}
+                                type="button"
+                                className="stats-travel-chip stats-travel-chip--experience"
+                                onClick={() => handleGoToRecord(u.summitId)}
+                                title={`Abrir registro de ${u.name}${u.count > 1 ? ` (${u.count} registros)` : ""}`}
+                              >
+                                <span className="stats-travel-chip-dot stats-travel-chip-dot--experience" />
+                                <span className="stats-travel-chip-name">{u.name}</span>
+                                {u.count > 1 && (
+                                  <span className="stats-travel-chip-count">({u.count})</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* ── GRANDES CATEGORÍAS DE EXPERIENCIAS (DROPDOWN INTERACTIVO) ── */}
+            <div className="stats-section-card">
+              <div className="stats-card-title-row">
+                <h3 className="stats-card-title">Categorías de Experiencias</h3>
+                <span className="stats-card-chip">
+                  {expMetrics.completedCount} / {expMetrics.totalCount}
+                </span>
+              </div>
+              <div className="stats-progress-list">
+                {expMetrics.categoriesStatus.map((cat) => {
+                  const isExpanded = !!expandedRanges[cat.id];
+                  return (
+                    <div key={cat.id} className="stats-range-card">
+                      <button
+                        type="button"
+                        className="stats-range-btn"
+                        onClick={() => toggleRange(cat.id)}
+                        aria-expanded={isExpanded}
+                        aria-label={`${cat.name}: ${isExpanded ? "Ocultar" : "Mostrar"} experiencias`}
+                      >
+                        <div className="stats-range-btn-row">
+                          <span className="stats-range-name">{cat.name}</span>
+                          <div className="stats-range-meta">
+                            <span className="stats-range-count-num">
+                              <strong>{cat.done}</strong> / {cat.total}
+                            </span>
+                            {isExpanded ? (
+                              <ChevronUp size={16} className="stats-range-chevron" />
+                            ) : (
+                              <ChevronDown size={16} className="stats-range-chevron" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="stats-progress-bar-track">
+                          <div
+                            className="stats-progress-bar-fill stats-progress-bar-fill--experience"
+                            style={{ width: `${cat.pct}%` }}
+                          />
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="stats-range-dropdown">
+                          {cat.experiencesList.map((exp: any) => (
+                            <button
+                              key={exp.id}
+                              type="button"
+                              className="stats-range-peak-row"
+                              onClick={() => handleGoToRecord(exp.id)}
+                              title={`Abrir registro de ${exp.name}`}
+                            >
+                              <span className="stats-range-peak-info">
+                                {exp.completed ? (
+                                  <span className="stats-range-peak-check stats-range-peak-check--experience">
+                                    <Check size={13} />
+                                  </span>
+                                ) : (
+                                  <span className="stats-range-peak-pending">○</span>
+                                )}
+                                <span className="stats-range-peak-text">
+                                  <span className="stats-range-peak-name">{exp.name}</span>
+                                  {exp.subItemsTotal > 0 && (
+                                    <span className="stats-range-subitems-meta">
+                                      ({exp.subItemsDone}/{exp.subItemsTotal} sub-ítems)
+                                    </span>
+                                  )}
+                                </span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
       </main>
 
       {/* ── Galería de Recuerdos Full View ── */}
@@ -1512,15 +2188,21 @@ export function StatsModal({
                 <h3 className="stats-gallery-empty-title">
                   {activeMode === "peaks"
                     ? "Sin recuerdos de picos aún"
+                    : activeMode === "experiences"
+                    ? "Sin recuerdos de experiencias aún"
                     : "Sin recuerdos de países aún"}
                 </h3>
                 <p className="stats-gallery-empty-text">
                   {targetProfile
                     ? activeMode === "peaks"
                       ? `@${targetProfile.username} aún no ha añadido fotos a sus picos provinciales.`
+                      : activeMode === "experiences"
+                      ? `@${targetProfile.username} aún no ha añadido fotos a sus experiencias.`
                       : `@${targetProfile.username} aún no ha añadido fotos a sus viajes por el mundo.`
                     : activeMode === "peaks"
                     ? "Añade fotos a tus picos provinciales desde sus fichas en el mapa para verlas todas aquí."
+                    : activeMode === "experiences"
+                    ? "Añade fotos a tus experiencias desde sus fichas en el mapa para verlas todas aquí."
                     : "Añade fotos a tus viajes por el mundo desde sus fichas en el mapa para verlas todas aquí."}
                 </p>
               </div>

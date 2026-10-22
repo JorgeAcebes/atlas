@@ -19,15 +19,14 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(content).not.toContain("cuaderno de bitácora");
     expect(content).not.toContain("Mis Estadísticas");
 
-    // Stats brand icon on top-left
-    expect(content).toContain("stats-header-brand");
-    expect(content).toContain("ChartNoAxesColumn");
+    // Experiences toggle button replaces stats brand icon inside the stats modal
+    expect(content).toContain("stats-exp-toggle-btn");
+    expect(content).not.toContain("ChartNoAxesColumn");
 
     // Horizontal swipe gesture navigation
     expect(content).toContain("handleTouchStart");
     expect(content).toContain("handleTouchEnd");
-    expect(content).toContain("onTouchStart");
-    expect(content).toContain("onTouchEnd");
+    expect(content).toContain("addEventListener");
 
     // Techo más alto alcanzado preserved in 47 Picos
     expect(content).toContain("Techo Más Alto Alcanzado");
@@ -348,7 +347,7 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(statsModalFile).toContain('setLightboxIndex(null)');
 
     // StatsModal notifies mode changes and syncs mode with summit-tracker
-    expect(statsModalFile).toContain('onModeChange?: (mode: "peaks" | "countries") => void;');
+    expect(statsModalFile).toContain('onModeChange?: (mode: StatsMode) => void;');
     expect(trackerFile).toMatch(/onModeChange=\{\(mode\)\s*=>\s*\{/);
     expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*"peaks"\);[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*`\/picos/);
     expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*"countries"\);[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*`\//);
@@ -372,5 +371,34 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(socialFile).toContain("hero-profile-avatar-wrap");
     expect(socialFile).toContain("hero-avatar-badge");
     expect(socialFile).not.toMatch(/acceptedFollowers\.length.*?hero-pending-dot/);
+  });
+  it("11. Experiences Statistics Mode: Header alignment, experiences toggle button, category breakdown and direct entry", () => {
+    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
+    const statsModalCss = fs.readFileSync(path.join(rootDir, "components/stats-modal.css"), "utf-8");
+    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+    const socialFile = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+
+    // Header exact topbar alignment: min-height 76px desktop, 56px mobile, padding clamp
+    expect(statsModalCss).toContain("min-height: 76px;");
+    expect(statsModalCss).toContain("padding: 0 clamp(22px, 6vw, 92px);");
+    expect(statsModalCss).toContain("min-height: 56px;");
+    expect(statsModalCss).toContain("min-width: 220px;");
+
+    // Experiences button replaces stats brand icon
+    expect(statsModalFile).toContain("stats-exp-toggle-btn");
+    expect(statsModalFile).not.toContain("ChartNoAxesColumn");
+    expect(statsModalCss).toContain(".stats-exp-toggle-btn");
+    expect(statsModalCss).toContain(".stats-exp-toggle-btn--active");
+
+    // Experiences stats data: expMetrics, subitems rule, categories breakdown, timeline
+    expect(statsModalFile).toContain("expMetrics");
+    expect(statsModalFile).toContain("experiencesTimeline");
+    expect(statsModalFile).toContain("stats-travel-chip--experience");
+    expect(statsModalFile).toContain("Categorías de Experiencias");
+    expect(statsModalFile).toContain("Experiencias Registradas");
+
+    // Direct entry from experiences mode
+    expect(trackerFile).toContain('initialMode={isExp ? "experiences" : isPeaks ? "peaks" : "countries"}');
+    expect(socialFile).toContain('initialMode={isExp ? "experiences" : currentMode}');
   });
 });

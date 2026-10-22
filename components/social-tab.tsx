@@ -1438,12 +1438,19 @@ export function SocialTab({
           session={session}
           myProfile={myProfile}
           ascents={userAscents}
-          initialMode={currentMode}
+          experienceRecords={userExpRecords}
+          customExperiences={userCustomExp}
+          initialMode={isExp ? "experiences" : currentMode}
           onModeChange={(mode) => {
             if (mode === "peaks" && enablePeaks) {
               setCurrentMode("peaks");
+              setExperiencesMode(false);
             } else if (mode === "countries" && enableCountries) {
               setCurrentMode("countries");
+              setExperiencesMode(false);
+            } else if (mode === "experiences" && enableCountries) {
+              setCurrentMode("countries");
+              setExperiencesMode(true);
             }
           }}
           onClose={() => {
@@ -1469,6 +1476,8 @@ export function SocialTab({
               );
             const targetPath = isPeak
               ? `/picos#panel=${encodeURIComponent(cleanId)}`
+              : loc.type === "experience"
+              ? `/?exp=${encodeURIComponent(cleanId)}#panel=${encodeURIComponent(cleanId)}`
               : `/#panel=${encodeURIComponent(cleanId)}`;
             if (onNavigate) {
               onNavigate(targetPath);

@@ -8168,13 +8168,16 @@ export function SummitTracker({
           targetProfile={targetProfile}
           ascents={ascents}
           experienceRecords={experienceRecords}
+          customExperiences={customExperiences}
+          customCategories={customCategories}
           photos={photos}
           photosCount={photos?.length}
-          initialMode={isPeaks ? "peaks" : "countries"}
+          initialMode={isExp ? "experiences" : isPeaks ? "peaks" : "countries"}
           onModeChange={(mode) => {
             if (mode === "peaks") {
               if (canShowPeaks) {
                 setCurrentMode("peaks");
+                setExperiencesMode(false);
                 localStorage.setItem("last_active_mode", "peaks");
                 localStorage.setItem("last_map_path", "/picos");
                 const currentHash = window.location.hash || "#estadisticas";
@@ -8183,10 +8186,16 @@ export function SummitTracker({
             } else if (mode === "countries") {
               if (canShowCountries) {
                 setCurrentMode("countries");
+                setExperiencesMode(false);
                 localStorage.setItem("last_active_mode", "countries");
                 localStorage.setItem("last_map_path", "/");
                 const currentHash = window.location.hash || "#estadisticas";
                 window.history.replaceState(null, "", `/${currentHash}`);
+              }
+            } else if (mode === "experiences") {
+              if (canShowCountries) {
+                setCurrentMode("countries");
+                setExperiencesMode(true);
               }
             }
           }}
@@ -8216,6 +8225,10 @@ export function SummitTracker({
               if (canShowPeaks) setCurrentMode("peaks");
             } else if (!isPeak && isPeaks) {
               if (canShowCountries) setCurrentMode("countries");
+            }
+
+            if (loc.type === "experience") {
+              setExperiencesMode(true);
             }
 
             panelOpenedFromStatsRef.current = true;

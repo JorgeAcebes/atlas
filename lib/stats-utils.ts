@@ -39,7 +39,20 @@ export function getLocationInfo(summitId?: string): {
 
   // 3. Experiencias
   const exp = predefinedCategories.flatMap((c) => c.experiences).find((e) => e.id === cleanId);
-  if (exp) return { name: exp.name, type: "experience" };
+  if (exp) {
+    const subItemId = summitId.includes("::") ? summitId.split("::")[1] : undefined;
+    if (subItemId && exp.subItems) {
+      const sub = exp.subItems.find((s) => s.id === subItemId);
+      if (sub) {
+        return { name: `${exp.name} (${sub.name})`, type: "experience" };
+      }
+    }
+    return { name: exp.name, type: "experience" };
+  }
+
+  if (cleanId.startsWith("exp-") || cleanId.startsWith("custom-")) {
+    return { name: cleanId, type: "experience" };
+  }
 
   return { name: cleanId, type: "unknown" };
 }
