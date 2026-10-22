@@ -35,6 +35,13 @@ type Props = {
     enable_countries?: boolean;
     enable_experiences?: boolean;
   } | null;
+  targetProfile?: {
+    id: string;
+    username: string;
+    enable_peaks?: boolean;
+    enable_countries?: boolean;
+    is_public?: boolean;
+  } | null;
   ascents?: any[];
   experienceRecords?: any[];
   photos?: any[];
@@ -107,6 +114,7 @@ export { getLocationInfo, getCountryForAscent, getPeakForAscent };
 export function StatsModal({
   session,
   myProfile,
+  targetProfile,
   ascents: propAscents,
   experienceRecords: propExperiences,
   photos: propPhotos,
@@ -116,6 +124,8 @@ export function StatsModal({
   onClose,
   onGoToRecord,
 }: Props) {
+  const isTargetOther = Boolean(targetProfile && session?.user?.id && targetProfile.id !== session.user.id);
+  const effectiveUserId = targetProfile ? targetProfile.id : session?.user?.id;
   const [activeMode, setActiveMode] = useState<StatsMode>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -142,8 +152,8 @@ export function StatsModal({
     }
   }, [activeMode, initialMode, onModeChange]);
   const [ascents, setAscents] = useState<any[]>(() => {
-    if (propAscents && propAscents.length > 0) return propAscents;
-    if (typeof window !== "undefined" && session?.user?.id) {
+    if (propAscents !== undefined) return propAscents;
+    if (!isTargetOther && typeof window !== "undefined" && session?.user?.id) {
       try {
         const stored = localStorage.getItem(`app_tracker_ascents_${session.user.id}`);
         if (stored) return JSON.parse(stored);
@@ -154,8 +164,8 @@ export function StatsModal({
     return [];
   });
   const [photos, setPhotos] = useState<any[]>(() => {
-    if (propPhotos && propPhotos.length > 0) return propPhotos;
-    if (typeof window !== "undefined" && session?.user?.id) {
+    if (propPhotos !== undefined) return propPhotos;
+    if (!isTargetOther && typeof window !== "undefined" && session?.user?.id) {
       try {
         const stored = localStorage.getItem(`app_tracker_photos_${session.user.id}`);
         if (stored) return JSON.parse(stored);
@@ -323,30 +333,39 @@ export function StatsModal({
 
   // Fetch ascents and photos if needed
   useEffect(() => {
-    if (propAscents && propAscents.length > 0) {
+    if (propAscents !== undefined) {
       setAscents(propAscents);
     }
-    if (propPhotos && propPhotos.length > 0) {
+  }, [propAscents]);
+
+  useEffect(() => {
+    if (propPhotos !== undefined) {
       setPhotos(propPhotos);
-    } else if (session?.user?.id && photos.length === 0 && supabase) {
+    }
+  }, [propPhotos]);
+
+  useEffect(() => {
+    if (!supabase || !effectiveUserId) return;
+    if (propPhotos === undefined && photos.length === 0) {
       supabase
-        .from("photos")
-        .select("*")
-        .eq("user_id", session.user.id)
+        .from("summit_photos")
+        .select("id, summit_id, public_url, taken_on, caption, created_at, storage_path, shot_at")
+        .eq("user_id", effectiveUserId)
         .order("taken_on", { ascending: false })
+        .order("created_at", { ascending: true })
         .then(({ data }) => {
-          if (data && data.length > 0) setPhotos(data);
+          if (data) setPhotos(data);
         });
     }
-  }, [propAscents, propPhotos, session]);
+  }, [effectiveUserId, propPhotos, photos.length]);
 
-  // Fetch full ascents with achieved_on if missing or empty
+  // Fetch full ascents with achieved_on if missing or empty (for logged-in user only, not when inspecting someone else)
   useEffect(() => {
-    if (!session?.user?.id || !supabase) return;
+    if (!session?.user?.id || !supabase || isTargetOther) return;
     const isMissingDates =
       ascents.length > 0 &&
       ascents.some((a) => !a.is_wishlist && a.achieved_on === undefined);
-    const isEmpty = ascents.length === 0;
+    const isEmpty = ascents.length === 0 && propAscents === undefined;
 
     if (isMissingDates || isEmpty) {
       supabase
@@ -362,7 +381,7 @@ export function StatsModal({
           }
         });
     }
-  }, [session, ascents]);
+  }, [session, ascents, isTargetOther, propAscents]);
 
   // ── Compute Analytics & Metrics ─────────────
   const metrics = useMemo(() => {
@@ -1473,7 +1492,9 @@ export function StatsModal({
       {galleryOpen && (
         <div className="stats-gallery-overlay" role="dialog" aria-modal="true">
           <header className="stats-header stats-header--gallery">
-            <h2 className="stats-header-title">Galería de Recuerdos</h2>
+            <h2 className="stats-header-title">
+              {targetProfile ? `Galería de @${targetProfile.username}` : "Galería de Recuerdos"}
+            </h2>
             <button
               type="button"
               className="stats-close-btn"
@@ -1494,7 +1515,11 @@ export function StatsModal({
                     : "Sin recuerdos de países aún"}
                 </h3>
                 <p className="stats-gallery-empty-text">
-                  {activeMode === "peaks"
+                  {targetProfile
+                    ? activeMode === "peaks"
+                      ? `@${targetProfile.username} aún no ha añadido fotos a sus picos provinciales.`
+                      : `@${targetProfile.username} aún no ha añadido fotos a sus viajes por el mundo.`
+                    : activeMode === "peaks"
                     ? "Añade fotos a tus picos provinciales desde sus fichas en el mapa para verlas todas aquí."
                     : "Añade fotos a tus viajes por el mundo desde sus fichas en el mapa para verlas todas aquí."}
                 </p>

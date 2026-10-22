@@ -777,14 +777,22 @@ export function SummitTracker({
 
   useEffect(() => {
     if (panelIdToOpen) {
-      panelPushedRef.current = true;
       const targetHash = `#panel=${encodeURIComponent(panelIdToOpen)}`;
       if (window.location.hash !== targetHash) {
-        window.history.pushState(
-          { hasPanel: true },
-          "",
-          targetHash,
-        );
+        if (panelPushedRef.current || (typeof window !== "undefined" && window.location.hash.startsWith("#panel"))) {
+          window.history.replaceState(
+            { hasPanel: true },
+            "",
+            targetHash,
+          );
+        } else {
+          panelPushedRef.current = true;
+          window.history.pushState(
+            { hasPanel: true },
+            "",
+            targetHash,
+          );
+        }
       }
     }
   }, [panelIdToOpen]);
@@ -896,8 +904,21 @@ export function SummitTracker({
     () => getInitialTrackerList<HiddenItem>("hidden_items", targetId, cachedHiddenItemsByUser)
   );
 
+  const prevTargetIdRef = useRef(targetId);
   useEffect(() => {
-    if (targetId) {
+    if (prevTargetIdRef.current !== targetId) {
+      prevTargetIdRef.current = targetId;
+      setAscents(getInitialTrackerList<Ascent>("ascents", targetId, cachedAscentsByUser));
+      setPhotos(getInitialTrackerList<SummitPhoto>("photos", targetId, cachedPhotosByUser));
+      setExperienceRecords(getInitialTrackerList<ExperienceRecord>("exp_records", targetId, cachedExperienceRecordsByUser));
+      setCustomExperiences(getInitialTrackerList<any>("custom_exp", targetId, cachedCustomExperiencesByUser));
+      setCustomCategories(getInitialTrackerList<any>("custom_cat", targetId, cachedCustomCategoriesByUser));
+      setHiddenItems(getInitialTrackerList<HiddenItem>("hidden_items", targetId, cachedHiddenItemsByUser));
+    }
+  }, [targetId]);
+
+  useEffect(() => {
+    if (targetId && prevTargetIdRef.current === targetId) {
       cachedAscentsByUser[targetId] = ascents;
       setStoredTrackerData("ascents", targetId, ascents);
     }
@@ -911,7 +932,7 @@ export function SummitTracker({
   }, [experienceRecords, targetId]);
 
   useEffect(() => {
-    if (targetId) {
+    if (targetId && prevTargetIdRef.current === targetId) {
       cachedPhotosByUser[targetId] = photos;
       setStoredTrackerData("photos", targetId, photos);
     }
@@ -2330,10 +2351,14 @@ export function SummitTracker({
 
   /* ── Handlers ─────────────────────────── */
   const openInformation = useCallback((item: SelectedItem) => {
-    panelPushedRef.current = true;
     const targetHash = `#panel=${encodeURIComponent(item.id)}`;
-    if (window.location.hash !== targetHash) {
-      window.history.pushState({ hasPanel: true }, "", targetHash);
+    if (typeof window !== "undefined" && window.location.hash !== targetHash) {
+      if (panelPushedRef.current || window.location.hash.startsWith("#panel")) {
+        window.history.replaceState({ hasPanel: true }, "", targetHash);
+      } else {
+        panelPushedRef.current = true;
+        window.history.pushState({ hasPanel: true }, "", targetHash);
+      }
     }
     setSelected(item);
     setRecordOpen(false);
@@ -2668,7 +2693,12 @@ export function SummitTracker({
       if (!session) {
         const targetHash = "#panel";
         if (window.location.hash !== targetHash) {
-          window.history.pushState({ hasPanel: true }, "", targetHash);
+          if (panelPushedRef.current || (typeof window !== "undefined" && window.location.hash.startsWith("#panel"))) {
+            window.history.replaceState({ hasPanel: true }, "", targetHash);
+          } else {
+            panelPushedRef.current = true;
+            window.history.pushState({ hasPanel: true }, "", targetHash);
+          }
         }
         setAuthOpen("login");
         return;
@@ -2676,8 +2706,12 @@ export function SummitTracker({
       recordOpenedFromPanelRef.current = !!(selected && item && selected.id === item.id);
       const targetHash = item ? `#panel=${encodeURIComponent(item.id)}` : "#panel";
       if (window.location.hash !== targetHash) {
-        panelPushedRef.current = true;
-        window.history.pushState({ hasPanel: true }, "", targetHash);
+        if (panelPushedRef.current || (typeof window !== "undefined" && window.location.hash.startsWith("#panel"))) {
+          window.history.replaceState({ hasPanel: true }, "", targetHash);
+        } else {
+          panelPushedRef.current = true;
+          window.history.pushState({ hasPanel: true }, "", targetHash);
+        }
       }
       setRecordOpen(true);
       if (!item) {
@@ -4125,12 +4159,17 @@ export function SummitTracker({
     setFiles([]);
     setDeletedRecordPhotoIds([]);
     const fromStats = panelOpenedFromStatsRef.current;
+    const wasPushed = panelPushedRef.current;
     panelPushedRef.current = false;
     panelOpenedFromStatsRef.current = false;
     recordOpenedFromPanelRef.current = false;
     if (fromStats) {
       window.history.back();
-    } else if (window.location.hash) {
+    } else if (wasPushed) {
+      if (typeof window !== "undefined" && window.location.hash.startsWith("#panel")) {
+        window.history.back();
+      }
+    } else if (typeof window !== "undefined" && window.location.hash) {
       window.history.replaceState(
         null,
         "",
@@ -4237,7 +4276,7 @@ export function SummitTracker({
         );
       }
     } else {
-      window.history.pushState(null, "", target === "peaks" ? "/picos" : "/");
+      window.history.replaceState(null, "", target === "peaks" ? "/picos" : "/");
     }
   }
 
@@ -4346,7 +4385,7 @@ export function SummitTracker({
       });
     }
     if (window.location.hash !== "#mapa") {
-      window.history.pushState(null, "", "#mapa");
+      window.history.replaceState(null, "", "#mapa");
     }
   }, []);
 
@@ -4666,7 +4705,7 @@ export function SummitTracker({
               e.preventDefault();
               window.scrollTo({ top: 0, behavior: "smooth" });
               if (window.location.hash) {
-                window.history.pushState(
+                window.history.replaceState(
                   null,
                   "",
                   window.location.pathname + window.location.search,
@@ -4815,8 +4854,8 @@ export function SummitTracker({
             <button
               type="button"
               className="topbar-stats-btn"
-              aria-label="Mis Estadísticas"
-              title="Mis Estadísticas"
+              aria-label={targetProfile ? `Estadísticas de @${targetProfile.username}` : "Mis Estadísticas"}
+              title={targetProfile ? `Estadísticas de @${targetProfile.username}` : "Mis Estadísticas"}
               onClick={() => {
                 window.location.hash = "estadisticas";
                 setStatsOpen(true);
@@ -8126,6 +8165,7 @@ export function SummitTracker({
         <StatsModal
           session={session}
           myProfile={myProfile}
+          targetProfile={targetProfile}
           ascents={ascents}
           experienceRecords={experienceRecords}
           photos={photos}

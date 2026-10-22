@@ -394,7 +394,6 @@ export function CompanionSelector({
                     background: "transparent",
                     color: "var(--ink, #1f2937)",
                   }}
-                  autoFocus
                 />
                 {search && (
                   <button

@@ -353,4 +353,24 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*"peaks"\);[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*`\/picos/);
     expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*"countries"\);[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*`\//);
   });
+  it("10. Target profile stats & gallery isolation, no 'Viaje compartido' badge, and avatar badge overlay", () => {
+    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
+    const feedFile = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+    const socialFile = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+
+    // StatsModal isolates target profile photos and does not fall back to session user localStorage
+    expect(statsModalFile).toContain("targetProfile?:");
+    expect(statsModalFile).toContain("isTargetOther");
+    expect(statsModalFile).toContain("!isTargetOther && typeof window !== \"undefined\" && session?.user?.id");
+    expect(statsModalFile).toContain("Galería de @${targetProfile.username}");
+
+    // Feed card has no 'Viaje compartido' badge pill
+    expect(feedFile).not.toContain("Viaje compartido");
+    expect(feedFile).not.toContain("feed-thread-badge");
+
+    // Social tab avatar has protruding badge wrapper and no red dot in followers button
+    expect(socialFile).toContain("hero-profile-avatar-wrap");
+    expect(socialFile).toContain("hero-avatar-badge");
+    expect(socialFile).not.toMatch(/acceptedFollowers\.length.*?hero-pending-dot/);
+  });
 });

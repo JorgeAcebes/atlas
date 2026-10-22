@@ -402,32 +402,13 @@ function FeedItemCard({
             {dateRangeStr || formatDateSafe(item.created_at)}
           </div>
         </div>
-        {(isConnectedToPrev || isConnectedToNext || visibleCompanions.length > 0) && (
-          <span
-            className="feed-thread-badge"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "var(--pine, #2d5a43)",
-              backgroundColor: "rgba(92, 155, 125, 0.12)",
-              padding: "3px 8px",
-              borderRadius: "12px",
-              marginLeft: "auto",
-              marginRight: "6px",
-            }}
-          >
-            🧵 {isPeak ? "Ruta compartida" : isCountry ? "Viaje compartido" : "Experiencia compartida"}
-          </span>
-        )}
         <button
           className="feed-share-btn"
           onClick={handleShare}
           title={copied ? "Enlace copiado al portapapeles" : "Compartir publicación"}
           aria-label="Compartir publicación"
           style={{
+            marginLeft: "auto",
             background: "none",
             border: "none",
             color: copied ? "var(--pine)" : "var(--muted)",

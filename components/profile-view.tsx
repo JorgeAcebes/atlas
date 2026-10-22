@@ -188,6 +188,7 @@ export function ProfileView({
 
   return (
     <SummitTracker
+      key={profile.id}
       mode={activeMode}
       onSwitchMode={setMode}
       initialExperiencesMode={initialExperiences}

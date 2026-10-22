@@ -1009,28 +1009,36 @@ export function SocialTab({
             <>
               <div className="hero-profile-wrap">
                 <div
-                  className="hero-profile-avatar"
-                  onClick={() => setInboxOpen(true)}
-                  title="Bandeja de entrada"
-                  style={{ position: 'relative', cursor: 'pointer' }}
+                  className="hero-profile-avatar-wrap"
+                  style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}
                 >
-                  {myProfile.avatar_url ? (
-                    <img src={myProfile.avatar_url} alt={myProfile.username} />
-                  ) : (
-                    myProfile.username.charAt(0).toUpperCase()
-                  )}
-                  {hasPendingInvitations && (
+                  <div
+                    className="hero-profile-avatar"
+                    onClick={() => setInboxOpen(true)}
+                    title="Bandeja de entrada"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {myProfile.avatar_url ? (
+                      <img src={myProfile.avatar_url} alt={myProfile.username} />
+                    ) : (
+                      myProfile.username.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  {(hasPendingInvitations || hasPendingRequests) && (
                     <span
-                      className="hero-pending-dot"
+                      className="hero-avatar-badge"
                       style={{
                         position: 'absolute',
-                        top: 0,
-                        right: 0,
-                        width: '10px',
-                        height: '10px',
-                        backgroundColor: '#e53e3e',
+                        top: '-2px',
+                        right: '-2px',
+                        width: '11px',
+                        height: '11px',
+                        backgroundColor: '#ef4444',
                         borderRadius: '50%',
-                        border: '2px solid var(--bg, #fdfbf7)',
+                        border: '2px solid var(--paper, #fdfbf7)',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        pointerEvents: 'none',
+                        zIndex: 2,
                       }}
                     />
                   )}
@@ -1053,7 +1061,6 @@ export function SocialTab({
                       onClick={() => setConnectionsModal('followers')}
                     >
                       <strong>{acceptedFollowers.length}</strong> seguidores
-                      {hasPendingRequests && <span className="hero-pending-dot" />}
                     </button>
                     <span className="hero-profile-conn-sep">·</span>
                     <button

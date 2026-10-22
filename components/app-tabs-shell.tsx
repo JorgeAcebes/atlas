@@ -250,6 +250,11 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       if (tab) {
         const prevTab = activeTabRef.current;
         if (tab === prevTab && isMainRoute) {
+          if (typeof window !== "undefined" && window.location.hash && window.location.hash !== "#") {
+            const cleanUrl = window.location.pathname + window.location.search;
+            window.history.replaceState(null, "", cleanUrl);
+            window.dispatchEvent(new Event("hashchange"));
+          }
           resetScrollToTop(true);
           return;
         }
@@ -257,6 +262,11 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         if (typeof window !== "undefined") {
           const currentKey = window.location.pathname + window.location.search;
           historyScrollPositions.current.set(currentKey, window.scrollY);
+
+          if (window.location.hash && window.location.hash !== "#") {
+            const cleanUrl = window.location.pathname + window.location.search;
+            window.history.replaceState(null, "", cleanUrl);
+          }
         }
 
         setActiveTab(tab);
