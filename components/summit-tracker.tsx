@@ -3203,7 +3203,55 @@ export function SummitTracker({
 
     let tripGroupIdToSave = currentTripGroupId;
     if (selectedCompanions.length > 0 && !tripGroupIdToSave) {
-      tripGroupIdToSave = crypto.randomUUID();
+      // 1. Reusar si la propia ascensión existente ya tiene trip_group_id
+      const existingAscent = ascents.find(
+        (a) =>
+          a.summit_id === selected.id &&
+          (a.achieved_on === finalDate || a.achieved_on === originalAchievedOn) &&
+          !a.is_wishlist
+      );
+      if (existingAscent?.trip_group_id) {
+        tripGroupIdToSave = existingAscent.trip_group_id;
+      }
+
+      // 2. Reusar si la propia experiencia existente ya tiene trip_group_id
+      if (!tripGroupIdToSave && isExperience) {
+        const existingExp = experienceRecords.find(
+          (r) =>
+            r.experience_id === selected.id &&
+            (r.achieved_on === finalDate || r.achieved_on === originalAchievedOn) &&
+            (!selected.sub_item_id || r.sub_item_id === selected.sub_item_id)
+        );
+        if (existingExp?.trip_group_id) {
+          tripGroupIdToSave = existingExp.trip_group_id;
+        }
+      }
+
+      // 3. Reusar si ya existe una invitación en record_companions para esta actividad y fechas
+      if (!tripGroupIdToSave && supabase && session?.user?.id) {
+        try {
+          const { data: existingInvs } = await supabase
+            .from("record_companions")
+            .select("trip_group_id, start_date, end_date")
+            .or(`inviter_id.eq.${session.user.id},companion_id.eq.${session.user.id}`)
+            .eq("item_id", selected.id)
+            .limit(10);
+
+          if (existingInvs && existingInvs.length > 0) {
+            const matchingInv = existingInvs.find((inv: any) =>
+              datesOverlap(finalDate, finalEndDate, inv.start_date, inv.end_date)
+            );
+            if (matchingInv?.trip_group_id) {
+              tripGroupIdToSave = matchingInv.trip_group_id;
+            }
+          }
+        } catch {}
+      }
+
+      // 4. Solo generar nuevo UUID si no existe ningún grupo previo
+      if (!tripGroupIdToSave) {
+        tripGroupIdToSave = crypto.randomUUID();
+      }
     }
 
     let isSeparated = false;
@@ -3312,12 +3360,13 @@ export function SummitTracker({
           startDate: finalDate,
           endDate: finalEndDate,
           currentRecordId: editingExpRecordId || null,
-          currentTripGroupId: tripGroupIdToSave,
+          currentTripGroupId: tripGroupIdToSave as string,
           recordType: isExperience ? "experience" : "ascent",
         });
 
-        const effectiveTripGroupId = syncResult.resolvedTripGroupId || tripGroupIdToSave;
+        const effectiveTripGroupId: string = syncResult.resolvedTripGroupId || (tripGroupIdToSave as string);
         const effectiveStatus = syncResult.isMutual ? "accepted" : (companionStatuses[comp.id] || "pending");
+        tripGroupIdToSave = effectiveTripGroupId;
 
         if (syncResult.isMutual && !isExperience) {
           await supabase
@@ -3357,6 +3406,17 @@ export function SummitTracker({
           .eq("trip_group_id", tripGroupIdToSave)
           .eq("inviter_id", session.user.id)
           .not("companion_id", "in", `(${selectedCompIds.join(",")})`);
+      }
+
+      // Limpiar invitaciones duplicadas obsoletas bajo otros trip_group_ids para este mismo viaje
+      if (tripGroupIdToSave && session?.user?.id) {
+        await supabase
+          .from("record_companions")
+          .delete()
+          .eq("inviter_id", session.user.id)
+          .eq("item_id", selected.id)
+          .eq("start_date", finalDate)
+          .neq("trip_group_id", tripGroupIdToSave);
       }
     }
 
@@ -4688,7 +4748,7 @@ export function SummitTracker({
           return (
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>
-                Compañeros de experiencia:
+                {filteredComps.length === 1 ? "Compañero de experiencia:" : "Compañeros de experiencia:"}
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 {filteredComps.map((comp: any) => (
@@ -6810,7 +6870,17 @@ export function SummitTracker({
                           return (
                             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                               <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>
-                                {isPeaks ? "Compañeros de ruta:" : isExp ? "Compañeros de experiencia:" : "Compañeros de viaje:"}
+                                {filteredComps.length === 1
+                                  ? isPeaks
+                                    ? "Compañero de ruta:"
+                                    : isExp
+                                    ? "Compañero de experiencia:"
+                                    : "Compañero de viaje:"
+                                  : isPeaks
+                                  ? "Compañeros de ruta:"
+                                  : isExp
+                                  ? "Compañeros de experiencia:"
+                                  : "Compañeros de viaje:"}
                               </span>
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                 {filteredComps.map((comp: any) => (

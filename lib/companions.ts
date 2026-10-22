@@ -133,6 +133,32 @@ export async function acceptTripInvitation(
       invitation.start_date && invitation.start_date !== "1900-01-01"
     );
 
+    // Match inviter's actual trip_group_id if their record already has one
+    let effectiveTripGroupId = invitation.trip_group_id;
+    if (invitation.record_type === "ascent") {
+      const { data: inviterAscent } = await supabase
+        .from("ascents")
+        .select("trip_group_id")
+        .eq("user_id", invitation.inviter_id)
+        .eq("summit_id", invitation.item_id)
+        .eq("achieved_on", invitation.start_date)
+        .maybeSingle();
+      if (inviterAscent?.trip_group_id) {
+        effectiveTripGroupId = inviterAscent.trip_group_id;
+      }
+    } else {
+      const { data: inviterExp } = await supabase
+        .from("experience_records")
+        .select("trip_group_id")
+        .eq("user_id", invitation.inviter_id)
+        .eq("experience_id", invitation.item_id)
+        .eq("achieved_on", invitation.start_date)
+        .maybeSingle();
+      if (inviterExp?.trip_group_id) {
+        effectiveTripGroupId = inviterExp.trip_group_id;
+      }
+    }
+
     if (invitation.record_type === "ascent") {
       // 1. Check if user already has an ascent on that exact date/summit
       const { data: existingExact } = await supabase
@@ -148,7 +174,7 @@ export async function acceptTripInvitation(
         await supabase
           .from("ascents")
           .update({
-            trip_group_id: invitation.trip_group_id,
+            trip_group_id: effectiveTripGroupId,
             end_date: invitation.end_date || null,
           })
           .eq("id", existingExact.id);
@@ -179,7 +205,7 @@ export async function acceptTripInvitation(
             .update({
               achieved_on: invitation.start_date,
               end_date: invitation.end_date || null,
-              trip_group_id: invitation.trip_group_id,
+              trip_group_id: effectiveTripGroupId,
               updated_at: new Date().toISOString(),
             })
             .eq("id", unknownRecordId);
@@ -203,7 +229,7 @@ export async function acceptTripInvitation(
               summit_id: invitation.item_id,
               achieved_on: invitation.start_date,
               end_date: invitation.end_date || null,
-              trip_group_id: invitation.trip_group_id,
+              trip_group_id: effectiveTripGroupId,
               notes: null,
               is_wishlist: false,
             })
@@ -239,7 +265,7 @@ export async function acceptTripInvitation(
         await supabase
           .from("experience_records")
           .update({
-            trip_group_id: invitation.trip_group_id,
+            trip_group_id: effectiveTripGroupId,
             location_name: invitation.location_name || null,
             lat: invitation.lat ?? null,
             lng: invitation.lng ?? null,
@@ -311,7 +337,7 @@ export async function acceptTripInvitation(
               location_name: invitation.location_name || null,
               lat: invitation.lat ?? null,
               lng: invitation.lng ?? null,
-              trip_group_id: invitation.trip_group_id,
+              trip_group_id: effectiveTripGroupId,
               notes: null,
               is_wishlist: false,
             })
@@ -331,10 +357,21 @@ export async function acceptTripInvitation(
       .from("record_companions")
       .update({
         status: "accepted",
+        trip_group_id: effectiveTripGroupId,
         companion_record_id: createdRecordId,
         updated_at: new Date().toISOString(),
       })
       .eq("id", invitation.id);
+
+    // Clean up any stale duplicate invitations between this inviter and companion for this item and date
+    await supabase
+      .from("record_companions")
+      .delete()
+      .eq("companion_id", currentUserId)
+      .eq("inviter_id", invitation.inviter_id)
+      .eq("item_id", invitation.item_id)
+      .eq("start_date", invitation.start_date)
+      .neq("id", invitation.id);
 
     if (updErr) {
       return { success: false, error: updErr.message };
@@ -499,12 +536,23 @@ export async function syncMutualTripInvitations({
       .eq("id", matchingInv.id);
 
     // 2. If current user's record is stored with a different trip_group_id, update it to unitedTripGroupId
-    if (currentRecordId && currentTripGroupId !== unitedTripGroupId) {
-      const table = recordType === "ascent" ? "ascents" : "experience_records";
-      await supabase
-        .from(table)
-        .update({ trip_group_id: unitedTripGroupId })
-        .eq("id", currentRecordId);
+    if (currentTripGroupId !== unitedTripGroupId) {
+      if (currentRecordId) {
+        const table = recordType === "ascent" ? "ascents" : "experience_records";
+        await supabase
+          .from(table)
+          .update({ trip_group_id: unitedTripGroupId })
+          .eq("id", currentRecordId);
+      } else if (recordType === "ascent") {
+        await supabase
+          .from("ascents")
+          .update({ trip_group_id: unitedTripGroupId })
+          .match({
+            user_id: currentUserId,
+            summit_id: itemId,
+            achieved_on: startDate,
+          });
+      }
     }
 
     return {

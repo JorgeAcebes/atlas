@@ -31,7 +31,26 @@ export function CompanionSelector({
   }, []);
 
   const label =
-    mode === "peaks"
+    selectedCompanions.length === 1
+      ? mode === "peaks"
+        ? "Compañero de ruta"
+        : mode === "countries"
+        ? "Compañero de viaje"
+        : "Compañero de experiencia"
+      : mode === "peaks"
+      ? "Compañeros de ruta"
+      : mode === "countries"
+      ? "Compañeros de viaje"
+      : "Compañeros de experiencia";
+
+  const modalTitle =
+    tempSelected.length === 1
+      ? mode === "peaks"
+        ? "Compañero de ruta"
+        : mode === "countries"
+        ? "Compañero de viaje"
+        : "Compañero de experiencia"
+      : mode === "peaks"
       ? "Compañeros de ruta"
       : mode === "countries"
       ? "Compañeros de viaje"
@@ -265,7 +284,13 @@ export function CompanionSelector({
           }}
         >
           <UserPlus size={14} />
-          <span>{selectedCompanions.length > 0 ? "+ Modificar compañeros" : pillButtonText}</span>
+          <span>
+            {selectedCompanions.length > 0
+              ? selectedCompanions.length === 1
+                ? "+ Modificar compañero"
+                : "+ Modificar compañeros"
+              : pillButtonText}
+          </span>
         </button>
       </div>
 
@@ -331,7 +356,7 @@ export function CompanionSelector({
                     color: "var(--ink, #1f2937)",
                   }}
                 >
-                  {label}
+                  {modalTitle}
                 </h3>
                 <p style={{ margin: "3px 0 0", fontSize: "12px", color: "var(--muted, #6b7280)" }}>
                   {tempSelected.length === 0

@@ -12,7 +12,8 @@ import { peaks } from "@/data/peaks";
 import { predefinedCategories } from "@/data/experiences";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { sortPhotosByTime } from "@/lib/image-utils";
-import { compareFeedRecords } from "@/lib/feed-sort";
+import { compareFeedRecords, areFeedItemsConnected } from "@/lib/feed-sort";
+import { datesOverlap } from "@/lib/companions";
 import { PhotoLightbox } from "./photo-lightbox";
 
 function isUnknownDate(dateVal: string | undefined | null): boolean {
@@ -54,7 +55,7 @@ function formatRecordDateRange(startDateVal: string | undefined | null, endDateV
   return startStr;
 }
 
-export { compareFeedRecords };
+export { compareFeedRecords, areFeedItemsConnected };
 
 function formatDateSafe(dateVal: string | undefined | null): string {
   if (!dateVal) return '';
@@ -480,7 +481,17 @@ function FeedItemCard({
             }}
           >
             <span style={{ fontSize: "11px", color: "var(--muted, #6b7280)", fontWeight: 600 }}>
-              {isPeak ? "Compañeros de ruta:" : isCountry ? "Compañeros de viaje:" : "Compañeros de experiencia:"}
+              {visibleCompanions.length === 1
+                ? isPeak
+                  ? "Compañero de ruta:"
+                  : isCountry
+                  ? "Compañero de viaje:"
+                  : "Compañero de experiencia:"
+                : isPeak
+                ? "Compañeros de ruta:"
+                : isCountry
+                ? "Compañeros de viaje:"
+                : "Compañeros de experiencia:"}
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
               {visibleCompanions.map((comp) => (
@@ -805,6 +816,7 @@ export function FeedTab({
         new Set(combinedBase.map((item) => item.trip_group_id).filter(Boolean))
       );
       const companionsByTripGroup: Record<string, any[]> = {};
+      const canonicalTripGroupMap = new Map<string, string>();
       if (tripGroupIds.length > 0) {
         try {
           const { data: compData } = await supabase
@@ -812,6 +824,11 @@ export function FeedTab({
             .select(`
               trip_group_id,
               status,
+              inviter_id,
+              companion_id,
+              item_id,
+              start_date,
+              end_date,
               companion_profile:profiles!record_companions_companion_id_fkey(id, username, avatar_url, is_public),
               inviter_profile:profiles!record_companions_inviter_id_fkey(id, username, avatar_url, is_public)
             `)
@@ -819,8 +836,20 @@ export function FeedTab({
             .eq("status", "accepted");
 
           if (compData) {
+            // Group by trip key (item_id + start_date + mutual participants) to resolve canonical group IDs
+            const tripKeyToCanonicalGid = new Map<string, string>();
             compData.forEach((row: any) => {
-              const gid = row.trip_group_id;
+              const participants = [row.inviter_id, row.companion_id].sort().join(":");
+              const tripKey = `${row.item_id || ""}:${row.start_date || ""}:${participants}`;
+              if (!tripKeyToCanonicalGid.has(tripKey)) {
+                tripKeyToCanonicalGid.set(tripKey, row.trip_group_id);
+              }
+              const canonicalGid = tripKeyToCanonicalGid.get(tripKey)!;
+              canonicalTripGroupMap.set(row.trip_group_id, canonicalGid);
+            });
+
+            compData.forEach((row: any) => {
+              const gid = canonicalTripGroupMap.get(row.trip_group_id) || row.trip_group_id;
               if (!companionsByTripGroup[gid]) {
                 companionsByTripGroup[gid] = [];
               }
@@ -837,8 +866,11 @@ export function FeedTab({
         }
       }
 
-      // Attach companions to combined items
+      // Attach companions to combined items and unify canonical trip_group_id
       combined.forEach((item) => {
+        if (item.trip_group_id && canonicalTripGroupMap.has(item.trip_group_id)) {
+          item.trip_group_id = canonicalTripGroupMap.get(item.trip_group_id);
+        }
         item.companions = item.trip_group_id ? companionsByTripGroup[item.trip_group_id] || [] : [];
       });
 
@@ -1140,12 +1172,8 @@ export function FeedTab({
             const prevItem = index > 0 ? visibleFeedItems[index - 1] : null;
             const nextItem = index < visibleFeedItems.length - 1 ? visibleFeedItems[index + 1] : null;
 
-            const isConnectedToPrev = Boolean(
-              item.trip_group_id && prevItem?.trip_group_id && item.trip_group_id === prevItem.trip_group_id
-            );
-            const isConnectedToNext = Boolean(
-              item.trip_group_id && nextItem?.trip_group_id && item.trip_group_id === nextItem.trip_group_id
-            );
+            const isConnectedToPrev = areFeedItemsConnected(prevItem, item);
+            const isConnectedToNext = areFeedItemsConnected(item, nextItem);
 
             return (
               <FeedItemCard

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { datesOverlap, CompanionProfile, acceptTripInvitation, RecordCompanion } from "@/lib/companions";
-import { compareFeedRecords } from "@/lib/feed-sort";
+import { compareFeedRecords, areFeedItemsConnected } from "@/lib/feed-sort";
 import { createMockSupabaseClient, MockSupabaseClient } from "@/tests/mocks/supabase-mock";
 
 let mockSupabase: MockSupabaseClient;
@@ -147,6 +147,71 @@ describe("Companions & Shared Trips Functionality", () => {
       const idxAlice = feed.findIndex((x) => x.user_id === "alice");
       const idxBob = feed.findIndex((x) => x.user_id === "bob");
       expect(Math.abs(idxAlice - idxBob)).toBe(1);
+    });
+
+    it("should connect companion posts with the same trip_group_id using areFeedItemsConnected", () => {
+      const post1 = {
+        user_id: "alice",
+        summit_id: "country-de",
+        record_date: "2022-08-15",
+        end_date: "2022-08-21",
+        trip_group_id: "trip-alpha",
+      };
+      const post2 = {
+        user_id: "bob",
+        summit_id: "country-de",
+        record_date: "2022-08-15",
+        end_date: "2022-08-21",
+        trip_group_id: "trip-alpha",
+      };
+      expect(areFeedItemsConnected(post1, post2)).toBe(true);
+    });
+
+    it("should connect companion posts even if trip_group_id strings differ when users are listed companions on the same activity and dates", () => {
+      // Caso real: Sacebes y Jorge en Alemania con trip_group_id divergentes
+      const sacebesPost = {
+        user_id: "user-sacebes",
+        summit_id: "country-de",
+        record_date: "2022-08-15",
+        end_date: "2022-08-21",
+        trip_group_id: "a2f90f13-fb0b-49ae-afcf-22cd6d3e784c",
+        companions: [{ id: "user-jorge", username: "jorge" }],
+      };
+      const jorgePost = {
+        user_id: "user-jorge",
+        summit_id: "country-de",
+        record_date: "2022-08-15",
+        end_date: "2022-08-21",
+        trip_group_id: "41cd41b7-4de5-47fa-8fb6-ea8d49209a80",
+        companions: [{ id: "user-sacebes", username: "sacebes" }],
+      };
+
+      expect(areFeedItemsConnected(sacebesPost, jorgePost)).toBe(true);
+      expect(areFeedItemsConnected(jorgePost, sacebesPost)).toBe(true);
+    });
+
+    it("should NOT connect posts when destinations or dates do not match", () => {
+      const post1 = {
+        user_id: "alice",
+        summit_id: "country-de",
+        record_date: "2022-08-15",
+        companions: [{ id: "bob" }],
+      };
+      const post2 = {
+        user_id: "bob",
+        summit_id: "country-fr", // Diferente país
+        record_date: "2022-08-15",
+        companions: [{ id: "alice" }],
+      };
+      expect(areFeedItemsConnected(post1, post2)).toBe(false);
+
+      const post3 = {
+        user_id: "bob",
+        summit_id: "country-de",
+        record_date: "2025-01-01", // Fecha completamente distinta
+        companions: [{ id: "alice" }],
+      };
+      expect(areFeedItemsConnected(post1, post3)).toBe(false);
     });
   });
 
@@ -476,3 +541,67 @@ describe("Companions & Shared Trips Functionality", () => {
       expect(expPhotos?.[0].taken_on).toBe(knownDate);
     });
   });
+
+  describe("Singular vs Plural Companion Labeling", () => {
+    it("should verify feed-tab renders singular 'Compañero' for 1 companion and plural 'Compañeros' for multiple", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const feedTabSource = fs.readFileSync(
+        path.resolve(process.cwd(), "components/feed-tab.tsx"),
+        "utf8"
+      );
+
+      // Verify that feed-tab differentiates single vs multiple companions
+      expect(feedTabSource).toContain("visibleCompanions.length === 1");
+      expect(feedTabSource).toContain('"Compañero de ruta:"');
+      expect(feedTabSource).toContain('"Compañeros de ruta:"');
+      expect(feedTabSource).toContain('"Compañero de viaje:"');
+      expect(feedTabSource).toContain('"Compañeros de viaje:"');
+      expect(feedTabSource).toContain('"Compañero de experiencia:"');
+      expect(feedTabSource).toContain('"Compañeros de experiencia:"');
+    });
+
+    it("should verify summit-tracker renders singular 'Compañero' for 1 companion and plural 'Compañeros' for multiple", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const trackerSource = fs.readFileSync(
+        path.resolve(process.cwd(), "components/summit-tracker.tsx"),
+        "utf8"
+      );
+
+      // Experiences list card
+      expect(trackerSource).toContain(
+        'filteredComps.length === 1 ? "Compañero de experiencia:" : "Compañeros de experiencia:"'
+      );
+
+      // Detail sidebar
+      expect(trackerSource).toContain("filteredComps.length === 1");
+      expect(trackerSource).toContain('"Compañero de ruta:"');
+      expect(trackerSource).toContain('"Compañeros de ruta:"');
+      expect(trackerSource).toContain('"Compañero de viaje:"');
+      expect(trackerSource).toContain('"Compañeros de viaje:"');
+      expect(trackerSource).toContain('"Compañero de experiencia:"');
+      expect(trackerSource).toContain('"Compañeros de experiencia:"');
+    });
+
+    it("should verify companion-selector adapts labels and buttons based on companion count", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const selectorSource = fs.readFileSync(
+        path.resolve(process.cwd(), "components/companion-selector.tsx"),
+        "utf8"
+      );
+
+      expect(selectorSource).toContain("selectedCompanions.length === 1");
+      expect(selectorSource).toContain('"Compañero de ruta"');
+      expect(selectorSource).toContain('"Compañeros de ruta"');
+      expect(selectorSource).toContain('"Compañero de viaje"');
+      expect(selectorSource).toContain('"Compañeros de viaje"');
+      expect(selectorSource).toContain('"Compañero de experiencia"');
+      expect(selectorSource).toContain('"Compañeros de experiencia"');
+      expect(selectorSource).toContain('"+ Modificar compañero"');
+      expect(selectorSource).toContain('"+ Modificar compañeros"');
+      expect(selectorSource).toContain("tempSelected.length === 1");
+    });
+  });
+

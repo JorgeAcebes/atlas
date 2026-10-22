@@ -1,3 +1,5 @@
+import { datesOverlap } from "./companions";
+
 /**
  * Ordena registros del feed cronológicamente de forma descendente (más recientes primero).
  * Invariante de negocio:
@@ -48,4 +50,47 @@ export function compareFeedRecords(
   const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
   const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
   return createdB - createdA;
+}
+
+/**
+ * Determina si dos publicaciones consecutivas del feed forman parte del mismo viaje / actividad compartida
+ * y por tanto deben enlazarse visualmente mediante el hilo ("feed-thread-connector").
+ */
+export function areFeedItemsConnected(itemA: any, itemB: any): boolean {
+  if (!itemA || !itemB) return false;
+  if (itemA.type === "error" || itemB.type === "error") return false;
+
+  // 1. Coincidencia directa de trip_group_id
+  if (itemA.trip_group_id && itemB.trip_group_id && itemA.trip_group_id === itemB.trip_group_id) {
+    return true;
+  }
+
+  // 2. Mismo destino/actividad y fechas solapadas o idénticas
+  const sameSummit = Boolean(itemA.summit_id && itemB.summit_id && itemA.summit_id === itemB.summit_id);
+  const sameExp = Boolean(
+    itemA.experience_id &&
+    itemB.experience_id &&
+    itemA.experience_id === itemB.experience_id &&
+    (itemA.sub_item_id || null) === (itemB.sub_item_id || null)
+  );
+  if (!sameSummit && !sameExp) return false;
+
+  const dateA = itemA.record_date || itemA.achieved_on;
+  const dateB = itemB.record_date || itemB.achieved_on;
+  if (!dateA || !dateB) return false;
+
+  const datesMatch = Boolean(
+    (dateA === dateB && (itemA.end_date || null) === (itemB.end_date || null)) ||
+    datesOverlap(dateA, itemA.end_date, dateB, itemB.end_date)
+  );
+  if (!datesMatch) return false;
+
+  // 3. Relación de compañeros de viaje en esta actividad
+  const aComps: any[] = itemA.companions || [];
+  const bComps: any[] = itemB.companions || [];
+
+  const aHasB = aComps.some((c: any) => c.id === itemB.user_id);
+  const bHasA = bComps.some((c: any) => c.id === itemA.user_id);
+
+  return aHasB || bHasA;
 }
