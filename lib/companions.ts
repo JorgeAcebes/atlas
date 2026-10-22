@@ -110,22 +110,32 @@ export async function getMutualFollowers(userId: string): Promise<CompanionProfi
 
 /**
  * Accepts a trip companion invitation.
- * Creates an entry in ascents or experience_records for the companion without copying photos or notes.
+ * - If user already has a record on the exact invitation date: links under the trip_group_id.
+ * - If user has an existing record with "Fecha desconocida" ('1900-01-01') and the invitation
+ *   has a known date: converts the unknown date record to the invitation's concrete date,
+ *   preserving the user's existing photos and notes.
+ * - Conversely, if the invitation has "Fecha desconocida" and the user already has a known-date
+ *   record, the user's dated record is NEVER overwritten or removed; instead, a new record
+ *   with "Fecha desconocida" is created alongside it.
  */
 export async function acceptTripInvitation(
   invitation: RecordCompanion,
   currentUserId: string
-): Promise<{ success: boolean; error?: string; recordId?: string }> {
+): Promise<{ success: boolean; error?: string; recordId?: string; wasConvertedFromUnknown?: boolean }> {
   if (!supabase || !currentUserId || invitation.companion_id !== currentUserId) {
     return { success: false, error: "No autorizado para aceptar esta invitación." };
   }
 
   try {
     let createdRecordId: string | null = null;
+    let wasConvertedFromUnknown = false;
+    const invitationHasKnownDate = Boolean(
+      invitation.start_date && invitation.start_date !== "1900-01-01"
+    );
 
     if (invitation.record_type === "ascent") {
-      // Check if user already has an ascent on that exact date/summit
-      const { data: existing } = await supabase
+      // 1. Check if user already has an ascent on that exact date/summit
+      const { data: existingExact } = await supabase
         .from("ascents")
         .select("id")
         .eq("user_id", currentUserId)
@@ -133,79 +143,186 @@ export async function acceptTripInvitation(
         .eq("achieved_on", invitation.start_date)
         .maybeSingle();
 
-      if (existing?.id) {
-        createdRecordId = existing.id;
+      if (existingExact?.id) {
+        createdRecordId = existingExact.id;
         await supabase
           .from("ascents")
           .update({
             trip_group_id: invitation.trip_group_id,
             end_date: invitation.end_date || null,
           })
-          .eq("id", existing.id);
+          .eq("id", existingExact.id);
       } else {
-        const { data: inserted, error: insErr } = await supabase
-          .from("ascents")
-          .insert({
-            user_id: currentUserId,
-            summit_id: invitation.item_id,
-            achieved_on: invitation.start_date,
-            end_date: invitation.end_date || null,
-            trip_group_id: invitation.trip_group_id,
-            notes: null,
-            is_wishlist: false,
-          })
-          .select("id")
-          .single();
+        // 2. If invitation has a concrete known date, check if user has an existing record with "Fecha desconocida"
+        let unknownRecordId: string | null = null;
+        if (invitationHasKnownDate) {
+          const { data: existingUnknown } = await supabase
+            .from("ascents")
+            .select("id")
+            .eq("user_id", currentUserId)
+            .eq("summit_id", invitation.item_id)
+            .eq("achieved_on", "1900-01-01")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-        if (insErr) {
-          return { success: false, error: insErr.message };
+          if (existingUnknown?.id) {
+            unknownRecordId = existingUnknown.id;
+          }
         }
-        createdRecordId = inserted?.id || null;
+
+        if (unknownRecordId) {
+          createdRecordId = unknownRecordId;
+          wasConvertedFromUnknown = true;
+          await supabase
+            .from("ascents")
+            .update({
+              achieved_on: invitation.start_date,
+              end_date: invitation.end_date || null,
+              trip_group_id: invitation.trip_group_id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", unknownRecordId);
+
+          // Update any associated photos taken_on from 1900-01-01 to the invitation's real date
+          await supabase
+            .from("summit_photos")
+            .update({ taken_on: invitation.start_date })
+            .match({
+              user_id: currentUserId,
+              summit_id: invitation.item_id,
+              taken_on: "1900-01-01",
+            });
+        } else {
+          // 3. Otherwise (no exact match and no unknown record to convert, OR invitation itself has unknown date),
+          // insert a new record without modifying any existing dated records.
+          const { data: inserted, error: insErr } = await supabase
+            .from("ascents")
+            .insert({
+              user_id: currentUserId,
+              summit_id: invitation.item_id,
+              achieved_on: invitation.start_date,
+              end_date: invitation.end_date || null,
+              trip_group_id: invitation.trip_group_id,
+              notes: null,
+              is_wishlist: false,
+            })
+            .select("id")
+            .single();
+
+          if (insErr) {
+            return { success: false, error: insErr.message };
+          }
+          createdRecordId = inserted?.id || null;
+        }
       }
     } else {
       // Experience record
-      const { data: existing } = await supabase
+      // 1. Check if user already has an experience on that exact date & sub-item
+      let exactQuery = supabase
         .from("experience_records")
         .select("id")
         .eq("user_id", currentUserId)
         .eq("experience_id", invitation.item_id)
-        .eq("achieved_on", invitation.start_date)
-        .maybeSingle();
+        .eq("achieved_on", invitation.start_date);
 
-      if (existing?.id) {
-        createdRecordId = existing.id;
+      if (invitation.sub_item_id) {
+        exactQuery = exactQuery.eq("sub_item_id", invitation.sub_item_id);
+      } else {
+        exactQuery = exactQuery.is("sub_item_id", null);
+      }
+
+      const { data: existingExact } = await exactQuery.maybeSingle();
+
+      if (existingExact?.id) {
+        createdRecordId = existingExact.id;
         await supabase
           .from("experience_records")
           .update({
             trip_group_id: invitation.trip_group_id,
-            sub_item_id: invitation.sub_item_id || null,
             location_name: invitation.location_name || null,
             lat: invitation.lat ?? null,
             lng: invitation.lng ?? null,
           })
-          .eq("id", existing.id);
+          .eq("id", existingExact.id);
       } else {
-        const { data: inserted, error: insErr } = await supabase
-          .from("experience_records")
-          .insert({
-            user_id: currentUserId,
-            experience_id: invitation.item_id,
-            sub_item_id: invitation.sub_item_id || null,
-            achieved_on: invitation.start_date,
-            location_name: invitation.location_name || null,
-            lat: invitation.lat ?? null,
-            lng: invitation.lng ?? null,
-            trip_group_id: invitation.trip_group_id,
-            notes: null,
-            is_wishlist: false,
-          })
-          .select("id")
-          .single();
+        // 2. If invitation has a concrete known date, check if user has an existing record with "Fecha desconocida"
+        let unknownRecordId: string | null = null;
+        if (invitationHasKnownDate) {
+          let unknownQuery = supabase
+            .from("experience_records")
+            .select("id")
+            .eq("user_id", currentUserId)
+            .eq("experience_id", invitation.item_id)
+            .eq("achieved_on", "1900-01-01");
 
-        if (insErr) {
-          return { success: false, error: insErr.message };
+          if (invitation.sub_item_id) {
+            unknownQuery = unknownQuery.eq("sub_item_id", invitation.sub_item_id);
+          } else {
+            unknownQuery = unknownQuery.is("sub_item_id", null);
+          }
+
+          const { data: existingUnknown } = await unknownQuery
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (existingUnknown?.id) {
+            unknownRecordId = existingUnknown.id;
+          }
         }
-        createdRecordId = inserted?.id || null;
+
+        if (unknownRecordId) {
+          createdRecordId = unknownRecordId;
+          wasConvertedFromUnknown = true;
+          await supabase
+            .from("experience_records")
+            .update({
+              achieved_on: invitation.start_date,
+              trip_group_id: invitation.trip_group_id,
+              location_name: invitation.location_name || null,
+              lat: invitation.lat ?? null,
+              lng: invitation.lng ?? null,
+            })
+            .eq("id", unknownRecordId);
+
+          // Update any associated photos taken_on from 1900-01-01 to the invitation's real date
+          const photoSummitId = invitation.sub_item_id
+            ? `${invitation.item_id}::${invitation.sub_item_id}`
+            : invitation.item_id;
+
+          await supabase
+            .from("summit_photos")
+            .update({ taken_on: invitation.start_date })
+            .match({
+              user_id: currentUserId,
+              summit_id: photoSummitId,
+              taken_on: "1900-01-01",
+            });
+        } else {
+          // 3. Otherwise, insert a new experience record
+          const { data: inserted, error: insErr } = await supabase
+            .from("experience_records")
+            .insert({
+              user_id: currentUserId,
+              experience_id: invitation.item_id,
+              sub_item_id: invitation.sub_item_id || null,
+              achieved_on: invitation.start_date,
+              location_name: invitation.location_name || null,
+              lat: invitation.lat ?? null,
+              lng: invitation.lng ?? null,
+              trip_group_id: invitation.trip_group_id,
+              notes: null,
+              is_wishlist: false,
+            })
+            .select("id")
+            .single();
+
+          if (insErr) {
+            return { success: false, error: insErr.message };
+          }
+          createdRecordId = inserted?.id || null;
+        }
       }
     }
 
@@ -223,7 +340,11 @@ export async function acceptTripInvitation(
       return { success: false, error: updErr.message };
     }
 
-    return { success: true, recordId: createdRecordId || undefined };
+    return {
+      success: true,
+      recordId: createdRecordId || undefined,
+      wasConvertedFromUnknown,
+    };
   } catch (err: any) {
     return { success: false, error: err?.message || "Error al aceptar invitación." };
   }

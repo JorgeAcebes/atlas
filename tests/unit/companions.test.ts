@@ -1,6 +1,18 @@
-import { describe, it, expect } from "vitest";
-import { datesOverlap, CompanionProfile } from "@/lib/companions";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { datesOverlap, CompanionProfile, acceptTripInvitation, RecordCompanion } from "@/lib/companions";
 import { compareFeedRecords } from "@/lib/feed-sort";
+import { createMockSupabaseClient, MockSupabaseClient } from "@/tests/mocks/supabase-mock";
+
+let mockSupabase: MockSupabaseClient;
+
+vi.mock("@/lib/supabase", () => {
+  return {
+    get supabase() {
+      return mockSupabase;
+    },
+    isSupabaseConfigured: true,
+  };
+});
 
 describe("Companions & Shared Trips Functionality", () => {
   describe("Date Overlap Rule (Separation logic)", () => {
@@ -225,5 +237,242 @@ describe("Companions & Shared Trips Functionality", () => {
       );
 
       expect(overlaps).toBe(false);
+    });
+  });
+
+  describe("Accepting Shared Trips with Unknown Date (Fecha desconocida)", () => {
+    beforeEach(() => {
+      mockSupabase = createMockSupabaseClient();
+    });
+
+    it("Caso A: Convierte 'Fecha desconocida' (1900-01-01) a la fecha concreta de la solicitud aceptada y actualiza fotos", async () => {
+      const currentUserId = "user-alice";
+      const summitId = "teide";
+      const knownDate = "2024-05-15";
+      const tripGroupId = "trip-group-123";
+
+      // 1. Usuario tiene un ascenso con 'Fecha desconocida' (1900-01-01)
+      await mockSupabase.from("ascents").insert({
+        id: "ascent-unknown-1",
+        user_id: currentUserId,
+        summit_id: summitId,
+        achieved_on: "1900-01-01",
+        notes: "Subida inolvidable al Teide",
+      });
+
+      // 2. Usuario tiene fotos asociadas a esa fecha desconocida
+      await mockSupabase.from("summit_photos").insert({
+        id: "photo-1",
+        user_id: currentUserId,
+        summit_id: summitId,
+        taken_on: "1900-01-01",
+        public_url: "https://example.com/teide.jpg",
+      });
+
+      // 3. Invitación con fecha real enviada por un compañero
+      const invitation: RecordCompanion = {
+        id: "inv-1",
+        trip_group_id: tripGroupId,
+        inviter_id: "user-bob",
+        companion_id: currentUserId,
+        record_type: "ascent",
+        item_type: "peaks",
+        item_id: summitId,
+        start_date: knownDate,
+        original_start_date: knownDate,
+        status: "pending",
+      };
+      await mockSupabase.from("record_companions").insert({ ...invitation });
+
+      // 4. Aceptar la invitación
+      const result = await acceptTripInvitation(invitation, currentUserId);
+
+      expect(result.success).toBe(true);
+      expect(result.wasConvertedFromUnknown).toBe(true);
+      expect(result.recordId).toBe("ascent-unknown-1");
+
+      // Verificar que el registro existente se actualizó (no se duplicó)
+      const { data: userAscents } = await mockSupabase
+        .from("ascents")
+        .select("*")
+        .eq("user_id", currentUserId)
+        .eq("summit_id", summitId);
+
+      expect(userAscents?.length).toBe(1);
+      expect(userAscents?.[0].achieved_on).toBe(knownDate);
+      expect(userAscents?.[0].trip_group_id).toBe(tripGroupId);
+      expect(userAscents?.[0].notes).toBe("Subida inolvidable al Teide"); // Preserva notas
+
+      // Verificar que las fotos también actualizaron taken_on a la fecha real
+      const { data: photos } = await mockSupabase
+        .from("summit_photos")
+        .select("*")
+        .eq("user_id", currentUserId)
+        .eq("summit_id", summitId);
+
+      expect(photos?.length).toBe(1);
+      expect(photos?.[0].taken_on).toBe(knownDate);
+    });
+
+    it("Caso B: Asimetría - No degrada una fecha conocida si la solicitud viene con 'Fecha desconocida'", async () => {
+      const currentUserId = "user-alice";
+      const summitId = "mulhacen";
+      const knownDate = "2023-08-10";
+      const tripGroupId = "trip-group-456";
+
+      // 1. Usuario ya tiene un ascenso fechado
+      await mockSupabase.from("ascents").insert({
+        id: "ascent-known-1",
+        user_id: currentUserId,
+        summit_id: summitId,
+        achieved_on: knownDate,
+        notes: "Día soleado en el Mulhacén",
+      });
+
+      // 2. Invitación con 'Fecha desconocida' (1900-01-01) enviada por un compañero
+      const invitation: RecordCompanion = {
+        id: "inv-2",
+        trip_group_id: tripGroupId,
+        inviter_id: "user-charlie",
+        companion_id: currentUserId,
+        record_type: "ascent",
+        item_type: "peaks",
+        item_id: summitId,
+        start_date: "1900-01-01",
+        original_start_date: "1900-01-01",
+        status: "pending",
+      };
+      await mockSupabase.from("record_companions").insert({ ...invitation });
+
+      // 3. Aceptar la invitación
+      const result = await acceptTripInvitation(invitation, currentUserId);
+
+      expect(result.success).toBe(true);
+      expect(result.wasConvertedFromUnknown).toBe(false);
+
+      // Verificar que mantiene el registro fechado Y además crea el de fecha desconocida
+      const { data: userAscents } = await mockSupabase
+        .from("ascents")
+        .select("*")
+        .eq("user_id", currentUserId)
+        .eq("summit_id", summitId);
+
+      expect(userAscents?.length).toBe(2);
+      const datedAscent = userAscents?.find((a: any) => a.achieved_on === knownDate);
+      const unknownAscent = userAscents?.find((a: any) => a.achieved_on === "1900-01-01");
+
+      expect(datedAscent).toBeDefined();
+      expect(datedAscent?.notes).toBe("Día soleado en el Mulhacén");
+      expect(unknownAscent).toBeDefined();
+      expect(unknownAscent?.trip_group_id).toBe(tripGroupId);
+    });
+
+    it("Caso C: Coincidencia exacta de fecha vincula el trip_group_id al registro existente", async () => {
+      const currentUserId = "user-alice";
+      const summitId = "aneto";
+      const exactDate = "2024-06-20";
+      const tripGroupId = "trip-group-789";
+
+      await mockSupabase.from("ascents").insert({
+        id: "ascent-exact-1",
+        user_id: currentUserId,
+        summit_id: summitId,
+        achieved_on: exactDate,
+      });
+
+      const invitation: RecordCompanion = {
+        id: "inv-3",
+        trip_group_id: tripGroupId,
+        inviter_id: "user-dave",
+        companion_id: currentUserId,
+        record_type: "ascent",
+        item_type: "peaks",
+        item_id: summitId,
+        start_date: exactDate,
+        original_start_date: exactDate,
+        status: "pending",
+      };
+      await mockSupabase.from("record_companions").insert({ ...invitation });
+
+      const result = await acceptTripInvitation(invitation, currentUserId);
+
+      expect(result.success).toBe(true);
+      expect(result.wasConvertedFromUnknown).toBe(false);
+      expect(result.recordId).toBe("ascent-exact-1");
+
+      const { data: userAscents } = await mockSupabase
+        .from("ascents")
+        .select("*")
+        .eq("user_id", currentUserId)
+        .eq("summit_id", summitId);
+
+      expect(userAscents?.length).toBe(1);
+      expect(userAscents?.[0].trip_group_id).toBe(tripGroupId);
+    });
+
+    it("Caso D: Experiencias - Convierte fecha desconocida en experiencia con sub-item y actualiza fotos", async () => {
+      const currentUserId = "user-alice";
+      const expId = "parques-nacionales";
+      const subItemId = "ordesa";
+      const knownDate = "2024-09-05";
+      const tripGroupId = "trip-group-exp-1";
+
+      await mockSupabase.from("experience_records").insert({
+        id: "exp-unknown-1",
+        user_id: currentUserId,
+        experience_id: expId,
+        sub_item_id: subItemId,
+        achieved_on: "1900-01-01",
+        location_name: "Valle de Ordesa",
+      });
+
+      await mockSupabase.from("summit_photos").insert({
+        id: "exp-photo-1",
+        user_id: currentUserId,
+        summit_id: `${expId}::${subItemId}`,
+        taken_on: "1900-01-01",
+        public_url: "https://example.com/ordesa.jpg",
+      });
+
+      const invitation: RecordCompanion = {
+        id: "inv-exp-1",
+        trip_group_id: tripGroupId,
+        inviter_id: "user-eva",
+        companion_id: currentUserId,
+        record_type: "experience",
+        item_type: "experience",
+        item_id: expId,
+        sub_item_id: subItemId,
+        start_date: knownDate,
+        original_start_date: knownDate,
+        status: "pending",
+      };
+      await mockSupabase.from("record_companions").insert({ ...invitation });
+
+      const result = await acceptTripInvitation(invitation, currentUserId);
+
+      expect(result.success).toBe(true);
+      expect(result.wasConvertedFromUnknown).toBe(true);
+      expect(result.recordId).toBe("exp-unknown-1");
+
+      const { data: userExp } = await mockSupabase
+        .from("experience_records")
+        .select("*")
+        .eq("user_id", currentUserId)
+        .eq("experience_id", expId);
+
+      expect(userExp?.length).toBe(1);
+      expect(userExp?.[0].achieved_on).toBe(knownDate);
+      expect(userExp?.[0].sub_item_id).toBe(subItemId);
+      expect(userExp?.[0].trip_group_id).toBe(tripGroupId);
+
+      const { data: expPhotos } = await mockSupabase
+        .from("summit_photos")
+        .select("*")
+        .eq("user_id", currentUserId)
+        .eq("summit_id", `${expId}::${subItemId}`);
+
+      expect(expPhotos?.length).toBe(1);
+      expect(expPhotos?.[0].taken_on).toBe(knownDate);
     });
   });

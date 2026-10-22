@@ -218,5 +218,15 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
       expect(globalsCss).toMatch(/\.photo-batch-bar\s*\{[^}]*z-index:\s*100050\s*!important/);
     });
   });
-});
+  describe("11. Close record/panel anti-reopening guards", () => {
+    it("should prevent momentary re-opening when closing panel/record with close button", () => {
+      const trackerPath = path.resolve(process.cwd(), "components/summit-tracker.tsx");
+      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
 
+      expect(trackerContent).toContain("isClosingPanelRef = useRef(false)");
+      expect(trackerContent).toContain("initialPanelRestoredRef = useRef(false)");
+      expect(trackerContent).toContain("isClosingPanelRef.current = true;");
+      expect(trackerContent).toContain("if (isClosingPanelRef.current) return;");
+    });
+  });
+});

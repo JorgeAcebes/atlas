@@ -760,6 +760,8 @@ export function SummitTracker({
   const panelPushedRef = useRef(false);
   const panelOpenedFromStatsRef = useRef(false);
   const recordOpenedFromPanelRef = useRef(false);
+  const isClosingPanelRef = useRef(false);
+  const initialPanelRestoredRef = useRef(false);
   const [panelIdToOpen, setPanelIdToOpen] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -776,7 +778,7 @@ export function SummitTracker({
   });
 
   useEffect(() => {
-    if (panelIdToOpen) {
+    if (panelIdToOpen && !isClosingPanelRef.current) {
       const targetHash = `#panel=${encodeURIComponent(panelIdToOpen)}`;
       if (window.location.hash !== targetHash) {
         if (panelPushedRef.current || (typeof window !== "undefined" && window.location.hash.startsWith("#panel"))) {
@@ -1032,6 +1034,8 @@ export function SummitTracker({
 
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
+  const panelIdToOpenRef = useRef(panelIdToOpen);
+  panelIdToOpenRef.current = panelIdToOpen;
 
   useEffect(() => {
     if (!supabase || !selected) return;
@@ -1404,12 +1408,14 @@ export function SummitTracker({
         panelOpenedFromStatsRef.current = false;
         recordOpenedFromPanelRef.current = false;
       } else if (hash.startsWith("#panel")) {
+        if (isClosingPanelRef.current) return;
         setEditorPhoto(null);
         setLightboxPhoto(null);
         setStatsOpen(false);
         const panelId = decodeURIComponent(hash.startsWith("#panel=") ? hash.substring(7) : hash.substring(6));
         if (panelId) {
-          if (!selected || selected.id !== panelId.split("::")[0]) {
+          const currentSelected = selectedRef.current;
+          if (!currentSelected || currentSelected.id !== panelId.split("::")[0]) {
             setPanelIdToOpen(panelId);
           }
         } else {
@@ -1417,7 +1423,8 @@ export function SummitTracker({
           setRecordOpen(false);
         }
       } else {
-        if (!panelIdToOpen) {
+        isClosingPanelRef.current = false;
+        if (!panelIdToOpenRef.current) {
           setEditorPhoto(null);
           setLightboxPhoto(null);
           setSelected(null);
@@ -1438,7 +1445,7 @@ export function SummitTracker({
       window.removeEventListener("hashchange", handleHashChange);
       window.removeEventListener("popstate", handleHashChange);
     };
-  }, [isActive, selected, panelIdToOpen, setSelected]);
+  }, [isActive, setSelected]);
 
   useEffect(() => {
     if (!isActive) {
@@ -1641,7 +1648,9 @@ export function SummitTracker({
 
   // Restore selection on load synchronously before paint
   useIsomorphicLayoutEffect(() => {
+    if (isClosingPanelRef.current) return;
     const hash = window.location.hash;
+    if (initialPanelRestoredRef.current && !panelIdToOpen) return;
     const targetHash = panelIdToOpen ? `#panel=${panelIdToOpen}` : hash;
     if (targetHash.startsWith("#panel=")) {
       const rawId = targetHash.substring(7);
@@ -1728,26 +1737,33 @@ export function SummitTracker({
           if (subItemId) {
             selectedItem = { ...item, sub_item_id: subItemId };
           }
+          const curSelected = selectedRef.current;
           if (
-            !selected ||
-            selected.id !== selectedItem.id ||
-            selected.sub_item_id !== selectedItem.sub_item_id
+            !curSelected ||
+            curSelected.id !== selectedItem.id ||
+            curSelected.sub_item_id !== selectedItem.sub_item_id
           ) {
             setSelected(selectedItem);
           }
           if (panelIdToOpen) {
             setPanelIdToOpen(null);
           }
+          initialPanelRestoredRef.current = true;
         }
       }
+    } else {
+      initialPanelRestoredRef.current = true;
     }
   }, [
     allItems,
     isPeaks,
-    selected,
     panelIdToOpen,
     experiencesMode,
     customExperiences,
+    canShowCountries,
+    canShowPeaks,
+    onToggleExperiences,
+    setSelected,
   ]);
 
   // Contar únicas
@@ -4146,6 +4162,7 @@ export function SummitTracker({
   }
 
   const closePanel = useCallback(() => {
+    isClosingPanelRef.current = true;
     setSelected(null);
     setSelectedPeak(null);
     setSelectedCountry(null);
@@ -4176,6 +4193,9 @@ export function SummitTracker({
         window.location.pathname + window.location.search,
       );
     }
+    setTimeout(() => {
+      isClosingPanelRef.current = false;
+    }, 400);
   }, [setSelected]);
 
   const handleCloseRecord = useCallback(() => {

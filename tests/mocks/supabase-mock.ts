@@ -15,6 +15,7 @@ export class MockQueryBuilder {
   private ascending = true;
   private limitCount?: number;
   private isSingle = false;
+  private isMaybeSingle = false;
   private pendingInsert?: MockRecord | MockRecord[];
   private pendingUpdate?: Partial<MockRecord>;
   private isDelete = false;
@@ -73,6 +74,23 @@ export class MockQueryBuilder {
     return this;
   }
 
+  maybeSingle(): this {
+    this.isMaybeSingle = true;
+    return this;
+  }
+
+  is(column: string, value: any): this {
+    this.filters.push((row) => (value === null ? row[column] === null || row[column] === undefined : row[column] === value));
+    return this;
+  }
+
+  match(criteria: Record<string, any>): this {
+    for (const [col, val] of Object.entries(criteria)) {
+      this.filters.push((row) => row[col] === val);
+    }
+    return this;
+  }
+
   single(): this {
     this.isSingle = true;
     return this;
@@ -126,7 +144,7 @@ export class MockQueryBuilder {
           updatedRows.push(rows[i]);
         }
       }
-      return { data: this.isSingle ? updatedRows[0] || null : updatedRows, error: null, count: updatedRows.length };
+      return { data: (this.isSingle || this.isMaybeSingle) ? updatedRows[0] || null : updatedRows, error: null, count: updatedRows.length };
     }
 
     // Handle DELETE
@@ -178,6 +196,13 @@ export class MockQueryBuilder {
 
     if (this.limitCount !== undefined) {
       filtered = filtered.slice(0, this.limitCount);
+    }
+
+    if (this.isMaybeSingle) {
+      return {
+        data: filtered[0] || null,
+        error: null,
+      };
     }
 
     if (this.isSingle) {

@@ -96,7 +96,11 @@ export function InboxModal({ isOpen, onClose, onInvitationAccepted }: InboxModal
     setActionLoadingId(null);
 
     if (res.success) {
-      setNotice("¡Actividad añadida a tu mapa y completada con éxito!");
+      setNotice(
+        res.wasConvertedFromUnknown
+          ? "¡Fecha actualizada y actividad completada con éxito!"
+          : "¡Actividad añadida a tu mapa y completada con éxito!"
+      );
       await fetchInvitations();
       onInvitationAccepted?.();
       setTimeout(() => setNotice(null), 3500);
