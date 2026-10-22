@@ -58,7 +58,7 @@ import {
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
 import { CompanionSelector } from "./companion-selector";
-import { CompanionProfile, datesOverlap, syncMutualTripInvitations } from "@/lib/companions";
+import { CompanionProfile, datesOverlap, syncMutualTripInvitations, getMutualFollowers } from "@/lib/companions";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
 import { uploadPhotoBlob, deleteStoragePhotos } from "@/lib/photo-client";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
@@ -150,6 +150,7 @@ export type ExperienceRecord = {
   link_name_2?: string;
   is_wishlist: boolean;
   location_name?: string | null;
+  trip_group_id?: string | null;
   created_at: string;
 };
 
@@ -1424,6 +1425,11 @@ export function SummitTracker({
         }
       } else {
         isClosingPanelRef.current = false;
+        if (typeof document !== "undefined") {
+          document.querySelectorAll(".leaflet-tooltip").forEach((el) => {
+            el.parentElement?.removeChild(el);
+          });
+        }
         if (!panelIdToOpenRef.current) {
           setEditorPhoto(null);
           setLightboxPhoto(null);
@@ -2311,6 +2317,7 @@ export function SummitTracker({
         link_name: r.link_name || null,
         link_2: (r as any).link_2 || null,
         link_name_2: (r as any).link_name_2 || null,
+        trip_group_id: r.trip_group_id || null,
       })),
     ];
 
@@ -2748,38 +2755,109 @@ export function SummitTracker({
       } else {
         setSelected(item);
         if (ascentToEdit) {
-          const tripGrpId = (ascentToEdit as any).trip_group_id || null;
+          let tripGrpId = (ascentToEdit as any)?.trip_group_id || null;
+          if (!tripGrpId) {
+            const expRecId = (ascentToEdit as any).record_id || (ascentToEdit as any).id;
+            if (expRecId) {
+              const expMatch = experienceRecords.find((r) => r.id === expRecId);
+              if (expMatch?.trip_group_id) tripGrpId = expMatch.trip_group_id;
+            }
+            if (!tripGrpId && item?.id && ascentToEdit.achieved_on) {
+              const ascMatch = ascents.find(
+                (a) => a.summit_id === item.id && a.achieved_on === ascentToEdit.achieved_on
+              );
+              if (ascMatch?.trip_group_id) tripGrpId = ascMatch.trip_group_id;
+            }
+            if (!tripGrpId && item?.id && ascentToEdit.achieved_on) {
+              const expDateMatch = experienceRecords.find(
+                (r) =>
+                  r.experience_id === item.id &&
+                  r.achieved_on === ascentToEdit.achieved_on &&
+                  (!item.sub_item_id || r.sub_item_id === item.sub_item_id)
+              );
+              if (expDateMatch?.trip_group_id) tripGrpId = expDateMatch.trip_group_id;
+            }
+          }
+
           if (tripGrpId && supabase) {
             setCurrentTripGroupId(tripGrpId);
-            supabase
-              .from("record_companions")
-              .select(`
-                id,
-                companion_id,
-                status,
-                original_start_date,
-                original_end_date,
-                companion_profile:profiles!record_companions_companion_id_fkey(id, username, avatar_url, is_public)
-              `)
-              .eq("trip_group_id", tripGrpId)
-              .then(({ data }) => {
+            setSelectedCompanions([]);
+            setCompanionStatuses({});
+
+            (async () => {
+              try {
+                const { data } = await supabase
+                  .from("record_companions")
+                  .select(`
+                    id,
+                    trip_group_id,
+                    inviter_id,
+                    companion_id,
+                    status,
+                    original_start_date,
+                    original_end_date,
+                    companion_profile:profiles!record_companions_companion_id_fkey(id, username, avatar_url, is_public),
+                    inviter_profile:profiles!record_companions_inviter_id_fkey(id, username, avatar_url, is_public)
+                  `)
+                  .eq("trip_group_id", tripGrpId);
+
                 if (data && data.length > 0) {
+                  const followers = session?.user?.id ? await getMutualFollowers(session.user.id) : [];
+                  const followersMap = new Map<string, CompanionProfile>(followers.map((f) => [f.id, f]));
+
                   const comps: CompanionProfile[] = [];
                   const statuses: Record<string, any> = {};
-                  data.forEach((row: any) => {
-                    if (row.companion_profile) {
-                      comps.push(row.companion_profile);
-                      statuses[row.companion_profile.id] = row.status;
+
+                  for (const row of data) {
+                    const isCurrentUserInviter = row.inviter_id === session?.user?.id;
+                    const otherId = isCurrentUserInviter ? row.companion_id : row.inviter_id;
+                    const rawComp = Array.isArray(row.companion_profile) ? row.companion_profile[0] : row.companion_profile;
+                    const rawInv = Array.isArray(row.inviter_profile) ? row.inviter_profile[0] : row.inviter_profile;
+                    let profile: CompanionProfile | null = isCurrentUserInviter
+                      ? (rawComp as unknown as CompanionProfile | null)
+                      : (rawInv as unknown as CompanionProfile | null);
+
+                    if ((!profile || !profile.username) && otherId && followersMap.has(otherId)) {
+                      profile = followersMap.get(otherId)!;
                     }
-                  });
+
+                    if ((!profile || !profile.username) && otherId) {
+                      const { data: directProf } = await supabase
+                        .from("profiles")
+                        .select("id, username, avatar_url, is_public")
+                        .eq("id", otherId)
+                        .maybeSingle();
+                      if (directProf?.username) {
+                        profile = directProf as CompanionProfile;
+                      }
+                    }
+
+                    if (profile && profile.username) {
+                      if (!comps.some((c) => c.id === profile!.id)) {
+                        comps.push(profile);
+                      }
+                      statuses[profile.id] = row.status;
+                    } else if (otherId) {
+                      comps.push({ id: otherId, username: "compañero" });
+                      statuses[otherId] = row.status;
+                    }
+                  }
+
                   setSelectedCompanions(comps);
                   setCompanionStatuses(statuses);
                   setOriginalTripDates({
                     start: data[0].original_start_date,
                     end: data[0].original_end_date,
                   });
+                } else {
+                  setSelectedCompanions([]);
+                  setCompanionStatuses({});
+                  setOriginalTripDates(null);
                 }
-              });
+              } catch (err) {
+                console.warn("Error fetching companions for trip:", err);
+              }
+            })();
           } else {
             setCurrentTripGroupId(null);
             setSelectedCompanions([]);
@@ -3387,6 +3465,7 @@ export function SummitTracker({
             link_name: linkName || null,
             link_2: link2 || null,
             link_name_2: linkName2 || null,
+            trip_group_id: tripGroupIdToSave,
             is_wishlist: false,
           },
           ...withoutThisAscentOrWishlist,
@@ -3420,6 +3499,7 @@ export function SummitTracker({
     setDeletedRecordPhotoIds([]);
     setSaving(false);
     setRecordOpen(false);
+    setCurrentTripGroupId(tripGroupIdToSave);
     const isEdit = isExperience ? !!editingExpRecordId : !!originalAchievedOn;
     const hasPrevious = isExperience
       ? experienceRecords.some((r) => r.experience_id === selected.id)
@@ -3549,6 +3629,7 @@ export function SummitTracker({
 
     setSaving(false);
     setRecordOpen(false);
+    setCurrentTripGroupId(null);
     setNotice(
       isPeaks
         ? "Ascensión eliminada."
@@ -4163,6 +4244,11 @@ export function SummitTracker({
 
   const closePanel = useCallback(() => {
     isClosingPanelRef.current = true;
+    if (typeof document !== "undefined") {
+      document.querySelectorAll(".leaflet-tooltip").forEach((el) => {
+        el.parentElement?.removeChild(el);
+      });
+    }
     setSelected(null);
     setSelectedPeak(null);
     setSelectedCountry(null);
@@ -4585,6 +4671,62 @@ export function SummitTracker({
             {renderRecordLink((ascent as any).link_2, (ascent as any).link_name_2)}
           </div>
         )}
+
+        {(() => {
+          const tripGrpId = (ascent as any).trip_group_id;
+          const tripComps = tripGrpId ? tripCompanionsMap[tripGrpId] : null;
+          if (!tripComps || tripComps.length === 0) return null;
+          const filteredComps = tripComps.filter((c: any) => {
+            if (c.id === targetId) return false;
+            if (c.is_public !== false) return true;
+            if (session?.user?.id === c.id) return true;
+            if (userFollowingSet.has(c.id)) return true;
+            return false;
+          });
+          if (filteredComps.length === 0) return null;
+
+          return (
+            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>
+                Compañeros de experiencia:
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                {filteredComps.map((comp: any) => (
+                  <Link
+                    key={comp.id}
+                    href={`/perfil/${comp.username}`}
+                    title={`@${comp.username}`}
+                    style={{ textDecoration: "none" }}
+                  >
+                    <div
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        backgroundColor: "var(--pine)",
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 10,
+                        fontWeight: "bold",
+                        overflow: "hidden",
+                        border: "1.5px solid var(--card-bg, #fff)",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                      }}
+                    >
+                      {comp.avatar_url ? (
+                        <img src={comp.avatar_url} alt={comp.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        comp.username.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {ascentPhotos.length > 0 && (
           <div className="photo-section" style={{ marginTop: 16 }}>

@@ -163,6 +163,9 @@ function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive
   const map = useMap();
   useEffect(() => {
     if (isActive === false) return;
+    if (!panelOpen) {
+      map.closeTooltip();
+    }
     const container = map.getContainer();
     if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
 
@@ -567,6 +570,7 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
             });
           }
         }
+        (layer as any).closeTooltip?.();
       }
     }
 
@@ -585,6 +589,20 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
           }
         }
       }
+    } else {
+      layerRefs.current.forEach((layer, id) => {
+        (layer as any).closeTooltip?.();
+        if (diffModeRef.current) {
+          const ds = getDiffGeoStyleRef(id);
+          (layer as Path).setStyle({ weight: ds.weight, fillOpacity: ds.fillOpacity });
+        } else {
+          const isWishlist = wishlistRef.current.has(id);
+          (layer as Path).setStyle({
+            weight: 1.15,
+            fillOpacity: completedRef.current.has(id) ? 0.83 : isWishlist ? 0.83 : 0.55,
+          });
+        }
+      });
     }
     activeIdRef.current = activeId || null;
   }, [activeId, getDiffGeoStyleRef]);
@@ -632,6 +650,7 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         });
         layer.on("click", (e: L.LeafletMouseEvent) => {
           if (selectingLocationRef.current) return;
+          (layer as any).closeTooltip?.();
           onInformationRef.current(country);
         });
 

@@ -128,6 +128,9 @@ function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive
   const map = useMap();
   useEffect(() => {
     if (isActive === false) return;
+    if (!panelOpen) {
+      map.closeTooltip();
+    }
     const container = map.getContainer();
     if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
 
@@ -366,6 +369,7 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
             fillOpacity: completedRef.current.has(oldCode) ? 0.83 : isWishlist ? 0.83 : 0.72,
           });
         }
+        (layer as any).closeTooltip?.();
       }
     }
 
@@ -382,6 +386,20 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
           });
         }
       }
+    } else {
+      layerRefs.current.forEach((layer, code) => {
+        (layer as any).closeTooltip?.();
+        if (diffModeRef.current) {
+          const ds = getDiffStyleRef(code);
+          layer.setStyle({ weight: ds.weight, fillOpacity: ds.fillOpacity });
+        } else {
+          const isWishlist = wishlistRef.current.has(code);
+          layer.setStyle({
+            weight: 1.15,
+            fillOpacity: completedRef.current.has(code) ? 0.83 : isWishlist ? 0.83 : 0.72,
+          });
+        }
+      });
     }
     activeCodeRef.current = activeCode || null;
   }, [activeCode, getDiffStyleRef]);
@@ -418,7 +436,10 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
           sticky: true,
           className: `summit-tooltip ${statusClass}`,
         });
-        layer.on("click", () => onInformationRef.current(peak));
+        layer.on("click", () => {
+          (layer as any).closeTooltip?.();
+          onInformationRef.current(peak);
+        });
 
         layer.on("mouseover", () => {
           if (diffModeRef.current) {

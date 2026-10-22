@@ -218,7 +218,7 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
       expect(globalsCss).toMatch(/\.photo-batch-bar\s*\{[^}]*z-index:\s*100050\s*!important/);
     });
   });
-  describe("11. Close record/panel anti-reopening guards", () => {
+  describe("11. Close record/panel anti-reopening guards and mobile tooltip cleanup", () => {
     it("should prevent momentary re-opening when closing panel/record with close button", () => {
       const trackerPath = path.resolve(process.cwd(), "components/summit-tracker.tsx");
       const trackerContent = fs.readFileSync(trackerPath, "utf-8");
@@ -227,6 +227,23 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
       expect(trackerContent).toContain("initialPanelRestoredRef = useRef(false)");
       expect(trackerContent).toContain("isClosingPanelRef.current = true;");
       expect(trackerContent).toContain("if (isClosingPanelRef.current) return;");
+    });
+
+    it("should clean up and prevent lingering tooltips on touch devices / back navigation", () => {
+      const globalsCss = fs.readFileSync(path.resolve(process.cwd(), "app/globals.css"), "utf-8");
+      expect(globalsCss).toContain("@media (hover: none) and (pointer: coarse)");
+      expect(globalsCss).toContain("display: none !important;");
+
+      const worldMapContent = fs.readFileSync(path.resolve(process.cwd(), "components/world-map.tsx"), "utf-8");
+      expect(worldMapContent).toContain("map.closeTooltip()");
+      expect(worldMapContent).toContain("(layer as any).closeTooltip?.()");
+
+      const spainMapContent = fs.readFileSync(path.resolve(process.cwd(), "components/spain-map.tsx"), "utf-8");
+      expect(spainMapContent).toContain("map.closeTooltip()");
+      expect(spainMapContent).toContain("(layer as any).closeTooltip?.()");
+
+      const trackerContent = fs.readFileSync(path.resolve(process.cwd(), "components/summit-tracker.tsx"), "utf-8");
+      expect(trackerContent).toContain('.querySelectorAll(".leaflet-tooltip")');
     });
   });
 });
