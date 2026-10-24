@@ -63,9 +63,7 @@ export function sanitizeDateForShare(dateStr: string | null | undefined): string
  */
 export function sanitizeTextForShare(text: string | null | undefined): string {
   if (!text) return "";
-  return text.replace(/\b(19\d{2}|20\d{2})\b/g, (year) => {
-    return year.slice(0, 2) + ZWNJ + year.slice(2);
-  });
+  return sanitizeDateForShare(text);
 }
 
 /**

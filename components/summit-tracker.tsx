@@ -2617,20 +2617,27 @@ export function SummitTracker({
       from: isPeaks ? "mapa" : "social",
     });
 
-    // Build share text based on item type
-    const dateStr = formatDate(ascent.achieved_on);
-    const endDateStr = ascent.end_date ? ` - ${formatDate(ascent.end_date)}` : "";
-    const dateRange = sanitizeDateForShare(`${dateStr}${endDateStr}`);
+        // Build share text based on item type
+    const hasKnownDate = ascent.achieved_on && ascent.achieved_on !== "1900-01-01";
+    let dateSuffix = "";
+    if (hasKnownDate) {
+      const dateStr = formatDate(ascent.achieved_on);
+      const endDateStr = ascent.end_date && ascent.end_date !== "1900-01-01" && ascent.end_date !== ascent.achieved_on
+        ? ` - ${formatDate(ascent.end_date)}`
+        : "";
+      const dateRange = sanitizeDateForShare(`${dateStr}${endDateStr}`);
+      dateSuffix = ` el ${dateRange}`;
+    }
 
     let shareText = "";
     const itemType = (item as any).itemType;
     if (itemType === "peak") {
-      shareText = `Mi ascensión a ${item.title} el ${dateRange}`;
+      shareText = `Mi ascensión a ${item.title}${dateSuffix}`;
     } else if (itemType === "experience") {
-      shareText = `Mi experiencia en ${item.title} el ${dateRange}`;
+      shareText = `Mi experiencia en ${item.title}${dateSuffix}`;
     } else {
       // country
-      shareText = `Mi visita a ${item.title} el ${dateRange}`;
+      shareText = `Mi visita a ${item.title}${dateSuffix}`;
     }
 
     if (ascent.notes) {
