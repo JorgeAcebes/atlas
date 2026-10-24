@@ -22,7 +22,10 @@ export function getSanitizedR2Credentials() {
   let accessKeyId = (process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "").trim();
   let secretAccessKey = (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "").trim();
   let bucket = (process.env.CLOUDFLARE_R2_BUCKET_NAME || "").trim() || "atlas-photos";
-  let publicUrl = (process.env.CLOUDFLARE_R2_PUBLIC_URL || "").trim() || "https://pub-a4abf786bc324d97a33777bd178cb9c6.r2.dev";
+  let publicUrl = (process.env.CLOUDFLARE_R2_PUBLIC_URL || "").trim();
+  if (!publicUrl || publicUrl.includes("r2.dev")) {
+    publicUrl = "/api/photos/view";
+  }
 
   // Auto-sanitización: Si en Vercel se configuraron los valores erróneos de la sesión anterior
   if (accountId === "1005ca629a43a418a05cda31ce98c763") {

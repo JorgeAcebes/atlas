@@ -61,7 +61,7 @@ import { CompanionSelector } from "./companion-selector";
 import { sanitizeDateForShare, sanitizeTextForShare, buildRecordShareUrl, executeShare } from "@/lib/share-utils";
 import { CompanionProfile, datesOverlap, syncMutualTripInvitations, getMutualFollowers } from "@/lib/companions";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
-import { uploadPhotoBlob, deleteStoragePhotos } from "@/lib/photo-client";
+import { uploadPhotoBlob, deleteStoragePhotos, getPhotoDisplayUrl } from "@/lib/photo-client";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { MarqueeText } from "./marquee-text";
 
@@ -2071,7 +2071,7 @@ export function SummitTracker({
         setStoredTrackerData("ascents", targetId, nextData);
       }
       if (photoResult.data) {
-        const nextData = sortPhotosByTime(photoResult.data as SummitPhoto[]);
+        const nextData = sortPhotosByTime((photoResult.data as SummitPhoto[]).map((p) => ({ ...p, public_url: getPhotoDisplayUrl(p.public_url, p.storage_path) })));
         if (!areRecordsEqual(cachedPhotosByUser[targetId], nextData)) {
           setPhotos(nextData);
         }
@@ -2430,26 +2430,18 @@ export function SummitTracker({
     setNotice("Subiendo fotos...");
 
     const uploaded: SummitPhoto[] = [];
-    for (const { file, shotAt } of filesToUpload) {
-      if (!file.type.startsWith("image/")) continue;
-      const compressedBlob = await compressImage(file);
-      let uploadResult;
+    const uploadTasks = filesToUpload.map(async ({ file, shotAt }) => {
+      if (!file.type.startsWith("image/")) return null;
       try {
-        uploadResult = await uploadPhotoBlob({
+        const compressedBlob = await compressImage(file);
+        const uploadResult = await uploadPhotoBlob({
           blob: compressedBlob,
           fileName: file.name,
           summitId: selected.id,
           session,
           supabase,
         });
-      } catch (uploadErr: any) {
-        setNotice(uploadErr.message || `Error al subir ${file.name}`);
-        continue;
-      }
-
-      const photoResult = await supabase
-        .from("summit_photos")
-        .insert({
+        return {
           user_id: session.user.id,
           summit_id: ascent.sub_item_id
             ? `${selected.id}::${ascent.sub_item_id}`
@@ -2459,11 +2451,22 @@ export function SummitTracker({
           file_size: uploadResult.fileSize,
           taken_on: ascent.achieved_on,
           shot_at: shotAt,
-        })
-        .select()
-        .single();
+        };
+      } catch (uploadErr: any) {
+        setNotice(uploadErr.message || `Error al subir ${file.name}`);
+        return null;
+      }
+    });
 
-      if (photoResult.data) uploaded.push(photoResult.data as SummitPhoto);
+    const photoRecordsToInsert = (await Promise.all(uploadTasks)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (photoRecordsToInsert.length > 0) {
+      const photoResult = await supabase
+        .from("summit_photos")
+        .insert(photoRecordsToInsert)
+        .select();
+      if (photoResult.data) {
+        uploaded.push(...(photoResult.data as SummitPhoto[]));
+      }
     }
 
     if (uploaded.length) setPhotos((prev) => sortPhotosByTime([...prev, ...uploaded]));
@@ -3436,28 +3439,18 @@ export function SummitTracker({
     const sortedFilesWithTime = await sortFilesByCaptureTime(files, finalDate);
     const filesToUpload = sortedFilesWithTime.slice(0, availableSlots);
     const uploaded: SummitPhoto[] = [];
-    for (const { file, shotAt } of filesToUpload) {
-      if (!file.type.startsWith("image/")) continue;
-      const compressedBlob = await compressImage(file);
-      let uploadResult;
+    const uploadTasks = filesToUpload.map(async ({ file, shotAt }) => {
+      if (!file.type.startsWith("image/")) return null;
       try {
-        uploadResult = await uploadPhotoBlob({
+        const compressedBlob = await compressImage(file);
+        const uploadResult = await uploadPhotoBlob({
           blob: compressedBlob,
           fileName: file.name,
           summitId: selected.id,
           session,
           supabase,
         });
-      } catch (uploadErr: any) {
-        setNotice(
-          `Registro guardado, pero una foto no pudo subirse: ${uploadErr.message}`,
-        );
-        continue;
-      }
-
-      const photoResult = await supabase
-        .from("summit_photos")
-        .insert({
+        return {
           user_id: session.user.id,
           summit_id: selected.sub_item_id
             ? `${selected.id}::${selected.sub_item_id}`
@@ -3467,10 +3460,24 @@ export function SummitTracker({
           file_size: uploadResult.fileSize,
           taken_on: finalDate,
           shot_at: shotAt,
-        })
-        .select()
-        .single();
-      if (photoResult.data) uploaded.push(photoResult.data as SummitPhoto);
+        };
+      } catch (uploadErr: any) {
+        setNotice(
+          `Registro guardado, pero una foto no pudo subirse: ${uploadErr.message}`,
+        );
+        return null;
+      }
+    });
+
+    const photoRecordsToInsert = (await Promise.all(uploadTasks)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (photoRecordsToInsert.length > 0) {
+      const photoResult = await supabase
+        .from("summit_photos")
+        .insert(photoRecordsToInsert)
+        .select();
+      if (photoResult.data) {
+        uploaded.push(...(photoResult.data as SummitPhoto[]));
+      }
     }
 
     if (isExperience) {

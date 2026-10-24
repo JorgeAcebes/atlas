@@ -9,6 +9,8 @@ import {
   MoreVertical,
 } from "lucide-react";
 
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
+
 export interface LightboxPhoto {
   id?: string;
   public_url: string;
@@ -710,7 +712,7 @@ export function PhotoLightbox({
           <img
             ref={imageRef}
             key={currentPhoto.id || currentIndex}
-            src={currentPhoto.public_url}
+            src={getPhotoDisplayUrl(currentPhoto.public_url, (currentPhoto as any).storage_path)}
             alt={title || "Foto"}
             className="lightbox-image"
             draggable={false}

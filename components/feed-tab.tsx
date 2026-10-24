@@ -16,6 +16,7 @@ import { compareFeedRecords, areFeedItemsConnected } from "@/lib/feed-sort";
 import { datesOverlap } from "@/lib/companions";
 import { PhotoLightbox } from "./photo-lightbox";
 import { sanitizeDateForShare, sanitizeTextForShare, buildRecordShareUrl, executeShare } from "@/lib/share-utils";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 
 function isUnknownDate(dateVal: string | undefined | null): boolean {
   if (!dateVal) return true;
@@ -183,7 +184,7 @@ function FeedItemCard({
     });
   }, [item.companions, item.user_id, _session?.user?.id, followingUserIdsSet]);
 
-  const photos: any[] = sortPhotosByTime((item.photos || []).filter((p: any) => p && p.public_url));
+  const photos: any[] = sortPhotosByTime((item.photos || []).filter((p: any) => p && (p.public_url || p.storage_path)).map((p: any) => ({ ...p, public_url: getPhotoDisplayUrl(p.public_url, p.storage_path) })));
   const hasPhotos = photos.length > 0;
   const isLightboxOpen = lightboxIndex !== null;
 
@@ -977,7 +978,7 @@ export function FeedTab({
           for (const feedItem of combined.slice(0, 6)) {
             if (feedItem.photos && Array.isArray(feedItem.photos)) {
               for (const p of feedItem.photos) {
-                if (p?.public_url) topPhotosToPreload.push(p.public_url);
+                const pUrl = getPhotoDisplayUrl(p?.public_url, p?.storage_path); if (pUrl) topPhotosToPreload.push(pUrl);
               }
             }
           }

@@ -7,6 +7,7 @@ import { countries, type Country } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
 import { supabase } from "@/lib/supabase";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { PhotoLightbox } from "./photo-lightbox";
 import {
   X,
@@ -2241,7 +2242,7 @@ export function StatsModal({
                         aria-label={`Ver foto de ${loc.name}`}
                       >
                         <img
-                          src={photo.public_url || photo.url}
+                          src={getPhotoDisplayUrl(photo.public_url || photo.url, photo.storage_path)}
                           alt={photo.caption || loc.name}
                           loading="lazy"
                           className="stats-gallery-img"
@@ -2262,7 +2263,7 @@ export function StatsModal({
         <PhotoLightbox
           photos={sortedPhotos.map((p) => ({
             ...p,
-            public_url: p.public_url || p.url,
+            public_url: getPhotoDisplayUrl(p.public_url || p.url, p.storage_path),
           }))}
           currentIndex={lightboxIndex}
           onIndexChange={(newIdx) => setLightboxIndex(newIdx)}

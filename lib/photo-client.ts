@@ -10,6 +10,37 @@ export interface UploadPhotoResult {
   fileSize: number;
 }
 
+/**
+ * Resuelve la URL óptima de visualización de una foto.
+ * Si la foto apunta a un subdominio r2.dev (bloqueado por operadores en España),
+ * o si se dispone del storagePath, la enruta de forma transparente a través
+ * del endpoint /api/photos/view/<path> con CDN Edge caching en Vercel.
+ */
+export function getPhotoDisplayUrl(
+  url?: string | null,
+  storagePath?: string | null
+): string {
+  if (!url && !storagePath) return "";
+
+  if (storagePath) {
+    if (!url || url.includes(".r2.dev")) {
+      return `/api/photos/view/${storagePath}`;
+    }
+  }
+
+  if (url) {
+    if (url.includes(".r2.dev/")) {
+      const match = url.match(/https?:\/\/[^/]+\.r2\.dev\/(.+)$/);
+      if (match && match[1]) {
+        return `/api/photos/view/${match[1]}`;
+      }
+    }
+    return url;
+  }
+
+  return "";
+}
+
 export async function uploadPhotoBlob(options: {
   blob: Blob;
   fileName: string;
@@ -86,7 +117,7 @@ export async function deleteStoragePhotos(options: {
   // Limpieza redundante de fotos antiguas que pudieran quedar en Supabase Storage
   try {
     await supabase.storage.from("summit-photos").remove(paths);
-  } catch (err) {
+  } catch {
     // Ignorar si ya no existía
   }
 }
