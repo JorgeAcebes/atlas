@@ -71,6 +71,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // =========================================================================
+    // EXCLUSIVIDAD CLOUDFLARE R2 (NUNCA USAR SUPABASE STORAGE PARA SUBIDAS)
+    // =========================================================================
+    if (!isR2Configured()) {
+      return NextResponse.json(
+        { error: "El almacenamiento Cloudflare R2 no está configurado en las variables de entorno." },
+        { status: 500 }
+      );
+    }
+
     const cleanFileName = rawFileName.replace(/[^a-zA-Z0-9._-]/g, "-");
     const uniqueId = crypto.randomUUID();
     const folder = summitId ? String(summitId).replace(/[^a-zA-Z0-9._-]/g, "-") : "general";
@@ -80,52 +90,26 @@ export async function POST(request: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 1. Si Cloudflare R2 está configurado, subir directamente desde el servidor (sin bloqueos CORS del navegador)
-    if (isR2Configured()) {
-      try {
-        const r2Result = await uploadR2Object({
-          key: storagePath,
-          buffer,
-          contentType,
-        });
-
-        return NextResponse.json({
-          provider: "r2",
-          publicUrl: r2Result.publicUrl,
-          storagePath: r2Result.storagePath,
-          fileSize,
-        });
-      } catch (r2Err) {
-        console.warn("Fallo al subir a Cloudflare R2 desde el servidor, usando fallback a Supabase Storage:", r2Err);
-      }
-    }
-
-    // 2. Fallback garantizado: Supabase Storage
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from("summit-photos")
-      .upload(storagePath, buffer, {
+    try {
+      const r2Result = await uploadR2Object({
+        key: storagePath,
+        buffer,
         contentType,
-        upsert: false,
       });
 
-    if (uploadError) {
-      console.error("Error al subir a Supabase Storage:", uploadError);
+      return NextResponse.json({
+        provider: "r2",
+        publicUrl: r2Result.publicUrl,
+        storagePath: r2Result.storagePath,
+        fileSize,
+      });
+    } catch (r2Err: any) {
+      console.error("Error al subir imagen a Cloudflare R2:", r2Err);
       return NextResponse.json(
-        { error: `Error al almacenar foto: ${uploadError.message}` },
+        { error: `Error al subir la imagen a Cloudflare R2: ${r2Err?.message || "Fallo en el servicio"}` },
         { status: 500 }
       );
     }
-
-    const { data: pubData } = supabaseAdmin.storage
-      .from("summit-photos")
-      .getPublicUrl(storagePath);
-
-    return NextResponse.json({
-      provider: "supabase",
-      publicUrl: pubData.publicUrl,
-      storagePath,
-      fileSize,
-    });
   } catch (err: any) {
     console.error("Error en upload photos API:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });

@@ -71,33 +71,32 @@ export async function POST(request: Request) {
       );
     }
 
+    // =========================================================================
+    // EXCLUSIVIDAD CLOUDFLARE R2
+    // =========================================================================
+    if (!isR2Configured()) {
+      return NextResponse.json(
+        { error: "El almacenamiento Cloudflare R2 no está configurado en el servidor." },
+        { status: 500 }
+      );
+    }
+
     const cleanFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
     const uniqueId = crypto.randomUUID();
     const folder = summitId ? String(summitId).replace(/[^a-zA-Z0-9._-]/g, "-") : "general";
     const storagePath = `${user.id}/${folder}/${uniqueId}-${cleanFileName}`;
 
-    if (isR2Configured()) {
-      const presigned = await createPresignedUploadUrl({
-        key: storagePath,
-        contentType,
-        expiresInSeconds: 300,
-      });
+    const presigned = await createPresignedUploadUrl({
+      key: storagePath,
+      contentType,
+      expiresInSeconds: 300,
+    });
 
-      return NextResponse.json({
-        provider: "r2",
-        uploadUrl: presigned.uploadUrl,
-        publicUrl: presigned.publicUrl,
-        storagePath: presigned.storagePath,
-        currentBytes: storageCheck.currentBytes,
-        maxBytes: storageCheck.maxBytes,
-        remainingBytes: storageCheck.remainingBytes,
-      });
-    }
-
-    // Modo compatibilidad / fallback si Cloudflare R2 todavía no está configurado en las variables de entorno
     return NextResponse.json({
-      provider: "supabase",
-      storagePath,
+      provider: "r2",
+      uploadUrl: presigned.uploadUrl,
+      publicUrl: presigned.publicUrl,
+      storagePath: presigned.storagePath,
       currentBytes: storageCheck.currentBytes,
       maxBytes: storageCheck.maxBytes,
       remainingBytes: storageCheck.remainingBytes,

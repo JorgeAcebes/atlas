@@ -132,4 +132,15 @@ describe("Cloudflare R2 & 9.5 GB Strict Storage Cap Verification", () => {
     expect(code).not.toContain("MAX_MB = 5");
     expect(code).not.toContain("Cada foto debe ocupar máximo 5 MB");
   });
+
+  it("should never use Supabase Storage as an upload target to protect database quota", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+
+    const clientCode = fs.readFileSync(path.join(process.cwd(), "lib/photo-client.ts"), "utf8");
+    expect(clientCode).not.toContain('.from("summit-photos").upload');
+
+    const uploadRouteCode = fs.readFileSync(path.join(process.cwd(), "app/api/photos/upload/route.ts"), "utf8");
+    expect(uploadRouteCode).not.toContain('.from("summit-photos").upload');
+  });
 });
