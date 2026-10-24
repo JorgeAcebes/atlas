@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
 import { CompanionSelector } from "./companion-selector";
+import { sanitizeDateForShare, buildRecordShareUrl, executeShare } from "@/lib/share-utils";
 import { CompanionProfile, datesOverlap, syncMutualTripInvitations, getMutualFollowers } from "@/lib/companions";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
 import { uploadPhotoBlob, deleteStoragePhotos } from "@/lib/photo-client";
@@ -770,6 +771,10 @@ export function SummitTracker({
         if (stored) {
           sessionStorage.removeItem("auto_open_panel");
           return stored;
+        }
+        const searchRecord = new URLSearchParams(window.location.search).get("record");
+        if (searchRecord) {
+          return searchRecord;
         }
       } catch (e) {
         console.warn(e);
@@ -2599,7 +2604,7 @@ export function SummitTracker({
   async function handleShareRecord(
     item: SelectedItem,
     ascent: Ascent | any,
-    ascentPhotos: SummitPhoto[],
+    _ascentPhotos: SummitPhoto[],
   ) {
     if (!myProfile?.username) {
       setNotice("Necesitas un nombre de usuario para compartir.");
@@ -2608,13 +2613,22 @@ export function SummitTracker({
     }
 
     const baseUrl = window.location.origin;
-    const challenge = isPeaks ? "peaks" : "countries";
-    const profileUrl = `${baseUrl}/perfil/${myProfile.username}?challenge=${challenge}#panel=${item.id}`;
+    const challenge = item.itemType === "experience"
+      ? "experiences"
+      : (item.itemType === "peak" || isPeaks) ? "peaks" : "countries";
+    const recordId = item.sub_item_id ? `${item.id}::${item.sub_item_id}` : item.id;
+    const profileUrl = buildRecordShareUrl({
+      baseUrl,
+      username: myProfile.username,
+      challenge,
+      recordId,
+      from: isPeaks ? "mapa" : "social",
+    });
 
     // Build share text based on item type
     const dateStr = formatDate(ascent.achieved_on);
     const endDateStr = ascent.end_date ? ` - ${formatDate(ascent.end_date)}` : "";
-    const dateRange = `${dateStr}${endDateStr}`;
+    const dateRange = sanitizeDateForShare(`${dateStr}${endDateStr}`);
 
     let shareText = "";
     const itemType = (item as any).itemType;
@@ -2643,47 +2657,18 @@ export function SummitTracker({
 
     shareText += `\n\n${profileUrl}`;
 
-    // Download photos as File objects for sharing
-    const photoFiles: File[] = [];
-    if (ascentPhotos.length > 0) {
-      for (const photo of ascentPhotos) {
-        try {
-          const response = await fetch(photo.public_url);
-          const blob = await response.blob();
-          const extension = blob.type.split("/")[1] || "jpg";
-          const fileName = `${item.title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g, "")}_${photo.taken_on}.${extension}`;
-          photoFiles.push(new File([blob], fileName, { type: blob.type }));
-        } catch {
-          // Skip photos that fail to download
-        }
+    const shareTitle = `${item.title} · @${myProfile.username}`;
+    await executeShare(
+      {
+        title: shareTitle,
+        text: shareText,
+        url: profileUrl,
+      },
+      () => {
+        setNotice("Enlace copiado al portapapeles");
+        setTimeout(() => setNotice(""), 3000);
       }
-    }
-
-    // Use Web Share API
-    if (navigator.share) {
-      try {
-        const shareData: ShareData = {
-          text: shareText,
-        };
-        if (photoFiles.length > 0 && navigator.canShare?.({ files: photoFiles })) {
-          shareData.files = photoFiles;
-        }
-        await navigator.share(shareData);
-      } catch (err: any) {
-        // User cancelled sharing - no error needed
-        if (err?.name !== "AbortError") {
-          // Fallback: copy to clipboard
-          await navigator.clipboard?.writeText(shareText);
-          setNotice("Enlace copiado al portapapeles");
-          setTimeout(() => setNotice(""), 3000);
-        }
-      }
-    } else {
-      // Fallback for browsers without Web Share API
-      await navigator.clipboard?.writeText(shareText);
-      setNotice("Enlace copiado al portapapeles");
-      setTimeout(() => setNotice(""), 3000);
-    }
+    );
   }
 
   function handleExperienceClick(record: ExperienceRecord) {

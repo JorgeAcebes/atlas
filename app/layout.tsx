@@ -24,11 +24,20 @@ export const metadata: Metadata = {
     siteName: "Atlas",
     locale: "es_ES",
     type: "website",
+    images: [
+      {
+        url: "/icon-512.png",
+        width: 512,
+        height: 512,
+        alt: "Atlas",
+      },
+    ],
   },
   twitter: {
     card: "summary",
     title: "Atlas",
     description: "Registra cada país del mundo que has visitado, los techos provinciales y tus aventuras.",
+    images: ["/icon-512.png"],
   },
   appleWebApp: {
     capable: true,

@@ -22,11 +22,13 @@ export function ProfileView({
   initialMode = "countries",
   initialExperiences = false,
   fromTab,
+  initialRecord,
 }: {
   username: string;
   initialMode?: "peaks" | "countries";
   initialExperiences?: boolean;
   fromTab?: "ranking" | "social" | "mapa";
+  initialRecord?: string;
 }) {
   const { session, profile: myProfile } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -36,6 +38,20 @@ export function ProfileView({
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"peaks" | "countries">(initialMode);
   const router = useRouter();
+
+  useEffect(() => {
+    if (initialRecord && typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("auto_open_panel", initialRecord);
+      } catch (err) {
+        console.warn("Could not set sessionStorage:", err);
+      }
+      if (!window.location.hash.startsWith("#panel")) {
+        const targetHash = `#panel=${encodeURIComponent(initialRecord)}`;
+        window.history.replaceState({ hasPanel: true }, "", targetHash);
+      }
+    }
+  }, [initialRecord]);
 
   const handleNavigate = (path: string) => {
     router.push(path);

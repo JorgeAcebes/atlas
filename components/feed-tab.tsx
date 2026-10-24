@@ -15,6 +15,7 @@ import { sortPhotosByTime } from "@/lib/image-utils";
 import { compareFeedRecords, areFeedItemsConnected } from "@/lib/feed-sort";
 import { datesOverlap } from "@/lib/companions";
 import { PhotoLightbox } from "./photo-lightbox";
+import { sanitizeDateForShare, buildRecordShareUrl, executeShare } from "@/lib/share-utils";
 
 function isUnknownDate(dateVal: string | undefined | null): boolean {
   if (!dateVal) return true;
@@ -322,42 +323,38 @@ function FeedItemCard({
     e.preventDefault();
 
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-    const shareUrl = username && recordId ? `${baseUrl}${recordUrlWithHash}` : `${baseUrl}/social`;
+    const shareUrl = username && recordId
+      ? buildRecordShareUrl({
+          baseUrl,
+          username,
+          challenge: recordChallenge,
+          recordId,
+          from: "social",
+        })
+      : `${baseUrl}/social`;
 
     const shareTitle = `${displayTitle} · ${username || 'Atlas'}`;
+    const safeDateRangeStr = sanitizeDateForShare(dateRangeStr);
     let shareText = `${username ? `@${username}` : 'Usuario'} ${title}: ${displayTitle}`;
-    if (dateRangeStr) {
-      shareText += ` (${dateRangeStr})`;
+    if (safeDateRangeStr) {
+      shareText += ` (${safeDateRangeStr})`;
     }
     if (item.notes) {
       shareText += `\n"${item.notes}"`;
     }
     shareText += `\n\n${shareUrl}`;
 
-    if (typeof navigator !== "undefined" && navigator.share) {
-      try {
-        const shareData: ShareData = {
-          title: shareTitle,
-          text: shareText,
-          url: shareUrl,
-        };
-        await navigator.share(shareData);
-      } catch (err: any) {
-        if (err?.name !== "AbortError") {
-          try {
-            await navigator.clipboard.writeText(shareUrl);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2500);
-          } catch {}
-        }
-      }
-    } else if (typeof navigator !== "undefined" && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
+    await executeShare(
+      {
+        title: shareTitle,
+        text: shareText,
+        url: shareUrl,
+      },
+      () => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2500);
-      } catch {}
-    }
+      }
+    );
   };
 
   return (
