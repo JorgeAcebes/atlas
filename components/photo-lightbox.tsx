@@ -770,6 +770,7 @@ export function PhotoLightbox({
           {/* Caption personalizada si existe */}
           {currentPhoto.caption && (
             <strong
+              className="lightbox-caption user-written-text"
               style={{
                 color: "#ffffff",
                 fontSize: "15px",

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
 import { AuthProvider, type UserProfile } from "./auth-context";
+import { PwaZoomLock } from "./pwa-zoom-lock";
 
 export function Providers({
   children,
@@ -27,6 +28,7 @@ export function Providers({
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider initialProfile={initialProfile}>
+        <PwaZoomLock />
         {children}
       </AuthProvider>
       <ReactQueryDevtools initialIsOpen={false} />

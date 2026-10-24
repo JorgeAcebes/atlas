@@ -4716,7 +4716,7 @@ export function SummitTracker({
           </div>
         )}
         {ascent.notes && (
-          <p style={{ marginTop: "4px", marginBottom: 0 }}>&ldquo;{ascent.notes}&rdquo;</p>
+          <p className="record-notes user-written-text" style={{ marginTop: "4px", marginBottom: 0 }}>&ldquo;{ascent.notes}&rdquo;</p>
         )}
         {(ascent.link || (ascent as any).link_2) && (
           <div
@@ -6837,7 +6837,7 @@ export function SummitTracker({
                           </div>
                         )}
                         {ascent.notes && (
-                          <p style={{ marginTop: "4px", marginBottom: 0 }}>
+                          <p className="record-notes user-written-text" style={{ marginTop: "4px", marginBottom: 0 }}>
                             &ldquo;{ascent.notes}&rdquo;
                           </p>
                         )}
@@ -7004,7 +7004,7 @@ export function SummitTracker({
                     </div>
                     {/* Note display (read-only) */}
                     {wishlistEntry?.notes && !showWishlistNoteEditor && (
-                      <div className="wishlist-note-display">
+                      <div className="wishlist-note-display user-written-text">
                         {renderWithClickableLinks(wishlistEntry.notes)}
                       </div>
                     )}

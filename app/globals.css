@@ -243,6 +243,9 @@ html {
   scroll-behavior: smooth;
   overflow-y: scroll;
   scrollbar-gutter: stable;
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -253,6 +256,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 1.5s cubic-bezier(0.4, 0, 0.2, 1), color 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 button,
@@ -260,6 +266,31 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+/* ── Text Selection & Interaction Rules ── */
+/* Inputs and user-generated text are explicitly selectable */
+input,
+textarea,
+select,
+[contenteditable="true"],
+.user-written-text,
+.record-notes,
+.feed-item-notes,
+.wishlist-note-display,
+.lightbox-caption,
+figcaption {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
+}
+
+/* Map and Lightbox retain full gesture freedom */
+.leaflet-container,
+.lightbox-stage,
+.lightbox-backdrop,
+.lightbox-img-wrapper {
+  touch-action: none !important;
 }
 
 button {

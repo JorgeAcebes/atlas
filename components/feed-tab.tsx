@@ -451,7 +451,7 @@ function FeedItemCard({
           )}
         </h3>
         {item.notes && (
-          <p style={{ margin: 0, fontSize: '14px', color: 'var(--ink)', lineHeight: '1.5' }}>
+          <p className="feed-item-notes user-written-text" style={{ margin: 0, fontSize: '14px', color: 'var(--ink)', lineHeight: '1.5' }}>
             {item.notes}
           </p>
         )}

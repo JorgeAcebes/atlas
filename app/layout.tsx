@@ -42,6 +42,10 @@ import type { UserProfile } from "@/components/auth-context";
 
 export const viewport: Viewport = {
   themeColor: "#245f52",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
