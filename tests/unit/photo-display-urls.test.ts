@@ -15,6 +15,12 @@ describe("getPhotoDisplayUrl - Resilient Photo URL Resolution", () => {
     expect(resolved).toBe("/api/photos/view/user-123/salamanca/photo.jpg");
   });
 
+  it("should preserve double dots in filenames when resolving URLs", () => {
+    const doubleDotPath = "user-123/country-gb/3ac2023a-Trafalgar-Square..jpg";
+    const resolved = getPhotoDisplayUrl(null, doubleDotPath);
+    expect(resolved).toBe("/api/photos/view/user-123/country-gb/3ac2023a-Trafalgar-Square..jpg");
+  });
+
   it("should construct proxy URL when only storage_path is provided", () => {
     const storagePath = "user-abc/toledo/pic-456.jpg";
     const resolved = getPhotoDisplayUrl(null, storagePath);

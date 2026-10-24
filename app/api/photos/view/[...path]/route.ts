@@ -12,25 +12,57 @@ export async function GET(
       return new NextResponse("Not Found", { status: 404 });
     }
 
-    const key = path.join("/").replace(/\.\./g, "");
+    // Probar tanto la clave decodificada como la directa (conservando puntos dobles en nombres de archivo)
+    const keysToTry: string[] = [];
+    try {
+      const decodedKey = path
+        .map((seg) => decodeURIComponent(seg))
+        .filter((seg) => seg !== ".." && seg !== ".")
+        .join("/");
+      if (decodedKey) keysToTry.push(decodedKey);
+    } catch {
+      // Ignorar error de decodificación
+    }
+
+    const directKey = path.filter((seg) => seg !== ".." && seg !== ".").join("/");
+    if (directKey && !keysToTry.includes(directKey)) {
+      keysToTry.push(directKey);
+    }
 
     // Servir única y exclusivamente desde Cloudflare R2
     const { bucket } = getSanitizedR2Credentials();
     const client = getR2Client();
-    const s3Res = await client.send(
-      new GetObjectCommand({
-        Bucket: bucket,
-        Key: key,
-      })
-    );
 
-    if (s3Res.Body) {
+    let s3Res = null;
+    let finalKey = keysToTry[0] || directKey;
+
+    for (const testKey of keysToTry) {
+      try {
+        const res = await client.send(
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: testKey,
+          })
+        );
+        if (res.Body) {
+          s3Res = res;
+          finalKey = testKey;
+          break;
+        }
+      } catch (keyErr: any) {
+        if (keyErr?.name !== "NoSuchKey" && keyErr?.$metadata?.httpStatusCode !== 404) {
+          throw keyErr;
+        }
+      }
+    }
+
+    if (s3Res && s3Res.Body) {
       const bytes = await s3Res.Body.transformToByteArray();
       const contentType =
         s3Res.ContentType ||
-        (key.endsWith(".png")
+        (finalKey.endsWith(".png")
           ? "image/png"
-          : key.endsWith(".webp")
+          : finalKey.endsWith(".webp")
           ? "image/webp"
           : "image/jpeg");
 
