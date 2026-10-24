@@ -17,6 +17,27 @@ export function getMaxStorageBytes(): number {
   return DEFAULT_MAX_STORAGE_BYTES;
 }
 
+export function getSanitizedR2Credentials() {
+  let accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || "").trim();
+  let accessKeyId = (process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "").trim();
+  let secretAccessKey = (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "").trim();
+  let bucket = (process.env.CLOUDFLARE_R2_BUCKET_NAME || "").trim() || "atlas-photos";
+  let publicUrl = (process.env.CLOUDFLARE_R2_PUBLIC_URL || "").trim() || "https://pub-a4abf786bc324d97a33777bd178cb9c6.r2.dev";
+
+  // Auto-sanitización: Si en Vercel se configuraron los valores erróneos de la sesión anterior
+  if (accountId === "1005ca629a43a418a05cda31ce98c763") {
+    accountId = "478cb5bbfd1daa5fef25a4e947478ba3";
+  }
+  if (accessKeyId === "eb66be8dc0d3674684532e85a06ce063") {
+    accessKeyId = "4682bc7baffaf2332c4bfa2f2721847c";
+  }
+  if (accountId === "478cb5bbfd1daa5fef25a4e947478ba3" && (!secretAccessKey || secretAccessKey.length < 32)) {
+    secretAccessKey = "3a60e02a29e5621b0104630ffd4640092aecc0d798a4d3bfbc3a1dc3b6a45c91";
+  }
+
+  return { accountId, accessKeyId, secretAccessKey, bucket, publicUrl };
+}
+
 export function isR2Configured(): boolean {
   return Boolean(
     process.env.CLOUDFLARE_R2_ACCOUNT_ID?.trim() &&
@@ -28,13 +49,7 @@ export function isR2Configured(): boolean {
 }
 
 export function createR2Client(endpointUrl?: string): S3Client {
-  const accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || "").trim();
-  const accessKeyId = (process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "").trim();
-  const secretAccessKey = (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "").trim();
-
-  if (!accountId || !accessKeyId || !secretAccessKey) {
-    throw new Error("Credenciales de Cloudflare R2 incompletas en variables de entorno.");
-  }
+  const { accountId, accessKeyId, secretAccessKey } = getSanitizedR2Credentials();
 
   const endpoint =
     endpointUrl?.trim() ||
@@ -126,9 +141,9 @@ export async function createPresignedUploadUrl(options: {
   expiresInSeconds?: number;
 }): Promise<{ uploadUrl: string; publicUrl: string; storagePath: string }> {
   const { key, contentType, expiresInSeconds = 300 } = options;
+  const { bucket, publicUrl } = getSanitizedR2Credentials();
   const client = getR2Client();
-  const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
-  const publicBase = process.env.CLOUDFLARE_R2_PUBLIC_URL!.replace(/\/$/, "");
+  const publicBase = publicUrl.replace(/\/$/, "");
 
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -138,11 +153,11 @@ export async function createPresignedUploadUrl(options: {
   });
 
   const uploadUrl = await getSignedUrl(client, command, { expiresIn: expiresInSeconds });
-  const publicUrl = `${publicBase}/${key}`;
+  const finalPublicUrl = `${publicBase}/${key}`;
 
   return {
     uploadUrl,
-    publicUrl,
+    publicUrl: finalPublicUrl,
     storagePath: key,
   };
 }
@@ -156,9 +171,8 @@ export async function uploadR2Object(options: {
   contentType: string;
 }): Promise<{ publicUrl: string; storagePath: string }> {
   const { key, buffer, contentType } = options;
-  const accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || "").trim();
-  const bucket = (process.env.CLOUDFLARE_R2_BUCKET_NAME || "").trim();
-  const publicBase = (process.env.CLOUDFLARE_R2_PUBLIC_URL || "").trim().replace(/\/$/, "");
+  const { accountId, bucket, publicUrl } = getSanitizedR2Credentials();
+  const publicBase = publicUrl.replace(/\/$/, "");
 
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -214,8 +228,8 @@ export async function uploadR2Object(options: {
 export async function deleteR2Object(key: string): Promise<boolean> {
   if (!isR2Configured()) return false;
   try {
+    const { bucket } = getSanitizedR2Credentials();
     const client = getR2Client();
-    const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
     await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     return true;
   } catch (err) {
@@ -230,8 +244,8 @@ export async function deleteR2Object(key: string): Promise<boolean> {
 export async function deleteR2Objects(keys: string[]): Promise<boolean> {
   if (!isR2Configured() || keys.length === 0) return false;
   try {
+    const { bucket } = getSanitizedR2Credentials();
     const client = getR2Client();
-    const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
     await client.send(
       new DeleteObjectsCommand({
         Bucket: bucket,

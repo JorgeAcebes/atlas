@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { isR2Configured, checkStorageLimit, getR2Client } from "@/lib/r2-storage";
+import { isR2Configured, checkStorageLimit, getR2Client, getSanitizedR2Credentials } from "@/lib/r2-storage";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 export async function GET() {
@@ -23,10 +23,7 @@ export async function GET() {
 
     const toGB = (bytes: number) => (bytes / (1024 * 1024 * 1024)).toFixed(3);
 
-    const accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || "").trim();
-    const accessKeyId = (process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "").trim();
-    const secretAccessKey = (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "").trim();
-    const bucket = (process.env.CLOUDFLARE_R2_BUCKET_NAME || "").trim();
+    const { accountId, accessKeyId, secretAccessKey, bucket } = getSanitizedR2Credentials();
     const endpointConfigured = process.env.CLOUDFLARE_R2_ENDPOINT?.trim();
 
     const probes: Record<string, any> = {};
@@ -36,6 +33,7 @@ export async function GET() {
           endpointConfigured,
           accountId ? `https://${accountId}.r2.cloudflarestorage.com` : null,
           accountId ? `https://${accountId}.eu.r2.cloudflarestorage.com` : null,
+          "https://478cb5bbfd1daa5fef25a4e947478ba3.r2.cloudflarestorage.com",
           `https://r2.cloudflarestorage.com`,
         ].filter(Boolean) as string[]
       )
@@ -97,6 +95,8 @@ export async function GET() {
       r2Configured: isR2Configured(),
       diagnostics: {
         accountIdMasked: accountId ? `${accountId.slice(0, 4)}...${accountId.slice(-4)} (len ${accountId.length})` : null,
+        accessKeyIdMasked: accessKeyId ? `${accessKeyId.slice(0, 4)}...${accessKeyId.slice(-4)} (len ${accessKeyId.length})` : null,
+        secretLen: secretAccessKey.length,
         bucket,
         probes,
         liveS3Test,
