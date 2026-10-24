@@ -15,7 +15,7 @@ import { sortPhotosByTime } from "@/lib/image-utils";
 import { compareFeedRecords, areFeedItemsConnected } from "@/lib/feed-sort";
 import { datesOverlap } from "@/lib/companions";
 import { PhotoLightbox } from "./photo-lightbox";
-import { sanitizeDateForShare, buildRecordShareUrl, executeShare } from "@/lib/share-utils";
+import { sanitizeDateForShare, sanitizeTextForShare, buildRecordShareUrl, executeShare } from "@/lib/share-utils";
 
 function isUnknownDate(dateVal: string | undefined | null): boolean {
   if (!dateVal) return true;
@@ -340,7 +340,7 @@ function FeedItemCard({
       shareText += ` (${safeDateRangeStr})`;
     }
     if (item.notes) {
-      shareText += `\n"${item.notes}"`;
+      shareText += `\n"${sanitizeTextForShare(item.notes)}"`;
     }
     shareText += `\n\n${shareUrl}`;
 

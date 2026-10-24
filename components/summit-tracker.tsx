@@ -58,7 +58,7 @@ import {
 } from "lucide-react";
 import { usePendingRequests } from "./use-pending-requests";
 import { CompanionSelector } from "./companion-selector";
-import { sanitizeDateForShare, buildRecordShareUrl, executeShare } from "@/lib/share-utils";
+import { sanitizeDateForShare, sanitizeTextForShare, buildRecordShareUrl, executeShare } from "@/lib/share-utils";
 import { CompanionProfile, datesOverlap, syncMutualTripInvitations, getMutualFollowers } from "@/lib/companions";
 import { compressImage, sortPhotosByTime, sortFilesByCaptureTime } from "@/lib/image-utils";
 import { uploadPhotoBlob, deleteStoragePhotos } from "@/lib/photo-client";
@@ -2634,7 +2634,7 @@ export function SummitTracker({
     }
 
     if (ascent.notes) {
-      shareText += `\n"${ascent.notes}"`;
+      shareText += `\n"${sanitizeTextForShare(ascent.notes)}"`;
     }
 
     if (ascent.link) {

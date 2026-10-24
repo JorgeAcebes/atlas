@@ -90,26 +90,42 @@ export async function POST(request: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    try {
-      const r2Result = await uploadR2Object({
-        key: storagePath,
-        buffer,
-        contentType,
-      });
+    let uploadSuccess = false;
+    let r2Result = null;
+    let lastError = null;
 
-      return NextResponse.json({
-        provider: "r2",
-        publicUrl: r2Result.publicUrl,
-        storagePath: r2Result.storagePath,
-        fileSize,
-      });
-    } catch (r2Err: any) {
-      console.error("Error al subir imagen a Cloudflare R2:", r2Err);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        r2Result = await uploadR2Object({
+          key: storagePath,
+          buffer,
+          contentType,
+        });
+        uploadSuccess = true;
+        break;
+      } catch (r2Err: any) {
+        lastError = r2Err;
+        console.warn(`Intento ${attempt} de subida a R2 falló:`, r2Err?.message || r2Err);
+        if (attempt < 3) {
+          await new Promise((res) => setTimeout(res, 500 * attempt));
+        }
+      }
+    }
+
+    if (!uploadSuccess || !r2Result) {
+      console.error("Error al subir imagen a Cloudflare R2 tras 3 intentos:", lastError);
       return NextResponse.json(
-        { error: `Error al subir la imagen a Cloudflare R2: ${r2Err?.message || "Fallo en el servicio"}` },
+        { error: `Error al subir la imagen a Cloudflare R2: ${lastError?.message || "Fallo en el servicio"}` },
         { status: 500 }
       );
     }
+
+    return NextResponse.json({
+      provider: "r2",
+      publicUrl: r2Result.publicUrl,
+      storagePath: r2Result.storagePath,
+      fileSize,
+    });
   } catch (err: any) {
     console.error("Error en upload photos API:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });

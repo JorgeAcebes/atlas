@@ -17,29 +17,99 @@ export async function resolveRecordMetadata(
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://atlas-log.vercel.app").replace(/\/+$/, "");
   const defaultImage = `${appUrl}/icon-512.png`;
 
+  // 1. Identificar si hay un registro específico solicitado
+  const cleanId = recordId ? decodeURIComponent(recordId).trim() : "";
+  let displayTitle = cleanId;
+  let categoryName = "";
+  let effectiveChallenge = challenge || "countries";
+
+  // A) Cumbre provincial
+  const matchedPeak = cleanId
+    ? peaks.find(
+        (p) =>
+          p.id.toLowerCase() === cleanId.toLowerCase() ||
+          p.code === cleanId ||
+          p.name.toLowerCase() === cleanId.toLowerCase()
+      )
+    : null;
+
+  // B) País
+  const matchedCountry = cleanId && !matchedPeak
+    ? countries.find(
+        (c) =>
+          c.id.toLowerCase() === cleanId.toLowerCase() ||
+          c.iso_a2.toLowerCase() === cleanId.toLowerCase() ||
+          c.name.toLowerCase() === cleanId.toLowerCase()
+      )
+    : null;
+
+  let isExperience = effectiveChallenge === "experiences" || cleanId.startsWith("exp-");
+  let expSubItemTitle = "";
+
+  if (matchedPeak) {
+    effectiveChallenge = "peaks";
+    const altStr = Math.round(matchedPeak.altitude).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    displayTitle = `${matchedPeak.name} (${altStr} m)`;
+    categoryName = matchedPeak.province;
+  } else if (matchedCountry) {
+    effectiveChallenge = "countries";
+    displayTitle = matchedCountry.name;
+    categoryName = matchedCountry.continent;
+  } else if (cleanId) {
+    isExperience = true;
+    effectiveChallenge = "experiences";
+    const [baseExpId, subId] = cleanId.split("::");
+
+    let foundExp: { id: string; name: string } | null = null;
+    for (const cat of predefinedCategories) {
+      const exp = cat.experiences.find((e) => e.id === baseExpId);
+      if (exp) {
+        foundExp = exp;
+        categoryName = cat.name;
+        if (subId && exp.subItems) {
+          const sub = exp.subItems.find((s) => s.id === subId);
+          if (sub) expSubItemTitle = sub.name;
+        }
+        break;
+      }
+    }
+
+    if (foundExp) {
+      displayTitle = expSubItemTitle ? `${foundExp.name} (${expSubItemTitle})` : foundExp.name;
+    }
+  }
+
+  // Fallback metadata estructurada (si la BD falla o el usuario no existe)
+  const fallbackTitle = displayTitle
+    ? `${displayTitle} · @${username} en Atlas`
+    : `@${username} en Atlas`;
+  const fallbackDesc = displayTitle
+    ? `${displayTitle} · Registro de actividad en Atlas.`
+    : `Explora el perfil de @${username} en Atlas.`;
+
   const fallbackMetadata: Metadata = {
-    title: "Atlas",
-    description: "Registra cada país del mundo que has visitado, los techos provinciales y tus aventuras.",
+    title: fallbackTitle,
+    description: fallbackDesc,
     openGraph: {
-      title: "Atlas",
-      description: "Registra cada país del mundo que has visitado, los techos provinciales y tus aventuras.",
+      title: fallbackTitle,
+      description: fallbackDesc,
       url: `${appUrl}/perfil/${encodeURIComponent(username)}`,
       siteName: "Atlas",
       locale: "es_ES",
-      type: "website",
+      type: "article",
       images: [
         {
           url: defaultImage,
           width: 512,
           height: 512,
-          alt: "Atlas",
+          alt: fallbackTitle,
         },
       ],
     },
     twitter: {
       card: "summary",
-      title: "Atlas",
-      description: "Registra cada país del mundo que has visitado, los techos provinciales y tus aventuras.",
+      title: fallbackTitle,
+      description: fallbackDesc,
       images: [defaultImage],
     },
   };
@@ -48,17 +118,19 @@ export async function resolveRecordMetadata(
   if (!supabase) return fallbackMetadata;
 
   try {
-    // 1. Obtener datos del perfil
-    const { data: profile } = await supabase
+    // 2. Obtener datos del perfil en Supabase (sin columna full_name que no existe)
+    const { data: profile, error: profileErr } = await supabase
       .from("profiles")
-      .select("id, username, full_name, avatar_url, is_public, share_photos, share_notes, is_test")
+      .select("id, username, avatar_url, is_public, share_photos, share_notes, is_test")
       .eq("username", username)
       .maybeSingle();
 
-    if (!profile) return fallbackMetadata;
+    if (profileErr || !profile) {
+      return fallbackMetadata;
+    }
 
     // Si no hay recordId específico: metadata general del perfil del usuario
-    if (!recordId) {
+    if (!cleanId) {
       const profileTitle = `@${profile.username} en Atlas`;
       const profileDesc = `Explora los ascensos a cumbres, países del mundo y aventuras registradas por @${profile.username} en Atlas.`;
       const profileImages = profile.avatar_url
@@ -100,77 +172,18 @@ export async function resolveRecordMetadata(
       };
     }
 
-    // 2. Resolver el registro específico
-    const cleanId = decodeURIComponent(recordId).trim();
-    let displayTitle = cleanId;
-    let categoryName = "";
-    let effectiveChallenge = challenge || "countries";
+    // Si es experiencia personalizada, buscar su nombre en custom_experiences
+    if (isExperience && !matchedPeak && !matchedCountry) {
+      const [baseExpId] = cleanId.split("::");
+      const { data: customExp } = await supabase
+        .from("custom_experiences")
+        .select("name")
+        .eq("id", baseExpId)
+        .eq("user_id", profile.id)
+        .maybeSingle();
 
-    // A) Cumbre provincial
-    const matchedPeak = peaks.find(
-      (p) =>
-        p.id.toLowerCase() === cleanId.toLowerCase() ||
-        p.code === cleanId ||
-        p.name.toLowerCase() === cleanId.toLowerCase()
-    );
-
-    // B) País
-    const matchedCountry = !matchedPeak
-      ? countries.find(
-          (c) =>
-            c.id.toLowerCase() === cleanId.toLowerCase() ||
-            c.iso_a2.toLowerCase() === cleanId.toLowerCase() ||
-            c.name.toLowerCase() === cleanId.toLowerCase()
-        )
-      : null;
-
-    // C) Experiencia
-    let isExperience = effectiveChallenge === "experiences" || cleanId.startsWith("exp-");
-    let expSubItemTitle = "";
-
-    if (matchedPeak) {
-      effectiveChallenge = "peaks";
-      const altStr = Math.round(matchedPeak.altitude).toLocaleString("es-ES");
-      displayTitle = `${matchedPeak.name} (${altStr} m)`;
-      categoryName = matchedPeak.province;
-    } else if (matchedCountry) {
-      effectiveChallenge = "countries";
-      displayTitle = matchedCountry.name;
-      categoryName = matchedCountry.continent;
-    } else {
-      // Intentar resolver experiencia predefinida o personalizada
-      isExperience = true;
-      effectiveChallenge = "experiences";
-      const [baseExpId, subId] = cleanId.split("::");
-
-      let foundExp: { id: string; name: string } | null = null;
-      for (const cat of predefinedCategories) {
-        const exp = cat.experiences.find((e) => e.id === baseExpId);
-        if (exp) {
-          foundExp = exp;
-          categoryName = cat.name;
-          if (subId && exp.subItems) {
-            const sub = exp.subItems.find((s) => s.id === subId);
-            if (sub) expSubItemTitle = sub.name;
-          }
-          break;
-        }
-      }
-
-      if (foundExp) {
-        displayTitle = expSubItemTitle ? `${foundExp.name} (${expSubItemTitle})` : foundExp.name;
-      } else {
-        // Consultar experiencia personalizada en la BD
-        const { data: customExp } = await supabase
-          .from("custom_experiences")
-          .select("name")
-          .eq("id", baseExpId)
-          .eq("user_id", profile.id)
-          .maybeSingle();
-
-        if (customExp?.name) {
-          displayTitle = customExp.name;
-        }
+      if (customExp?.name) {
+        displayTitle = customExp.name;
       }
     }
 
@@ -275,15 +288,25 @@ export async function resolveRecordMetadata(
     }
 
     // 6. Configurar imágenes para Open Graph y Twitter
+    // WhatsApp da máxima prioridad a la primera imagen en og:image
     const ogImages =
       photoUrls.length > 0
-        ? photoUrls.map((p) => ({
-            url: p.url,
-            width: 1200,
-            height: 800,
-            alt: p.caption || displayTitle,
-            type: p.url.endsWith(".webp") ? "image/webp" : "image/jpeg",
-          }))
+        ? [
+            {
+              url: photoUrls[0].url,
+              width: 1200,
+              height: 800,
+              alt: photoUrls[0].caption || displayTitle,
+              type: photoUrls[0].url.endsWith(".webp") ? "image/webp" : "image/jpeg",
+            },
+            ...photoUrls.slice(1).map((p) => ({
+              url: p.url,
+              width: 1200,
+              height: 800,
+              alt: p.caption || displayTitle,
+              type: p.url.endsWith(".webp") ? "image/webp" : "image/jpeg",
+            })),
+          ]
         : profile.avatar_url
         ? [
             {
@@ -304,7 +327,7 @@ export async function resolveRecordMetadata(
 
     const shareUrl = `${appUrl}/perfil/${encodeURIComponent(profile.username)}?challenge=${encodeURIComponent(
       effectiveChallenge
-    )}&record=${encodeURIComponent(cleanId)}#panel=${encodeURIComponent(cleanId)}`;
+    )}&record=${encodeURIComponent(cleanId)}`;
 
     return {
       title: pageTitle,
@@ -322,7 +345,7 @@ export async function resolveRecordMetadata(
         card: photoUrls.length > 0 ? "summary_large_image" : "summary",
         title: pageTitle,
         description,
-        images: ogImages.map((img) => img.url),
+        images: [ogImages[0].url],
       },
     };
   } catch (err) {

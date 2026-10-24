@@ -72,7 +72,8 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 
 const s3 = new S3Client({
   region: "auto",
-  endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+  endpoint: process.env.CLOUDFLARE_R2_ENDPOINT?.trim() || `https://${accountId}.r2.cloudflarestorage.com`,
+  forcePathStyle: true,
   credentials: { accessKeyId, secretAccessKey },
 });
 

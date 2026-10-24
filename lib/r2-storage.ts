@@ -19,11 +19,11 @@ export function getMaxStorageBytes(): number {
 
 export function isR2Configured(): boolean {
   return Boolean(
-    process.env.CLOUDFLARE_R2_ACCOUNT_ID &&
-    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID &&
-    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY &&
-    process.env.CLOUDFLARE_R2_BUCKET_NAME &&
-    process.env.CLOUDFLARE_R2_PUBLIC_URL
+    process.env.CLOUDFLARE_R2_ACCOUNT_ID?.trim() &&
+    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim() &&
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim() &&
+    process.env.CLOUDFLARE_R2_BUCKET_NAME?.trim() &&
+    process.env.CLOUDFLARE_R2_PUBLIC_URL?.trim()
   );
 }
 
@@ -32,17 +32,22 @@ let cachedS3Client: S3Client | null = null;
 export function getR2Client(): S3Client {
   if (cachedS3Client) return cachedS3Client;
 
-  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
-  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+  const accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || "").trim();
+  const accessKeyId = (process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "").trim();
+  const secretAccessKey = (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "").trim();
 
   if (!accountId || !accessKeyId || !secretAccessKey) {
     throw new Error("Credenciales de Cloudflare R2 incompletas en variables de entorno.");
   }
 
+  const endpoint =
+    process.env.CLOUDFLARE_R2_ENDPOINT?.trim() ||
+    `https://${accountId}.r2.cloudflarestorage.com`;
+
   cachedS3Client = new S3Client({
     region: "auto",
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    endpoint,
+    forcePathStyle: true,
     credentials: {
       accessKeyId,
       secretAccessKey,

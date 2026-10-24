@@ -15,8 +15,22 @@ export async function generateMetadata(
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
   const username = resolvedParams.username;
-  const challenge = typeof resolvedSearchParams?.challenge === "string" ? resolvedSearchParams.challenge : undefined;
-  const recordId = typeof resolvedSearchParams?.record === "string" ? resolvedSearchParams.record : undefined;
+
+  const rawChallenge = resolvedSearchParams?.challenge;
+  const challenge =
+    typeof rawChallenge === "string"
+      ? rawChallenge
+      : Array.isArray(rawChallenge)
+      ? rawChallenge[0]
+      : undefined;
+
+  const rawRecord = resolvedSearchParams?.record ?? resolvedSearchParams?.panel;
+  const recordId =
+    typeof rawRecord === "string"
+      ? rawRecord
+      : Array.isArray(rawRecord)
+      ? rawRecord[0]
+      : undefined;
 
   return resolveRecordMetadata({
     username,
@@ -33,7 +47,14 @@ export default async function UserProfilePage({ params, searchParams }: Props) {
   const from = (typeof resolvedSearchParams?.from === "string" ? resolvedSearchParams.from : undefined) as "ranking" | "social" | "mapa" | undefined;
   const initialMode = challenge === "peaks" ? "peaks" : "countries";
   const initialExperiences = challenge === "experiences";
-  const initialRecord = typeof resolvedSearchParams?.record === "string" ? resolvedSearchParams.record : undefined;
+
+  const rawRecord = resolvedSearchParams?.record ?? resolvedSearchParams?.panel;
+  const initialRecord =
+    typeof rawRecord === "string"
+      ? rawRecord
+      : Array.isArray(rawRecord)
+      ? rawRecord[0]
+      : undefined;
 
   if (!supabase) return notFound();
 

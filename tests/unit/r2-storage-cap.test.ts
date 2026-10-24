@@ -143,4 +143,10 @@ describe("Cloudflare R2 & 9.5 GB Strict Storage Cap Verification", () => {
     const uploadRouteCode = fs.readFileSync(path.join(process.cwd(), "app/api/photos/upload/route.ts"), "utf8");
     expect(uploadRouteCode).not.toContain('.from("summit-photos").upload');
   });
+  it("should configure forcePathStyle: true on S3Client to prevent SSL alert 40 on Cloudflare R2", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const r2StorageCode = fs.readFileSync(path.join(process.cwd(), "lib/r2-storage.ts"), "utf8");
+    expect(r2StorageCode).toContain("forcePathStyle: true");
+  });
 });
