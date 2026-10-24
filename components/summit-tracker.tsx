@@ -2421,14 +2421,6 @@ export function SummitTracker({
       return;
     }
 
-    const MAX_MB = 5;
-    for (const file of nextFiles) {
-      if (file.size > MAX_MB * 1024 * 1024) {
-        setNotice(`Cada foto debe ocupar máximo ${MAX_MB} MB.`);
-        event.target.value = "";
-        return;
-      }
-    }
 
     const remainingSlots = Math.max(0, 4 - existingPhotos.length);
     const sortedFilesWithTime = await sortFilesByCaptureTime(nextFiles, ascent.achieved_on);
@@ -2976,14 +2968,6 @@ export function SummitTracker({
   function onFilesChanged(event: ChangeEvent<HTMLInputElement>) {
     const nextFiles = Array.from(event.target.files ?? []);
 
-    const MAX_MB = 5;
-    for (const file of nextFiles) {
-      if (file.size > MAX_MB * 1024 * 1024) {
-        setNotice(`Cada foto debe ocupar máximo ${MAX_MB} MB.`);
-        event.target.value = "";
-        return;
-      }
-    }
 
     const currentTotal =
       existingRecordPhotos.length +

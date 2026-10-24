@@ -139,6 +139,35 @@ export async function createPresignedUploadUrl(options: {
 }
 
 /**
+ * Sube directamente un buffer a Cloudflare R2 desde el servidor (evita problemas de CORS en navegador)
+ */
+export async function uploadR2Object(options: {
+  key: string;
+  buffer: Buffer | Uint8Array;
+  contentType: string;
+}): Promise<{ publicUrl: string; storagePath: string }> {
+  const { key, buffer, contentType } = options;
+  const client = getR2Client();
+  const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
+  const publicBase = process.env.CLOUDFLARE_R2_PUBLIC_URL!.replace(/\/$/, "");
+
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    CacheControl: "public, max-age=31536000, immutable",
+  });
+
+  await client.send(command);
+
+  return {
+    publicUrl: `${publicBase}/${key}`,
+    storagePath: key,
+  };
+}
+
+/**
  * Elimina un objeto de Cloudflare R2
  */
 export async function deleteR2Object(key: string): Promise<boolean> {

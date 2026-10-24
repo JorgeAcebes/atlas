@@ -4,6 +4,7 @@ import {
   getMaxStorageBytes,
   checkStorageLimit,
   isR2Configured,
+  uploadR2Object,
 } from "@/lib/r2-storage";
 
 describe("Cloudflare R2 & 9.5 GB Strict Storage Cap Verification", () => {
@@ -115,5 +116,20 @@ describe("Cloudflare R2 & 9.5 GB Strict Storage Cap Verification", () => {
     else delete process.env.CLOUDFLARE_R2_BUCKET_NAME;
     if (originalVars.url) process.env.CLOUDFLARE_R2_PUBLIC_URL = originalVars.url;
     else delete process.env.CLOUDFLARE_R2_PUBLIC_URL;
+  });
+
+  it("uploadR2Object function should be defined and exported", () => {
+    expect(typeof uploadR2Object).toBe("function");
+  });
+
+  it("should have removed artificial 5MB pre-compression limits in summit-tracker.tsx", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const trackerPath = path.join(process.cwd(), "components/summit-tracker.tsx");
+    const code = fs.readFileSync(trackerPath, "utf8");
+
+    // Must not block users with MAX_MB = 5 before client-side compression
+    expect(code).not.toContain("MAX_MB = 5");
+    expect(code).not.toContain("Cada foto debe ocupar máximo 5 MB");
   });
 });
