@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { isR2Configured, checkStorageLimit, getMaxStorageBytes } from "@/lib/r2-storage";
+import { isR2Configured, checkStorageLimit, getR2Client } from "@/lib/r2-storage";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 export async function GET() {
   try {
@@ -22,6 +23,69 @@ export async function GET() {
 
     const toGB = (bytes: number) => (bytes / (1024 * 1024 * 1024)).toFixed(3);
 
+    const accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || "").trim();
+    const accessKeyId = (process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "").trim();
+    const secretAccessKey = (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "").trim();
+    const bucket = (process.env.CLOUDFLARE_R2_BUCKET_NAME || "").trim();
+    const endpointConfigured = process.env.CLOUDFLARE_R2_ENDPOINT?.trim();
+
+    const probes: Record<string, any> = {};
+    const endpointsToTest = Array.from(
+      new Set(
+        [
+          endpointConfigured,
+          accountId ? `https://${accountId}.r2.cloudflarestorage.com` : null,
+          accountId ? `https://${accountId}.eu.r2.cloudflarestorage.com` : null,
+          `https://r2.cloudflarestorage.com`,
+        ].filter(Boolean) as string[]
+      )
+    );
+
+    for (const ep of endpointsToTest) {
+      try {
+        const res = await fetch(ep, { method: "HEAD", signal: AbortSignal.timeout(4000) });
+        probes[ep] = { ok: true, status: res.status, statusText: res.statusText };
+      } catch (err: any) {
+        probes[ep] = {
+          ok: false,
+          error: err?.message,
+          code: err?.code,
+          cause: err?.cause?.message,
+        };
+      }
+    }
+
+    // Probar S3Client upload en vivo
+    let liveS3Test: any = null;
+    if (isR2Configured()) {
+      try {
+        const client = getR2Client();
+        const testKey = `_diagnostic/ping-${Date.now()}.txt`;
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: testKey,
+            Body: "ping",
+            ContentType: "text/plain",
+          })
+        );
+        await client.send(
+          new DeleteObjectCommand({
+            Bucket: bucket,
+            Key: testKey,
+          })
+        );
+        liveS3Test = { ok: true, message: "PutObject and DeleteObject succeeded" };
+      } catch (s3Err: any) {
+        liveS3Test = {
+          ok: false,
+          error: s3Err?.message,
+          code: s3Err?.code,
+          name: s3Err?.name,
+        };
+      }
+    }
+
     return NextResponse.json({
       currentBytes,
       maxBytes,
@@ -31,6 +95,12 @@ export async function GET() {
       percentage,
       isBlocked,
       r2Configured: isR2Configured(),
+      diagnostics: {
+        accountIdMasked: accountId ? `${accountId.slice(0, 4)}...${accountId.slice(-4)} (len ${accountId.length})` : null,
+        bucket,
+        probes,
+        liveS3Test,
+      },
       statusText: isBlocked
         ? "BLOQUEADO (Se alcanzó el límite de 9,5 GB)"
         : `DISPONIBLE (${percentage}% utilizado de 9,5 GB)`,

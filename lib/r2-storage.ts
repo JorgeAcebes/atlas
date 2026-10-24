@@ -27,11 +27,7 @@ export function isR2Configured(): boolean {
   );
 }
 
-let cachedS3Client: S3Client | null = null;
-
-export function getR2Client(): S3Client {
-  if (cachedS3Client) return cachedS3Client;
-
+export function createR2Client(endpointUrl?: string): S3Client {
   const accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || "").trim();
   const accessKeyId = (process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "").trim();
   const secretAccessKey = (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "").trim();
@@ -41,10 +37,11 @@ export function getR2Client(): S3Client {
   }
 
   const endpoint =
+    endpointUrl?.trim() ||
     process.env.CLOUDFLARE_R2_ENDPOINT?.trim() ||
     `https://${accountId}.r2.cloudflarestorage.com`;
 
-  cachedS3Client = new S3Client({
+  return new S3Client({
     region: "auto",
     endpoint,
     forcePathStyle: true,
@@ -53,7 +50,14 @@ export function getR2Client(): S3Client {
       secretAccessKey,
     },
   });
+}
 
+let cachedS3Client: S3Client | null = null;
+
+export function getR2Client(endpointUrl?: string): S3Client {
+  if (endpointUrl) return createR2Client(endpointUrl);
+  if (cachedS3Client) return cachedS3Client;
+  cachedS3Client = createR2Client();
   return cachedS3Client;
 }
 
@@ -152,9 +156,9 @@ export async function uploadR2Object(options: {
   contentType: string;
 }): Promise<{ publicUrl: string; storagePath: string }> {
   const { key, buffer, contentType } = options;
-  const client = getR2Client();
-  const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
-  const publicBase = process.env.CLOUDFLARE_R2_PUBLIC_URL!.replace(/\/$/, "");
+  const accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || "").trim();
+  const bucket = (process.env.CLOUDFLARE_R2_BUCKET_NAME || "").trim();
+  const publicBase = (process.env.CLOUDFLARE_R2_PUBLIC_URL || "").trim().replace(/\/$/, "");
 
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -164,12 +168,44 @@ export async function uploadR2Object(options: {
     CacheControl: "public, max-age=31536000, immutable",
   });
 
-  await client.send(command);
+  // Endpoints a probar:
+  // 1. Endpoint configurado explícitamente (si existe)
+  // 2. Endpoint global: https://<account_id>.r2.cloudflarestorage.com
+  // 3. Endpoint jurisdicción UE: https://<account_id>.eu.r2.cloudflarestorage.com
+  const endpointsToTry: string[] = [];
+  if (process.env.CLOUDFLARE_R2_ENDPOINT?.trim()) {
+    endpointsToTry.push(process.env.CLOUDFLARE_R2_ENDPOINT.trim());
+  } else if (accountId) {
+    endpointsToTry.push(`https://${accountId}.r2.cloudflarestorage.com`);
+    endpointsToTry.push(`https://${accountId}.eu.r2.cloudflarestorage.com`);
+  }
 
-  return {
-    publicUrl: `${publicBase}/${key}`,
-    storagePath: key,
-  };
+  let lastErr: any = null;
+  for (const ep of endpointsToTry) {
+    try {
+      const client = createR2Client(ep);
+      await client.send(command);
+      return {
+        publicUrl: `${publicBase}/${key}`,
+        storagePath: key,
+      };
+    } catch (err: any) {
+      lastErr = err;
+      console.warn(`Intento en endpoint R2 ${ep} falló:`, err?.message || err);
+      // Si el error fue de negociación SSL (handshake failure / alert 40), probar inmediatamente el siguiente endpoint
+      const isSslFailure =
+        err?.message?.includes("SSL alert") ||
+        err?.message?.includes("EPROTO") ||
+        err?.message?.includes("handshake") ||
+        err?.code === "EPROTO";
+      if (!isSslFailure) {
+        // Si fue otro error (ej. permisos), no cambiar de endpoint
+        throw err;
+      }
+    }
+  }
+
+  throw lastErr || new Error("Error desconocido al subir a Cloudflare R2");
 }
 
 /**
