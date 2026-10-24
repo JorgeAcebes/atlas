@@ -79,5 +79,21 @@ describe("Peaks Dataset Integrity (52 techos provinciales)", () => {
     expect(albacetePeak?.coordinates[0]).toBeCloseTo(38.0606, 3);
     expect(albacetePeak?.coordinates[1]).toBeCloseTo(-2.3914, 3);
   });
+
+  it("should have correct summit coordinates for Cáceres (Calvitero / El Torreón)", () => {
+    const caceresPeak = peaks.find((p) => p.id === "caceres");
+    expect(caceresPeak).toBeDefined();
+    expect(caceresPeak?.name).toContain("Calvitero");
+    expect(caceresPeak?.coordinates[0]).toBeCloseTo(40.2918, 3);
+    expect(caceresPeak?.coordinates[1]).toBeCloseTo(-5.7390, 3);
+  });
+
+  it("should have correct summit coordinates for Salamanca (Canchal de la Ceja, not inside Ávila)", () => {
+    const salamancaPeak = peaks.find((p) => p.id === "salamanca");
+    expect(salamancaPeak).toBeDefined();
+    expect(salamancaPeak?.name).toBe("Canchal de la Ceja");
+    expect(salamancaPeak?.coordinates[0]).toBeCloseTo(40.3045, 3);
+    expect(salamancaPeak?.coordinates[1]).toBeCloseTo(-5.7295, 3);
+  });
 });
 

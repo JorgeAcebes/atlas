@@ -13,7 +13,7 @@ Lookup table for all 52 provincial high points (47 unique mountains) in Spain, C
 | `07` | Islas Baleares | Puig Major | 1436.0 | Serra de Tramuntana | `[39.81, 2.79]` | - |
 | `08` | Barcelona | Pic de Costa Cabirolera | 2604.4 | Serra del Cadí | `[42.2814, 1.6706]` | - |
 | `09` | Burgos | Pico San Millán | 2131.0 | Sierra de la Demanda | `[42.232, -3.206]` | - |
-| `10` | Cáceres | Calvitero (El Torreón) | 2399.0 | Sierra de Béjar | `[40.292, -5.741]` | - |
+| `10` | Cáceres | Calvitero (El Torreón) | 2399.0 | Sierra de Béjar | `[40.2918, -5.7390]` | - |
 | `11` | Cádiz | Pico del Pinar (El Torreón) | 1648.0 | Sierra del Pinar | `[36.77, -5.43]` | - |
 | `12` | Castellón | Peñagolosa | 1815.1 | Macizo del Penyagolosa | `[40.24, -0.35]` | - |
 | `13` | Ciudad Real | Pico del Amor | 1344.0 | Montes de Toledo | `[39.574, -4.148]` | - |
@@ -40,7 +40,7 @@ Lookup table for all 52 provincial high points (47 unique mountains) in Spain, C
 | `34` | Palencia | Peña del Infierno (Peña Prieta Sur) | 2537.0 | Fuentes Carrionas | `[43.0224, -4.7308]` | - |
 | `35` | Las Palmas | Morro de la Agujereada | 1957.3 | Gran Canaria | `[27.94, -15.58]` | - |
 | `36` | Pontevedra | Pico Faro | 1180.7 | Serra do Faro | `[42.60, -8.03]` | - |
-| `37` | Salamanca | Canchal de la Ceja | 2427.4 | Sierra de Béjar | `[40.33, -5.68]` | - |
+| `37` | Salamanca | Canchal de la Ceja | 2427.4 | Sierra de Béjar | `[40.3045, -5.7295]` | - |
 | `38` | Santa Cruz de Tenerife | Teide | 3718.0 | Tenerife | `[28.27, -16.64]` | - |
 | `39` | Cantabria | Torre Blanca | 2618.5 | Picos de Europa | `[43.1727, -4.8516]` | - |
 | `40` | Segovia | Peñalara | 2428.4 | Sierra de Guadarrama | `[40.85, -3.95]` | `penalara` (with Madrid) |
