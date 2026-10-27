@@ -58,28 +58,27 @@ ${bgRect}  <g transform="translate(${offsetX.toFixed(2)}, ${offsetY.toFixed(2)})
 
 async function generate() {
   // Ratios:
-  // - Maskable icon (app icon): ratio = 0.58 (72.6% of safe zone, prominent and balanced with clean white padding)
-  // - Any icon (splash screen): ratio = 0.65 (prominent, high-density vector detail)
+  // - All PWA icons (maskable, any, apple-touch-icon): ratio = 0.50 (50% scale, optimal safe-zone padding)
 
   // 1. Generate SVGs
-  // public/icon-192.svg and icon-512.svg (strictly NO <rect> to satisfy Invariant 11.9)
-  const svg192 = getSvgContent({ size: 192, bg: false, ratio: 0.65 });
+  // public/icon-192.svg, icon-512.svg, icon-1024.svg (strictly NO <rect> to satisfy Invariant 11.9)
+  const svg192 = getSvgContent({ size: 192, bg: false, ratio: 0.50 });
   fs.writeFileSync('public/icon-192.svg', svg192);
 
-  const svg512 = getSvgContent({ size: 512, bg: false, ratio: 0.65 });
+  const svg512 = getSvgContent({ size: 512, bg: false, ratio: 0.50 });
   fs.writeFileSync('public/icon-512.svg', svg512);
 
-  const svg1024 = getSvgContent({ size: 1024, bg: false, ratio: 0.65 });
+  const svg1024 = getSvgContent({ size: 1024, bg: false, ratio: 0.50 });
   fs.writeFileSync('public/icon-1024.svg', svg1024);
 
   // Maskable SVGs (solid #ffffff background)
-  const svgMask192 = getSvgContent({ size: 192, bg: true, ratio: 0.58 });
+  const svgMask192 = getSvgContent({ size: 192, bg: true, ratio: 0.50 });
   fs.writeFileSync('public/icon-maskable-192.svg', svgMask192);
 
-  const svgMask512 = getSvgContent({ size: 512, bg: true, ratio: 0.58 });
+  const svgMask512 = getSvgContent({ size: 512, bg: true, ratio: 0.50 });
   fs.writeFileSync('public/icon-maskable-512.svg', svgMask512);
 
-  const svgMask1024 = getSvgContent({ size: 1024, bg: true, ratio: 0.58 });
+  const svgMask1024 = getSvgContent({ size: 1024, bg: true, ratio: 0.50 });
   fs.writeFileSync('public/icon-maskable-1024.svg', svgMask1024);
 
   // 2. Render PNGs with 300 DPI supersampling for razor-sharp rendering on high-DPI screens
@@ -120,7 +119,7 @@ async function generate() {
   console.log('Generated public/icon-maskable-1024.png');
 
   // 3. apple-touch-icon.png (180x180 with solid white background for iOS)
-  const svgApple = getSvgContent({ size: 180, bg: true, ratio: 0.58 });
+  const svgApple = getSvgContent({ size: 180, bg: true, ratio: 0.50 });
   await sharp(Buffer.from(svgApple), { density: 300 })
     .resize(180, 180, { kernel: sharp.kernel.lanczos3 })
     .png({ compressionLevel: 9 })

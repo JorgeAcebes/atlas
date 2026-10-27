@@ -1,4 +1,4 @@
-const CACHE_NAME = 'atlas-cache-v10';
+const CACHE_NAME = 'atlas-cache-v11';
 
 // Recursos estáticos iniciales a cachear durante instalación.
 // Solo archivos PNG que existen en /public y son esenciales para la PWA.
