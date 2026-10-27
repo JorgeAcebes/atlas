@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
   <rect width="512" height="512" fill="#ffffff"/>
-  <g transform="translate(119.47, 102.40) scale(4.2667)">
+  <g transform="translate(58.03, 33.28) scale(6.1867)">
     <path d="M8 52 L32 12 L44 32 Z" fill="url(#g1)"/>
-    <path d="M20 60 L40.4 26 L56 52 Z" fill="url(#g2)" style="mix-blend-mode: multiply;"/>
+    <path d="M20 60 L40.4 26 L56 52 Z" fill="url(#g2)"/>
     <defs>
       <linearGradient id="g1" x1="8" y1="12" x2="44" y2="52">
         <stop stop-color="#5c9b7d"/>

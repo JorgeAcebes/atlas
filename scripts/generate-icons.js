@@ -30,7 +30,7 @@ function createIco(pngBuffers) {
   return Buffer.concat([header, ...entries, ...pngBuffers.map(p => p.buffer)]);
 }
 
-function getSvgContent({ size, bg = false, ratio = 0.40 }) {
+function getSvgContent({ size, bg = false, ratio }) {
   const scale = (size * ratio) / 48;
   const offsetX = (size / 2) - (32 * scale);
   const offsetY = (size / 2) - (36 * scale);
@@ -40,7 +40,7 @@ function getSvgContent({ size, bg = false, ratio = 0.40 }) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none">
 ${bgRect}  <g transform="translate(${offsetX.toFixed(2)}, ${offsetY.toFixed(2)}) scale(${scale.toFixed(4)})">
     <path d="M8 52 L32 12 L44 32 Z" fill="url(#g1)"/>
-    <path d="M20 60 L40.4 26 L56 52 Z" fill="url(#g2)" style="mix-blend-mode: multiply;"/>
+    <path d="M20 60 L40.4 26 L56 52 Z" fill="url(#g2)"/>
     <defs>
       <linearGradient id="g1" x1="8" y1="12" x2="44" y2="52">
         <stop stop-color="#5c9b7d"/>
@@ -57,21 +57,30 @@ ${bgRect}  <g transform="translate(${offsetX.toFixed(2)}, ${offsetY.toFixed(2)})
 }
 
 async function generate() {
+  // Ratios:
+  // - Maskable icon (app icon): ratio = 0.58 (72.6% of safe zone, prominent and balanced with clean white padding)
+  // - Any icon (splash screen): ratio = 0.65 (prominent, high-density vector detail)
+
   // 1. Generate SVGs
-  // public/icon-192.svg (transparent, peaks ~40%) - strictly NO <rect> to satisfy Invariant 11.9
-  const svg192 = getSvgContent({ size: 192, bg: false, ratio: 0.40 });
+  // public/icon-192.svg and icon-512.svg (strictly NO <rect> to satisfy Invariant 11.9)
+  const svg192 = getSvgContent({ size: 192, bg: false, ratio: 0.65 });
   fs.writeFileSync('public/icon-192.svg', svg192);
 
-  // public/icon-512.svg (transparent, peaks ~40%) - strictly NO <rect> to satisfy Invariant 11.9
-  const svg512 = getSvgContent({ size: 512, bg: false, ratio: 0.40 });
+  const svg512 = getSvgContent({ size: 512, bg: false, ratio: 0.65 });
   fs.writeFileSync('public/icon-512.svg', svg512);
 
-  // Maskable SVGs (solid #ffffff background, peaks ~40% inside safe zone)
-  const svgMask192 = getSvgContent({ size: 192, bg: true, ratio: 0.40 });
+  const svg1024 = getSvgContent({ size: 1024, bg: false, ratio: 0.65 });
+  fs.writeFileSync('public/icon-1024.svg', svg1024);
+
+  // Maskable SVGs (solid #ffffff background)
+  const svgMask192 = getSvgContent({ size: 192, bg: true, ratio: 0.58 });
   fs.writeFileSync('public/icon-maskable-192.svg', svgMask192);
 
-  const svgMask512 = getSvgContent({ size: 512, bg: true, ratio: 0.40 });
+  const svgMask512 = getSvgContent({ size: 512, bg: true, ratio: 0.58 });
   fs.writeFileSync('public/icon-maskable-512.svg', svgMask512);
+
+  const svgMask1024 = getSvgContent({ size: 1024, bg: true, ratio: 0.58 });
+  fs.writeFileSync('public/icon-maskable-1024.svg', svgMask1024);
 
   // 2. Render PNGs with 300 DPI supersampling for razor-sharp rendering on high-DPI screens
   await sharp(Buffer.from(svg192), { density: 300 })
@@ -86,6 +95,12 @@ async function generate() {
     .toFile('public/icon-512.png');
   console.log('Generated public/icon-512.png');
 
+  await sharp(Buffer.from(svg1024), { density: 300 })
+    .resize(1024, 1024, { kernel: sharp.kernel.lanczos3 })
+    .png({ compressionLevel: 9 })
+    .toFile('public/icon-1024.png');
+  console.log('Generated public/icon-1024.png');
+
   await sharp(Buffer.from(svgMask192), { density: 300 })
     .resize(192, 192, { kernel: sharp.kernel.lanczos3 })
     .png({ compressionLevel: 9 })
@@ -98,8 +113,14 @@ async function generate() {
     .toFile('public/icon-maskable-512.png');
   console.log('Generated public/icon-maskable-512.png');
 
+  await sharp(Buffer.from(svgMask1024), { density: 300 })
+    .resize(1024, 1024, { kernel: sharp.kernel.lanczos3 })
+    .png({ compressionLevel: 9 })
+    .toFile('public/icon-maskable-1024.png');
+  console.log('Generated public/icon-maskable-1024.png');
+
   // 3. apple-touch-icon.png (180x180 with solid white background for iOS)
-  const svgApple = getSvgContent({ size: 180, bg: true, ratio: 0.40 });
+  const svgApple = getSvgContent({ size: 180, bg: true, ratio: 0.58 });
   await sharp(Buffer.from(svgApple), { density: 300 })
     .resize(180, 180, { kernel: sharp.kernel.lanczos3 })
     .png({ compressionLevel: 9 })

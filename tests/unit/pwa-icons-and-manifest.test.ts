@@ -18,20 +18,22 @@ describe("PWA Manifest, Icons, and Standalone Configuration", () => {
       expect(manifest.scope).toBe("/");
     });
 
-    it("should declare both 'any' and 'maskable' icons for 192 and 512 sizes", () => {
+    it("should declare both 'any' and 'maskable' icons for 192, 512, and 1024 sizes", () => {
       const anyIcons = manifest.icons.filter((i: any) => i.purpose === "any");
       const maskableIcons = manifest.icons.filter((i: any) => i.purpose === "maskable");
 
-      expect(anyIcons.length).toBeGreaterThanOrEqual(2);
-      expect(maskableIcons.length).toBeGreaterThanOrEqual(2);
+      expect(anyIcons.length).toBeGreaterThanOrEqual(3);
+      expect(maskableIcons.length).toBeGreaterThanOrEqual(3);
 
       const anySizes = anyIcons.map((i: any) => i.sizes);
       expect(anySizes).toContain("192x192");
       expect(anySizes).toContain("512x512");
+      expect(anySizes).toContain("1024x1024");
 
       const maskableSizes = maskableIcons.map((i: any) => i.sizes);
       expect(maskableSizes).toContain("192x192");
       expect(maskableSizes).toContain("512x512");
+      expect(maskableSizes).toContain("1024x1024");
     });
 
     it("every icon declared in manifest.json must exist in public directory with non-zero size", () => {
@@ -49,15 +51,17 @@ describe("PWA Manifest, Icons, and Standalone Configuration", () => {
     const swContent = fs.readFileSync(swPath, "utf8");
 
     it("should include maskable and any icons in PRECACHE_URLS", () => {
+      expect(swContent).toContain("'/icon-1024.png'");
       expect(swContent).toContain("'/icon-512.png'");
       expect(swContent).toContain("'/icon-192.png'");
+      expect(swContent).toContain("'/icon-maskable-1024.png'");
       expect(swContent).toContain("'/icon-maskable-512.png'");
       expect(swContent).toContain("'/icon-maskable-192.png'");
       expect(swContent).toContain("'/apple-touch-icon.png'");
     });
 
-    it("should have cache version at v9 or higher", () => {
-      expect(swContent).toMatch(/atlas-cache-v(?:[9]|\d{2,})/);
+    it("should have cache version at v10 or higher", () => {
+      expect(swContent).toMatch(/atlas-cache-v(?:1\d|\d{2,})/);
     });
   });
 
@@ -73,9 +77,11 @@ describe("PWA Manifest, Icons, and Standalone Configuration", () => {
     it("maskable SVGs must have solid white background", () => {
       const mask192 = fs.readFileSync(path.join(rootDir, "public/icon-maskable-192.svg"), "utf8");
       const mask512 = fs.readFileSync(path.join(rootDir, "public/icon-maskable-512.svg"), "utf8");
+      const mask1024 = fs.readFileSync(path.join(rootDir, "public/icon-maskable-1024.svg"), "utf8");
 
       expect(mask192).toContain('<rect width="192" height="192" fill="#ffffff"');
       expect(mask512).toContain('<rect width="512" height="512" fill="#ffffff"');
+      expect(mask1024).toContain('<rect width="1024" height="1024" fill="#ffffff"');
     });
   });
 
@@ -92,6 +98,12 @@ describe("PWA Manifest, Icons, and Standalone Configuration", () => {
       expect(layoutContent).toContain("display-mode: standalone");
       expect(layoutContent).toContain("display-mode: fullscreen");
       expect(layoutContent).toContain("android-app://");
+    });
+
+    it("should provide explicit sizes for favicon.ico and high-res icon in head", () => {
+      expect(layoutContent).toContain('url: "/icon-512.png", sizes: "512x512"');
+      expect(layoutContent).toContain('sizes: "16x16 32x32 48x48"');
+      expect(layoutContent).not.toContain('{ url: "/favicon.ico", sizes: "any" }');
     });
   });
 });

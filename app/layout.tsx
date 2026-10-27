@@ -10,8 +10,9 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
       { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
     ],
     apple: [
       { url: "/apple-touch-icon.png", sizes: "180x180" },
