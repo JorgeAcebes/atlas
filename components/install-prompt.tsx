@@ -29,7 +29,10 @@ export function isStandalone(): boolean {
 
 export function isMobile(): boolean {
   if (typeof window === "undefined") return false;
-  return window.innerWidth <= 700;
+  return (
+    window.innerWidth <= 840 ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  );
 }
 
 // Module-level captured prompt event so it isn't lost if fired before component mounts
@@ -80,6 +83,12 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       }
     }
 
+    const isDismissed = () => {
+      if (typeof localStorage !== "undefined" && localStorage.getItem(DISMISS_KEY) === "true") return true;
+      if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("pwa_dismissed_session") === "true") return true;
+      return false;
+    };
+
     const handler = (e: Event) => {
       e.preventDefault();
       const pEvent = e as BeforeInstallPromptEvent;
@@ -88,7 +97,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
         (window as any).__atlasInstallPrompt = pEvent;
       }
       setDeferredPrompt(pEvent);
-      if (!manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone()) {
+      if (!manualOpen && !isDismissed() && !isStandalone()) {
         setShowPrompt(true);
       }
     };
@@ -98,7 +107,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       if (p) {
         setDeferredPrompt(p);
         setShowManualAndroidSteps(false);
-        if (!manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone()) {
+        if (!manualOpen && !isDismissed() && !isStandalone()) {
           setShowPrompt(true);
         }
       }
@@ -133,38 +142,23 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       };
     }
 
-    // Don't show automatic prompt if:
-    // 1. Already installed (standalone mode)
-    // 2. User dismissed permanently
-    // 3. Not on mobile
-    if (isStandalone() || !isMobile() || (typeof localStorage !== "undefined" && localStorage.getItem(DISMISS_KEY) === "true")) {
-      return () => {
-        window.removeEventListener("beforeinstallprompt", handler);
-        window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
-        window.removeEventListener("atlas-app-installed", handleAppInstalled);
-      };
-    }
-
     // Check if iOS
     if (isIOS()) {
       setIsApple(true);
-      setShowPrompt(true);
-      return () => {
-        window.removeEventListener("beforeinstallprompt", handler);
-        window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
-        window.removeEventListener("atlas-app-installed", handleAppInstalled);
-      };
+      if (!isStandalone() && !isDismissed()) {
+        setShowPrompt(true);
+      }
     }
 
     // If prompt already captured
-    if (existingPrompt && !manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone()) {
+    if (existingPrompt && !manualOpen && !isDismissed() && !isStandalone() && isMobile()) {
       setShowPrompt(true);
     }
 
     // Also show after a short delay for browsers that support PWA
     // but might not fire beforeinstallprompt immediately
     const timer = setTimeout(() => {
-      if (!isStandalone() && isMobile() && localStorage.getItem(DISMISS_KEY) !== "true") {
+      if (!isStandalone() && isMobile() && !isDismissed()) {
         if (isIOS()) {
           setIsApple(true);
           setShowPrompt(true);
@@ -176,7 +170,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
           }
         }
       }
-    }, 2000);
+    }, 1500);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
@@ -215,6 +209,11 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
         await promptEvent.prompt();
         const { outcome } = await promptEvent.userChoice;
         if (outcome === "accepted") {
+          try {
+            localStorage.setItem("pwa_app_installed", "true");
+          } catch {
+            /* ignore */
+          }
           setShowPrompt(false);
           onManualClose?.();
         }
@@ -230,6 +229,10 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
 
   const handleClose = useCallback(() => {
     setClosing(true);
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem("pwa_dismissed_session", "true");
+    }
+    clearInstallPrompt();
     if (dontShowAgain && !isManual) {
       localStorage.setItem(DISMISS_KEY, "true");
     }
@@ -266,20 +269,14 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
 
         {/* App icon */}
         <div className="install-prompt-icon">
-          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8 52 L32 12 L44 32 Z" fill="url(#ipGreen)"/>
-            <path d="M20 60 L40.4 26 L56 52 Z" fill="url(#ipPurple)" style={{ mixBlendMode: 'multiply' }}/>
-            <defs>
-              <linearGradient id="ipGreen" x1="8" y1="12" x2="44" y2="52">
-                <stop stopColor="#5c9b7d"/>
-                <stop offset="1" stopColor="#245f52"/>
-              </linearGradient>
-              <linearGradient id="ipPurple" x1="20" y1="26" x2="56" y2="60">
-                <stop stopColor="#9570c7"/>
-                <stop offset="1" stopColor="#5b3a8c"/>
-              </linearGradient>
-            </defs>
-          </svg>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon-192.png"
+            alt="Atlas"
+            width={40}
+            height={40}
+            style={{ borderRadius: 8, display: "block" }}
+          />
         </div>
 
         {/* Title */}
@@ -309,7 +306,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
         ) : showManualAndroidSteps ? (
           <div className="install-prompt-ios-steps">
             <p>
-              Pulsa el menú de tu navegador (los tres puntos <strong>⋮</strong>) y selecciona <strong>&quot;Instalar aplicación&quot;</strong>.
+              La aplicación ya está instalada o lista para usar en tu pantalla de inicio.
             </p>
           </div>
         ) : (

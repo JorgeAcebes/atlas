@@ -814,7 +814,8 @@ export function SummitTracker({
       if (typeof window === "undefined") return;
       const standalone = isStandalone();
       const isMobileWidth = window.innerWidth <= 700;
-      setCanInstallMobile(!standalone && isMobileWidth);
+      const alreadyInstalled = typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true";
+      setCanInstallMobile(!standalone && isMobileWidth && !alreadyInstalled);
 
       if (!standalone && isMobileWidth && typeof navigator !== "undefined" && "getInstalledRelatedApps" in navigator) {
         (navigator as any).getInstalledRelatedApps().then((apps: any[]) => {
@@ -827,6 +828,11 @@ export function SummitTracker({
     checkMobileBrowser();
     window.addEventListener("resize", checkMobileBrowser);
     const handleInstalled = () => {
+      try {
+        localStorage.setItem("pwa_app_installed", "true");
+      } catch {
+        /* ignore */
+      }
       setCanInstallMobile(false);
       setInstallPromptOpen(false);
     };
@@ -868,6 +874,11 @@ export function SummitTracker({
         await promptEvent.prompt();
         const { outcome } = await promptEvent.userChoice;
         if (outcome === "accepted") {
+          try {
+            localStorage.setItem("pwa_app_installed", "true");
+          } catch {
+            /* ignore */
+          }
           clearInstallPrompt();
           setCanInstallMobile(false);
           setInstallPromptOpen(false);
