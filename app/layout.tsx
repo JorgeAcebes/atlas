@@ -78,6 +78,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <link rel="preload" href="/world-countries.topo.json" as="fetch" crossOrigin="anonymous" />
         <link rel="prefetch" href="/provincias_spain.topo.json" as="fetch" crossOrigin="anonymous" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="application-name" content="Atlas" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -122,19 +126,35 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           dangerouslySetInnerHTML={{
             __html: `
               if (typeof window !== 'undefined') {
-                var isStandalone = window.matchMedia('(display-mode: standalone)').matches || ('standalone' in navigator && navigator.standalone);
+                var isStandalone = 
+                  window.matchMedia('(display-mode: standalone)').matches ||
+                  window.matchMedia('(display-mode: fullscreen)').matches ||
+                  window.matchMedia('(display-mode: minimal-ui)').matches ||
+                  (typeof navigator !== 'undefined' && 'standalone' in navigator && navigator.standalone === true) ||
+                  (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('android-app://') !== -1) ||
+                  window.location.search.indexOf('mode=pwa') !== -1;
+
+                function registerAtlasSW() {
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                      reg.update();
+                    }).catch(function(err) {
+                      console.warn('SW registration failed:', err);
+                    });
+                  }
+                }
 
                 if (window.location.hostname === '196-paises.vercel.app') {
                   if (isStandalone) {
-                    // Si el usuario lo tiene instalado como PWA, permanece en este origen para evitar la barra verde "fuera de alcance"
+                    // Si el usuario lo tiene instalado como PWA antigua, permanece en este origen para evitar la barra verde "fuera de alcance"
+                    if (document.readyState === 'complete') {
+                      registerAtlasSW();
+                    } else {
+                      window.addEventListener('load', registerAtlasSW);
+                    }
+                    var hadControllerStandalone = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+                    var refreshingStandalone = false;
                     if ('serviceWorker' in navigator) {
-                      window.addEventListener('load', function() {
-                        navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                          reg.update();
-                        });
-                      });
-                      var hadControllerStandalone = !!navigator.serviceWorker.controller;
-                      var refreshingStandalone = false;
                       navigator.serviceWorker.addEventListener('controllerchange', function() {
                         if (hadControllerStandalone && !refreshingStandalone) {
                           refreshingStandalone = true;
@@ -146,20 +166,22 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                     // Si entra desde navegador web normal, redirige limpiamente al nuevo dominio
                     window.location.replace('https://atlas-log.vercel.app' + window.location.pathname + window.location.search + window.location.hash);
                   }
-                } else if ('serviceWorker' in navigator) {
-                  window.addEventListener('load', function() {
-                    navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                      reg.update();
-                    });
-                  });
-                  var hadController = !!navigator.serviceWorker.controller;
+                } else {
+                  if (document.readyState === 'complete') {
+                    registerAtlasSW();
+                  } else {
+                    window.addEventListener('load', registerAtlasSW);
+                  }
+                  var hadController = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
                   var refreshing = false;
-                  navigator.serviceWorker.addEventListener('controllerchange', function() {
-                    if (hadController && !refreshing) {
-                      refreshing = true;
-                      window.location.reload();
-                    }
-                  });
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.addEventListener('controllerchange', function() {
+                      if (hadController && !refreshing) {
+                        refreshing = true;
+                        window.location.reload();
+                      }
+                    });
+                  }
                 }
               }
             `,

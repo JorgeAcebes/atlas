@@ -1,4 +1,4 @@
-const CACHE_NAME = 'atlas-cache-v8';
+const CACHE_NAME = 'atlas-cache-v9';
 
 // Recursos estáticos iniciales a cachear durante instalación.
 // Solo archivos PNG que existen en /public y son esenciales para la PWA.
@@ -7,8 +7,10 @@ const CACHE_NAME = 'atlas-cache-v8';
 // o headers especiales que rompen cache.addAll() — los excluimos del precache.
 const PRECACHE_URLS = [
   '/manifest.json',
-  '/icon-192.png',
   '/icon-512.png',
+  '/icon-192.png',
+  '/icon-maskable-512.png',
+  '/icon-maskable-192.png',
   '/apple-touch-icon.png'
 ];
 
