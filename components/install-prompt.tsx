@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useScrollLock } from "@/lib/scroll-lock";
 
 // Key for localStorage
-const DISMISS_KEY = "pwa_install_dismissed";
+const DISMISS_KEY = "pwa_install_dismissed_v2";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -72,6 +72,14 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
   useScrollLock(showPrompt);
 
   useEffect(() => {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pwa_install_dismissed")) {
+      try {
+        localStorage.removeItem("pwa_install_dismissed");
+      } catch {
+        /* ignore */
+      }
+    }
+
     const handler = (e: Event) => {
       e.preventDefault();
       const pEvent = e as BeforeInstallPromptEvent;
@@ -90,6 +98,9 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       if (p) {
         setDeferredPrompt(p);
         setShowManualAndroidSteps(false);
+        if (!manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone() && isMobile()) {
+          setShowPrompt(true);
+        }
       }
     };
 
@@ -157,9 +168,15 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
         if (isIOS()) {
           setIsApple(true);
           setShowPrompt(true);
+        } else {
+          const p = getInstallPrompt();
+          if (p) {
+            setDeferredPrompt(p);
+            setShowPrompt(true);
+          }
         }
       }
-    }, 3000);
+    }, 2000);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
@@ -170,7 +187,29 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
   }, [manualOpen, onManualClose]);
 
   const handleInstall = useCallback(async () => {
-    const promptEvent = deferredPrompt || getInstallPrompt();
+    let promptEvent = deferredPrompt || getInstallPrompt();
+    if (!promptEvent) {
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const onReady = () => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        };
+        window.addEventListener("atlas-install-prompt-ready", onReady);
+        setTimeout(() => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        }, 300);
+      });
+      promptEvent = deferredPrompt || getInstallPrompt();
+    }
+
     if (promptEvent) {
       try {
         await promptEvent.prompt();
@@ -181,13 +220,12 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
         }
         setDeferredPrompt(null);
         clearInstallPrompt();
+        return;
       } catch (err) {
         console.error("Error prompting install:", err);
-        setShowManualAndroidSteps(true);
       }
-    } else {
-      setShowManualAndroidSteps(true);
     }
+    setShowManualAndroidSteps(true);
   }, [deferredPrompt, onManualClose]);
 
   const handleClose = useCallback(() => {

@@ -815,6 +815,14 @@ export function SummitTracker({
       const standalone = isStandalone();
       const isMobileWidth = window.innerWidth <= 700;
       setCanInstallMobile(!standalone && isMobileWidth);
+
+      if (!standalone && isMobileWidth && typeof navigator !== "undefined" && "getInstalledRelatedApps" in navigator) {
+        (navigator as any).getInstalledRelatedApps().then((apps: any[]) => {
+          if (apps && apps.length > 0) {
+            setCanInstallMobile(false);
+          }
+        }).catch(() => {});
+      }
     };
     checkMobileBrowser();
     window.addEventListener("resize", checkMobileBrowser);
@@ -832,7 +840,29 @@ export function SummitTracker({
   }, []);
   const handleHeroInstallClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const promptEvent = getInstallPrompt();
+    let promptEvent = getInstallPrompt();
+    if (!promptEvent) {
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const onReady = () => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        };
+        window.addEventListener("atlas-install-prompt-ready", onReady);
+        setTimeout(() => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        }, 300);
+      });
+      promptEvent = getInstallPrompt();
+    }
+
     if (promptEvent) {
       try {
         await promptEvent.prompt();
@@ -840,14 +870,15 @@ export function SummitTracker({
         if (outcome === "accepted") {
           clearInstallPrompt();
           setCanInstallMobile(false);
+          setInstallPromptOpen(false);
         }
+        return;
       } catch (err) {
         console.error("Hero direct install error:", err);
-        setInstallPromptOpen(true);
       }
-    } else {
-      setInstallPromptOpen(true);
     }
+
+    setInstallPromptOpen(true);
   };
   const [statsOpen, setStatsOpen] = useState(() => {
     if (typeof window !== "undefined") {
