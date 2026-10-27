@@ -65,8 +65,18 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
 
   const initialTab = getTabFromPath(pathname) || "map";
   const [activeTab, setActiveTab] = useState<MainTab>(initialTab);
-  const [sharedMode, setSharedMode] = useState<ChallengeMode>(() => getInitialMode(pathname));
-  const [sharedExperiencesMode, setSharedExperiencesMode] = useState<boolean>(() => getInitialExperiencesMode());
+  const [sharedMode, setSharedMode] = useState<ChallengeMode>(() => (pathname === "/picos" ? "peaks" : "countries"));
+  const [sharedExperiencesMode, setSharedExperiencesMode] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (getInitialExperiencesMode()) {
+      setSharedExperiencesMode(true);
+    }
+    const m = getInitialMode(pathname);
+    if (m !== "countries" && pathname !== "/" && pathname !== "/paises") {
+      setSharedMode(m);
+    }
+  }, [pathname]);
 
   const isMainRoute = getTabFromPath(pathname) !== null;
 

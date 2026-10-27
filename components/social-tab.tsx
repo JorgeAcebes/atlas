@@ -80,31 +80,35 @@ export function SocialTab({
   const hasBothModes = enablePeaks && enableCountries;
 
   const [currentMode, setCurrentMode] = useState<"countries" | "peaks">(() => {
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlChallenge = urlParams.get("challenge");
-      if (urlChallenge === "peaks" && enablePeaks) return "peaks";
-      if (urlChallenge === "countries" && enableCountries) return "countries";
-
-      const saved = localStorage.getItem("last_active_mode") as "countries" | "peaks" | null;
-      if (saved === "peaks" && enablePeaks) return "peaks";
-      if (saved === "countries" && enableCountries) return "countries";
-      const path = localStorage.getItem("last_map_path");
-      if (path === "/picos" && enablePeaks) return "peaks";
-    }
     return enableCountries ? "countries" : "peaks";
   });
 
-  const [experiencesMode, setExperiencesMode] = useState(() => {
+  const [experiencesMode, setExperiencesMode] = useState<boolean>(() => {
     if (controlledExperiencesMode !== undefined) return controlledExperiencesMode;
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlView = urlParams.get("view");
-      if (urlView === "experiences") return true;
-      return localStorage.getItem("myExperiencesMode") === "true";
-    }
     return false;
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlChallenge = urlParams.get("challenge");
+        if (urlChallenge === "peaks" && enablePeaks) setCurrentMode("peaks");
+        else if (urlChallenge === "countries" && enableCountries) setCurrentMode("countries");
+        else {
+          const saved = localStorage.getItem("last_active_mode") as "countries" | "peaks" | null;
+          if (saved === "peaks" && enablePeaks) setCurrentMode("peaks");
+          else if (saved === "countries" && enableCountries) setCurrentMode("countries");
+        }
+        if (controlledExperiencesMode === undefined) {
+          const urlView = urlParams.get("view");
+          if (urlView === "experiences" || localStorage.getItem("myExperiencesMode") === "true") {
+            setExperiencesMode(true);
+          }
+        }
+      } catch {}
+    }
+  }, [enablePeaks, enableCountries, controlledExperiencesMode]);
 
   useEffect(() => {
     if (controlledExperiencesMode !== undefined && controlledExperiencesMode !== experiencesMode) {

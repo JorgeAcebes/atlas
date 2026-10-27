@@ -61,7 +61,7 @@ export interface InstallPromptProps {
 }
 
 export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps = {}) {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(getInstallPrompt);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isManual, setIsManual] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -88,7 +88,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
         (window as any).__atlasInstallPrompt = pEvent;
       }
       setDeferredPrompt(pEvent);
-      if (!manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone() && isMobile()) {
+      if (!manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone()) {
         setShowPrompt(true);
       }
     };
@@ -98,7 +98,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       if (p) {
         setDeferredPrompt(p);
         setShowManualAndroidSteps(false);
-        if (!manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone() && isMobile()) {
+        if (!manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone()) {
           setShowPrompt(true);
         }
       }
@@ -157,7 +157,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
     }
 
     // If prompt already captured
-    if (existingPrompt) {
+    if (existingPrompt && !manualOpen && localStorage.getItem(DISMISS_KEY) !== "true" && !isStandalone()) {
       setShowPrompt(true);
     }
 

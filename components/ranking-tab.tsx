@@ -54,22 +54,29 @@ export function RankingTab({
   const hasBothModes = enablePeaks && enableCountries;
 
   const [mode, setMode] = useState<ModeFilter>(() => {
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlChallenge = urlParams.get("challenge") as ModeFilter | null;
-      if (urlChallenge === "peaks" && enablePeaks) return "peaks";
-      if (urlChallenge === "countries" && enableCountries) return "countries";
-
-      const savedActive = localStorage.getItem("last_active_mode") as ModeFilter | null;
-      if (savedActive === "peaks" && enablePeaks) return "peaks";
-      if (savedActive === "countries" && enableCountries) return "countries";
-
-      const saved = localStorage.getItem("ranking_mode") as ModeFilter | null;
-      if (saved === "countries" && enableCountries) return "countries";
-      if (saved === "peaks" && enablePeaks) return "peaks";
-    }
     return enableCountries ? "countries" : "peaks";
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlChallenge = urlParams.get("challenge") as ModeFilter | null;
+        if (urlChallenge === "peaks" && enablePeaks) setMode("peaks");
+        else if (urlChallenge === "countries" && enableCountries) setMode("countries");
+        else {
+          const savedActive = localStorage.getItem("last_active_mode") as ModeFilter | null;
+          if (savedActive === "peaks" && enablePeaks) setMode("peaks");
+          else if (savedActive === "countries" && enableCountries) setMode("countries");
+          else {
+            const saved = localStorage.getItem("ranking_mode") as ModeFilter | null;
+            if (saved === "countries" && enableCountries) setMode("countries");
+            else if (saved === "peaks" && enablePeaks) setMode("peaks");
+          }
+        }
+      } catch {}
+    }
+  }, [enablePeaks, enableCountries]);
   const [scope, setScope] = useState<ScopeFilter>("all");
   
   const initialCacheKey = `${mode}-${scope}-${session?.user?.id || 'anon'}`;
