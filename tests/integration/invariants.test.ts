@@ -986,6 +986,59 @@ describe("Project Critical Invariants (No Regressions)", () => {
       const rankingContent = fs.readFileSync(rankingTabPath, "utf-8");
       expect(rankingContent).toMatch(/topbar-nav-link--ranking topbar-nav-link--active[\s\S]*?onClick=/);
     });
+
+    it("Invariant 11.36: PWA Install Prompt must use official raster icon, handle session dismissal and auto-hide when installed", () => {
+      const installPromptPath = path.join(rootDir, "components/install-prompt.tsx");
+      const installPromptContent = fs.readFileSync(installPromptPath, "utf-8");
+
+      // 1. Must use official raster icon /icon-192.png and NOT fragile SVG url(#ipGreen)
+      expect(installPromptContent).toContain('src="/icon-192.png"');
+      expect(installPromptContent).not.toContain('url(#ipGreen)');
+      expect(installPromptContent).not.toContain("mixBlendMode: 'multiply'");
+
+      // 2. Must handle session dismissal and clear stale prompt on close
+      expect(installPromptContent).toContain('sessionStorage.setItem("pwa_dismissed_session", "true")');
+      expect(installPromptContent).toContain("clearInstallPrompt()");
+
+      // 3. Must persist pwa_app_installed on accepted installation
+      expect(installPromptContent).toContain('localStorage.setItem("pwa_app_installed", "true")');
+
+      // 4. summit-tracker.tsx must auto-hide hero download button when alreadyInstalled
+      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
+      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      expect(trackerContent).toContain('localStorage.getItem("pwa_app_installed") === "true"');
+      expect(trackerContent).toContain("!alreadyInstalled");
+    });
+
+    it("Invariant 11.37: PWA icon scale 50%, splash screen anti-pixelation and out-of-scope protection", () => {
+      // 1. generate-icons script must enforce 50% ratio
+      const genScript = fs.readFileSync(path.join(rootDir, "scripts/generate-icons.js"), "utf-8");
+      expect(genScript).toMatch(/ratio:\s*0\.50/);
+
+      // 2. app/layout.tsx must NOT declare sizes="any" for favicon.ico to prevent Android splash pixelation
+      const layoutContent = fs.readFileSync(path.join(rootDir, "app/layout.tsx"), "utf-8");
+      expect(layoutContent).not.toContain('{ url: "/favicon.ico", sizes: "any" }');
+      expect(layoutContent).toContain('sizes: "16x16 32x32 48x48"');
+      expect(layoutContent).toContain('url: "/icon-512.png", sizes: "512x512"');
+
+      // 3. Manifests must include standalone, window-controls-overlay and 1024px icons
+      const manifestPath = path.join(rootDir, "public/manifest.json");
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      expect(manifest.display).toBe("standalone");
+      expect(manifest.display_override).toContain("standalone");
+      expect(manifest.display_override).toContain("window-controls-overlay");
+      expect(manifest.icons.some((i: any) => i.sizes === "1024x1024" && i.purpose === "maskable")).toBe(true);
+
+      // 4. sw.js must precache 1024px icons and maskable icons
+      const swContent = fs.readFileSync(path.join(rootDir, "public/sw.js"), "utf-8");
+      expect(swContent).toContain("'/icon-1024.png'");
+      expect(swContent).toContain("'/icon-maskable-1024.png'");
+
+      // 5. Install prompt must clear legacy dismissed key and support async prompt readiness
+      const installPromptContent = fs.readFileSync(path.join(rootDir, "components/install-prompt.tsx"), "utf-8");
+      expect(installPromptContent).toContain('localStorage.removeItem("pwa_install_dismissed")');
+      expect(installPromptContent).toContain("atlas-install-prompt-ready");
+    });
   });
 });
 

@@ -154,10 +154,10 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 
 ---
 
-## 12. Iconos y Logo de la Aplicación (`app/icon.svg`, `app/favicon.ico`, `public/icon-192.svg`, `public/icon-512.svg`, `public/apple-touch-icon.png`)
+## 12. Iconos y Logo de la Aplicación (`app/icon.svg`, `app/favicon.ico`, `public/icon-192.svg`, `public/icon-512.svg`, `public/apple-touch-icon.png`, `public/icon-maskable-*.png`)
 
-1. **Logo sin Fondo en Ventana/Pestaña**: El icono de la aplicación en la ventana/pestaña (favicon, PWA y accesos directos) debe ser transparente, compuesto exclusivamente por los dos triángulos estilizados, sin fondo blanco ni crema.
-2. **Tamaño Óptimo en Pestaña vs PWA**: El icono de la ventana del navegador (`app/icon.svg` y `app/favicon.ico`) debe aprovechar el espacio visual de la pestaña (~85%+ de ocupación centrado) para verse grande y nítido. Los iconos de instalación PWA (`public/icon-192.png`, `public/icon-512.png`, `public/apple-touch-icon.png`) conservan su escala protegida (~52.5%) para adaptarse a las máscaras y bordes de los sistemas operativos móviles y de escritorio sin verse modificados.
+1. **Logo sin Fondo en Ventana/Pestaña**: El icono de la aplicación en la ventana/pestaña (favicon, PWA y accesos directos estándar) debe ser transparente, compuesto exclusivamente por los dos triángulos estilizados, sin fondo blanco ni crema.
+2. **Tamaño Óptimo en Pestaña vs PWA**: El icono de la ventana del navegador (`app/icon.svg` y `app/favicon.ico`) debe aprovechar el espacio visual de la pestaña (~85%+ de ocupación centrado) para verse grande y nítido. Los iconos de instalación PWA (`public/icon-192.png`, `public/icon-512.png`, `public/icon-1024.png`, `public/apple-touch-icon.png`) y adaptativos maskable (`public/icon-maskable-*.png`) se calibran a una escala fija del **50%** (`ratio = 0.50`) en `scripts/generate-icons.js`, garantizando un margen blanco limpio, proporcionado y centrado dentro de las máscaras circulares y squircle de Android e iOS sin pegarse a los bordes ni quedar diminuto.
 
 ---
 
@@ -276,6 +276,45 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
    - Un mapa de historial en memoria registra las posiciones para restaurarlas exclusivamente ante eventos reales de navegación atrás/adelante (`popstate`).
 3. **Retorno Suave Arriba en Pestaña Activa**:
    - Al hacer clic sobre el enlace de la pestaña que ya se encuentra activa en ese momento (ej. pulsar en «Social» estando ya en Social, o «Ranking» estando en Ranking), la página realiza un desplazamiento suave hacia arriba (`window.scrollTo({ top: 0, behavior: "smooth" })`).
+
+---
+
+## 22. Ciclo de Vida de Instalación PWA, Icono Oficial y Prevención de Prompts Fantasma (`components/install-prompt.tsx`, `components/summit-tracker.tsx`)
+
+1. **Icono Oficial Raster (`/icon-192.png`)**:
+   - En el diálogo/hoja de instalación (`InstallPrompt`), el icono de la aplicación se renderiza estrictamente mediante la imagen raster oficial `/icon-192.png` precacheada en el Service Worker.
+   - Está prohibido emplear vectores SVG con referencias internas de degradados mediante fragmentos `url(#id)` relativos: en rutas de navegación cliente (ej. `/perfil/[username]`, `/picos`), los navegadores móviles resuelven los fragmentos contra la URL completa (`/perfil/user#id`), provocando la desaparición del degradado y mostrando un recuadro transparente o vacío.
+
+2. **Invalidación por Navegación y Descarte en Sesión (`sessionStorage`)**:
+   - En Chromium/Android, el evento nativo `beforeinstallprompt` queda estrictamente vinculado al contexto de navegación y URL en el que fue emitido. Si el usuario navega a otra URL o ruta diferente, Chromium invalida el token del evento; invocar `.prompt()` sobre un evento retenido de una navegación anterior lanza `InvalidStateError`.
+   - Si el usuario pulsa «Cancelar» o cierra el diálogo de instalación (`handleClose`), se invoca `clearInstallPrompt()` y se persiste `pwa_dismissed_session = "true"` en `sessionStorage`. Esto impide la reapaparición de pop-ups fantasma con eventos caducados al navegar entre páginas durante la misma sesión.
+
+3. **Detección de Instalación y Auto-ocultación de Controles**:
+   - Tras aceptar la instalación (`outcome === "accepted"` o eventos `appinstalled` / `atlas-app-installed`), se persiste `pwa_app_installed = "true"` en `localStorage`.
+   - Cuando la app ya está instalada (`alreadyInstalled` o `isStandalone()`), el botón de descarga del hero se oculta automáticamente (`!alreadyInstalled`).
+   - Si no hay prompt activo por encontrarse la app ya instalada, la interfaz no debe inducir a error con instrucciones manuales ("dale a los 3 puntos"), sino informar de que la aplicación ya está instalada o lista para usar en la pantalla de inicio.
+
+---
+
+## 23. Configuración PWA, Splash Screen Nítido y Prevención de Barra Fuera de Ámbito (`app/layout.tsx`, `public/manifest.json`, `app/manifest.webmanifest`, `scripts/generate-icons.js`)
+
+1. **Resolución Nítida del Splash Screen (Sin Fallback Pixelado de Favicon)**:
+   - En `app/layout.tsx`, el recurso `/favicon.ico` **JAMÁS** debe declarar `sizes: "any"`. Chromium / WebAPK en Android evalúa `"any"` como candidato prioritario para la pantalla de bienvenida (splash screen) y extrae el primer frame pequeño de 16x16 o 32x32 píxeles embebido en el .ico, provocando un splash screen extremadamente pixelado en pantallas móviles modernas. `favicon.ico` debe declarar explícitamente `sizes: "16x16 32x32 48x48"`.
+   - En `<head>` y en los manifiestos PWA (`public/manifest.json` y `app/manifest.webmanifest`), se deben enlazar de forma prioritaria los iconos de alta definición `512x512` y `1024x1024` generados con remuestreo Lanczos-3 a 300 DPI, garantizando que el splash screen se renderice nítido y sin artefactos en cualquier resolución de pantalla.
+
+2. **Iconos Adaptativos Maskable al 50% con Fondo Blanco Sólido**:
+   - Para la instalación en Android, se proveen iconos dedicados con `purpose: "maskable"` (`public/icon-maskable-192.png`, `icon-maskable-512.png`, `icon-maskable-1024.png`) con fondo blanco `#ffffff` y los triángulos al 50% de escala (`ratio = 0.50`), asegurando que al recortar la máscara del sistema operativo nunca se muestren bandas grises ni recortes indeseados en los vértices.
+   - Los iconos estándar (`public/icon-192.svg`, `icon-512.svg`, `icon-1024.svg`) no incluyen `<rect>` de fondo (transparencia obligatoria).
+
+3. **Eliminación de la Franja Fuera de Ámbito (CustomTabToolbar en Android)**:
+   - En `manifest.json` y `manifest.webmanifest`: `display: "standalone"`, `display_override: ["standalone", "window-controls-overlay"]`, `start_url: "/"`, y `scope: "/"`.
+   - En `app/layout.tsx`: metaetiquetas `mobile-web-app-capable="yes"` y `application-name="Atlas"`, detección robusta de modo standalone (`display-mode: standalone`, `display-mode: fullscreen`, `navigator.standalone`, y `document.referrer.includes("android-app://")`), y redirección canónica preventiva si se accede desde un dominio heredado fuera de ámbito (`atlas-log.vercel.app`).
+
+4. **Reactividad Asíncrona en el Diálogo de Instalación PWA**:
+   - Tanto en `components/install-prompt.tsx` como en `components/summit-tracker.tsx`, el manejador de clic de instalación implementa una espera asíncrona ante el evento `beforeinstallprompt` (evento personalizado `atlas-install-prompt-ready`) con fallback automático a instrucciones si el dispositivo no soporta el prompt nativo.
+   - Purgado automático de claves antiguas de descarte en `localStorage` (`pwa_install_dismissed`) para permitir que la sugerencia de instalación vuelva a estar activa tras una desinstalación.
+   - Detección preventiva con `navigator.getInstalledRelatedApps()` para no mostrar el botón de descarga en el hero si la app ya se encuentra instalada.
+
 
 
 
