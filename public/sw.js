@@ -45,9 +45,7 @@ self.addEventListener('fetch', (event) => {
 
   // 1. Cache First para tiles de OpenStreetMap y CDN assets
   if (
-    url.hostname === 'a.tile.openstreetmap.org' ||
-    url.hostname === 'b.tile.openstreetmap.org' ||
-    url.hostname === 'c.tile.openstreetmap.org' ||
+    url.hostname.endsWith('tile.openstreetmap.org') ||
     url.hostname === 'cdn.jsdelivr.net' ||
     url.hostname === 'gist.githubusercontent.com' ||
     url.hostname === 'fonts.googleapis.com' ||

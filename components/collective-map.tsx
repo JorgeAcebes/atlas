@@ -31,6 +31,7 @@ import { SweepOverlay } from "./sweep-overlay";
 
 // Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
 L.Canvas.prototype.options.padding = 0.5;
+L.Polyline.prototype.options.smoothFactor = 1.2;
 
 const WORLD_TOPO_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
@@ -856,9 +857,10 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              keepBuffer={4}
-              updateWhenIdle={true}
-              updateWhenZooming={false}
+              keepBuffer={16}
+              updateWhenIdle={false}
+              updateInterval={100}
+              maxNativeZoom={19}
             />
             {isPeaks && spainGeo && (
               <GeoJSON

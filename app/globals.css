@@ -1030,9 +1030,18 @@ nav a:hover::after {
   outline: none;
 }
 
-/* Force GPU compositing for tile and overlay panes to prevent white-flash and jank */
+/* Force GPU compositing for tile, overlay, and marker panes to prevent white-flash and jank */
 .leaflet-tile-pane,
-.leaflet-overlay-pane {
+.leaflet-overlay-pane,
+.leaflet-marker-pane {
+  will-change: transform;
+}
+
+.leaflet-marker-pane {
+  contain: layout style;
+}
+
+.leaflet-marker-icon {
   will-change: transform;
 }
 
@@ -1060,8 +1069,14 @@ nav a:hover::after {
   box-shadow: 0 2px 5px rgba(33, 79, 68, 0.2);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   padding: 0;
+  contain: layout style paint;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
+.leaflet-dragging .summit-pin,
+.leaflet-drag-target .summit-pin,
 .leaflet-zoom-anim .summit-pin,
 .leaflet-zooming .summit-pin {
   transition: none !important;

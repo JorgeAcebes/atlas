@@ -19,6 +19,7 @@ import { SweepOverlay } from "./sweep-overlay";
 
 // Override Leaflet's default canvas padding to preload vector shapes outside the viewport
 L.Canvas.prototype.options.padding = 0.5;
+L.Polyline.prototype.options.smoothFactor = 1.2;
 
 const PROVINCES_TOPO_URL = "/provincias_spain.topo.json";
 const PROVINCES_URL = "/provincias_spain.geojson";
@@ -259,6 +260,74 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
 // ── Stable marker list (never changes) ────
 const peakEntries = Object.values(peakByCode);
 
+const PEAK_MARKER_ICONS = {
+  done: L.divIcon({
+    className: "",
+    html: '<span class="summit-pin summit-pin--done"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  }),
+  todo: L.divIcon({
+    className: "",
+    html: '<span class="summit-pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 4a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path></svg></span>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  }),
+  wishlist: L.divIcon({
+    className: "",
+    html: '<span class="summit-pin summit-pin--wishlist"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path></svg></span>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  }),
+  diffOnlyMe: L.divIcon({
+    className: "",
+    html: '<span class="summit-pin summit-pin--diff-only-me"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  }),
+  diffOnlyThem: L.divIcon({
+    className: "",
+    html: '<span class="summit-pin summit-pin--diff-only-them"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  }),
+  diffBoth: L.divIcon({
+    className: "",
+    html: '<span class="summit-pin summit-pin--diff-both"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.83 2.38a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .73 2.25l-3.04 9.26a2 2 0 0 1-1.9 1.37H7.04a2 2 0 0 1-1.9-1.37L2.1 10.37a2 2 0 0 1 .73-2.25z"></path></svg></span>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  }),
+  diffNone: L.divIcon({
+    className: "",
+    html: '<span class="summit-pin summit-pin--diff-none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 4a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path></svg></span>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  }),
+};
+
+type PeakMarkerProps = {
+  peak: Peak;
+  icon: L.DivIcon;
+  onClick: (peak: Peak) => void;
+};
+
+const PeakMarker = memo(function PeakMarker({ peak, icon, onClick }: PeakMarkerProps) {
+  const eventHandlers = useMemo(
+    () => ({
+      click: () => onClick(peak),
+    }),
+    [onClick, peak]
+  );
+
+  return (
+    <Marker
+      position={peak.coordinates}
+      icon={icon}
+      eventHandlers={eventHandlers}
+    />
+  );
+});
+
 export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, panelOpen, hasCompareButton, isActive = true }: Props) {
   const [geo, setGeo] = useState<FeatureCollection | null>(_geoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
@@ -299,59 +368,13 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
     }
   }, []);
 
-  const markerIcons = useMemo(
-    () => ({
-      done: L.divIcon({
-        className: "",
-        html: '<span class="summit-pin summit-pin--done"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      }),
-      todo: L.divIcon({
-        className: "",
-        html: '<span class="summit-pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 4a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path></svg></span>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      }),
-      wishlist: L.divIcon({
-        className: "",
-        html: '<span class="summit-pin summit-pin--wishlist"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path></svg></span>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      }),
-      diffOnlyMe: L.divIcon({
-        className: "",
-        html: '<span class="summit-pin summit-pin--diff-only-me"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      }),
-      diffOnlyThem: L.divIcon({
-        className: "",
-        html: '<span class="summit-pin summit-pin--diff-only-them"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      }),
-      diffBoth: L.divIcon({
-        className: "",
-        html: '<span class="summit-pin summit-pin--diff-both"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.83 2.38a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .73 2.25l-3.04 9.26a2 2 0 0 1-1.9 1.37H7.04a2 2 0 0 1-1.9-1.37L2.1 10.37a2 2 0 0 1 .73-2.25z"></path></svg></span>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      }),
-      diffNone: L.divIcon({
-        className: "",
-        html: '<span class="summit-pin summit-pin--diff-none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 4a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path></svg></span>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      }),
-    }),
-    [],
-  );
+  const markerIcons = PEAK_MARKER_ICONS;
 
   function getDiffIcon(code: string) {
-    if (diffOnlyViewer?.has(code)) return markerIcons.diffOnlyMe;
-    if (diffOnlyTarget?.has(code)) return markerIcons.diffOnlyThem;
-    if (diffBoth?.has(code)) return markerIcons.diffBoth;
-    return markerIcons.diffNone;
+    if (diffOnlyViewer?.has(code)) return PEAK_MARKER_ICONS.diffOnlyMe;
+    if (diffOnlyTarget?.has(code)) return PEAK_MARKER_ICONS.diffOnlyThem;
+    if (diffBoth?.has(code)) return PEAK_MARKER_ICONS.diffBoth;
+    return PEAK_MARKER_ICONS.diffNone;
   }
 
   // ── Stable getDiffStyle (reads from refs) ──
@@ -543,23 +566,29 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
     if (scanFrameRef.current) cancelAnimationFrame(scanFrameRef.current);
   }, []);
 
+  const handleMarkerClick = useCallback((peak: Peak) => {
+    onInformationRef.current(peak);
+  }, []);
+
   const markers = useMemo(
     () =>
       peakEntries.map((peak) => (
-        <Marker
+        <PeakMarker
           key={peak.code}
-          position={peak.coordinates}
+          peak={peak}
           icon={
             diffMode
               ? getDiffIcon(peak.code)
-              : completed.has(peak.code) ? markerIcons.done : wishlist.has(peak.code) ? markerIcons.wishlist : markerIcons.todo
+              : completed.has(peak.code)
+                ? PEAK_MARKER_ICONS.done
+                : wishlist.has(peak.code)
+                  ? PEAK_MARKER_ICONS.wishlist
+                  : PEAK_MARKER_ICONS.todo
           }
-          eventHandlers={{
-            click: () => onInformation(peak),
-          }}
+          onClick={handleMarkerClick}
         />
       )),
-    [completed, wishlist, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, markerIcons, onInformation],
+    [completed, wishlist, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, handleMarkerClick],
   );
 
   return (
@@ -590,9 +619,10 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        keepBuffer={4}
-        updateWhenIdle={true}
-        updateWhenZooming={false}
+        keepBuffer={16}
+        updateWhenIdle={false}
+        updateInterval={100}
+        maxNativeZoom={19}
       />
       {geo && (
         <GeoJSON

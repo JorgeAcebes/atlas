@@ -22,6 +22,7 @@ import { X } from "lucide-react";
 
 // Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
 L.Canvas.prototype.options.padding = 0.5;
+L.Polyline.prototype.options.smoothFactor = 1.2;
 
 const WORLD_TOPO_URL = "/world-countries.topo.json";
 const WORLD_TOPO_FALLBACK_URL =
@@ -226,15 +227,28 @@ function MapActiveSynchronizer({ isActive }: { isActive?: boolean }) {
 }
 
 function MapZoomListener({ isActive }: { isActive?: boolean }) {
+  const rafRef = useRef<number | null>(null);
+
   const map = useMapEvents({
     zoom: () => {
       if (isActive === false) return;
-      const container = map.getContainer();
-      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
-      container.setAttribute("data-zoom", Math.max(0, Math.round(map.getZoom() || 0)).toString());
+      if (rafRef.current !== null) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const container = map.getContainer();
+        if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+        const rounded = Math.max(0, Math.round(map.getZoom() || 0)).toString();
+        if (container.getAttribute("data-zoom") !== rounded) {
+          container.setAttribute("data-zoom", rounded);
+        }
+      });
     },
     zoomend: () => {
       if (isActive === false) return;
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       const container = map.getContainer();
       if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
       const zoom = map.getZoom();
@@ -242,7 +256,10 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
       if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
         sessionStorage.setItem("mapState_world", JSON.stringify({ zoom, center }));
       }
-      container.setAttribute("data-zoom", Math.max(0, Math.round(zoom || 0)).toString());
+      const rounded = Math.max(0, Math.round(zoom || 0)).toString();
+      if (container.getAttribute("data-zoom") !== rounded) {
+        container.setAttribute("data-zoom", rounded);
+      }
     },
     moveend: () => {
       if (isActive === false) return;
@@ -253,15 +270,27 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
       if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
         sessionStorage.setItem("mapState_world", JSON.stringify({ zoom, center }));
       }
-      container.setAttribute("data-zoom", Math.max(0, Math.round(zoom || 0)).toString());
     },
   });
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (isActive === false) return;
     const container = map.getContainer();
     if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
-    container.setAttribute("data-zoom", Math.max(0, Math.round(map.getZoom() || 0)).toString());
+    const rounded = Math.max(0, Math.round(map.getZoom() || 0)).toString();
+    if (container.getAttribute("data-zoom") !== rounded) {
+      container.setAttribute("data-zoom", rounded);
+    }
   }, [map, isActive]);
+
   return null;
 }
 
@@ -311,6 +340,29 @@ function MapClickListener({ onMapClick, selectingLocation }: { onMapClick?: (lat
   return null;
 }
 
+type CountryMarkerProps = {
+  country: Country;
+  icon: L.DivIcon;
+  onClick: (country: Country) => void;
+};
+
+const CountryMarker = memo(function CountryMarker({ country, icon, onClick }: CountryMarkerProps) {
+  const eventHandlers = useMemo(
+    () => ({
+      click: () => onClick(country),
+    }),
+    [onClick, country]
+  );
+
+  return (
+    <Marker
+      position={country.coordinates!}
+      icon={icon}
+      eventHandlers={eventHandlers}
+    />
+  );
+});
+
 function CountryMarkersLayer({
   showCountryMarkers,
   countriesWithCoords,
@@ -342,13 +394,20 @@ function CountryMarkersLayer({
   });
 
   useMapEvents({
-    zoom: () => {
-      setCurrentZoom(map.getZoom() || 0);
-    },
     zoomend: () => {
       setCurrentZoom(map.getZoom() || 0);
     },
   });
+
+  const selectingLocationRef = useRef(selectingLocation);
+  selectingLocationRef.current = selectingLocation;
+  const onInformationRef = useRef(onInformation);
+  onInformationRef.current = onInformation;
+
+  const handleCountryClick = useCallback((c: Country) => {
+    if (selectingLocationRef.current) return;
+    onInformationRef.current(c);
+  }, []);
 
   if (!showCountryMarkers || currentZoom < 6) {
     return null;
@@ -357,9 +416,9 @@ function CountryMarkersLayer({
   return (
     <>
       {countriesWithCoords.map((c) => (
-        <Marker
+        <CountryMarker
           key={c.id}
-          position={c.coordinates!}
+          country={c}
           icon={
             diffMode
               ? getDiffIcon(c.id)
@@ -369,12 +428,7 @@ function CountryMarkersLayer({
                   ? icons.wishlist
                   : icons.todo
           }
-          eventHandlers={{
-            click: () => {
-              if (selectingLocation) return;
-              onInformation(c);
-            },
-          }}
+          onClick={handleCountryClick}
         />
       ))}
     </>
@@ -885,9 +939,10 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         minZoom={1}
-        keepBuffer={4}
-        updateWhenIdle={true}
-        updateWhenZooming={false}
+        keepBuffer={16}
+        updateWhenIdle={false}
+        updateInterval={100}
+        maxNativeZoom={19}
       />
       {geo && (
         <GeoJSON
