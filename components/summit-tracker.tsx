@@ -1459,7 +1459,9 @@ export function SummitTracker({
         if (isClosingPanelRef.current) return;
         setEditorPhoto(null);
         setLightboxPhoto(null);
-        setStatsOpen(false);
+        if (!panelOpenedFromStatsRef.current) {
+          setStatsOpen(false);
+        }
         const panelId = decodeURIComponent(hash.startsWith("#panel=") ? hash.substring(7) : hash.substring(6));
         if (panelId) {
           const currentSelected = selectedRef.current;
@@ -6209,10 +6211,24 @@ export function SummitTracker({
 
       {/* ── Info panel ──────────────────── */}
       {selected && isSelectedValidForCurrentMode && (
-        <aside
-          className="info-panel"
-          aria-label={`Información sobre ${selected.title}`}
-        >
+        <>
+          {panelOpenedFromStatsRef.current && (
+            <div
+              className="info-panel-backdrop--from-stats"
+              onClick={closePanel}
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 10090,
+                background: "rgba(0, 0, 0, 0.4)",
+              }}
+            />
+          )}
+          <aside
+            className="info-panel"
+            style={panelOpenedFromStatsRef.current ? { zIndex: 10100 } : undefined}
+            aria-label={`Información sobre ${selected.title}`}
+          >
           <button
             type="button"
             className="icon-button"
@@ -7267,11 +7283,16 @@ export function SummitTracker({
             </>
           )}
         </aside>
+        </>
       )}
 
       {/* ── Record dialog ───────────────── */}
       {recordOpen && selected && isSelectedValidForCurrentMode && (
-        <div className="modal-backdrop" onWheel={(e) => e.stopPropagation()}>
+        <div
+          className="modal-backdrop"
+          style={panelOpenedFromStatsRef.current ? { zIndex: 10200 } : undefined}
+          onWheel={(e) => e.stopPropagation()}
+        >
           <section
             className="record-dialog"
             role="dialog"
@@ -8467,9 +8488,9 @@ export function SummitTracker({
             setStatsOpen(false);
           }}
           onGoToRecord={(summitId) => {
-            setStatsOpen(false);
             const loc = getLocationInfo(summitId);
             const cleanId = summitId.split("::")[0];
+            const subItemId = summitId.includes("::") ? summitId.split("::")[1] : undefined;
             const isPeak =
               loc.type === "peak" ||
               peaks.some(
@@ -8490,6 +8511,70 @@ export function SummitTracker({
 
             panelOpenedFromStatsRef.current = true;
             panelPushedRef.current = true;
+
+            // Synchronously resolve and select item to avoid intermediate frames where panel is absent
+            let item: SelectedItem | undefined = allItems.find(
+              (i) => i.id === cleanId || i.id === summitId
+            );
+            if (!item && isPeak) {
+              const matchedPeak = peaks.find(
+                (p) =>
+                  p.id === cleanId ||
+                  p.name.toLowerCase() === cleanId.toLowerCase()
+              );
+              if (matchedPeak) {
+                item = peakToItem(matchedPeak);
+              }
+            } else if (!item && loc.type === "experience") {
+              for (const cat of predefinedCategories) {
+                const exp = cat.experiences.find((e) => e.id === cleanId);
+                if (exp) {
+                  item = {
+                    id: exp.id,
+                    title: exp.name,
+                    subtitle: "",
+                    label: "",
+                    detail: cat.name,
+                    note: "",
+                    iconName: cat.iconName,
+                    subItems: exp.subItems,
+                    itemType: "experience",
+                  };
+                  break;
+                }
+              }
+              if (!item) {
+                const custom = customExperiences.find((e) => e.id === cleanId);
+                if (custom) {
+                  item = {
+                    id: custom.id,
+                    title: custom.name,
+                    subtitle: "",
+                    label: "",
+                    detail: "Personalizado",
+                    note: "",
+                    iconName: "Compass",
+                    subItems: (custom as any).subItems,
+                    itemType: "experience",
+                  };
+                }
+              }
+            } else if (!item) {
+              const matchedCountry = countries.find(
+                (c) =>
+                  c.id === cleanId ||
+                  c.name.toLowerCase() === cleanId.toLowerCase() ||
+                  c.iso_a2.toLowerCase() === cleanId.toLowerCase()
+              );
+              if (matchedCountry) {
+                item = countryToItem(matchedCountry);
+              }
+            }
+            if (item) {
+              const selectedItem = subItemId ? { ...item, sub_item_id: subItemId } : item;
+              setSelected(selectedItem);
+            }
+
             setPanelIdToOpen(cleanId);
             const targetHash = `#panel=${encodeURIComponent(cleanId)}`;
             const targetPath = isPeak ? `/picos${targetHash}` : `/${targetHash}`;

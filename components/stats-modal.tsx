@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { PhotoLightbox } from "./photo-lightbox";
+import { IconLogo } from "./icons";
 import {
   X,
   Mountain,
@@ -247,6 +248,35 @@ export function StatsModal({
     return false;
   });
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [navigatingRecordId, setNavigatingRecordId] = useState<string | null>(null);
+  const [showNavigatingLoader, setShowNavigatingLoader] = useState(false);
+
+  useEffect(() => {
+    if (!navigatingRecordId) {
+      setShowNavigatingLoader(false);
+      return;
+    }
+    // Show Atlas loading overlay after 150ms if opening the record takes time
+    const timer = setTimeout(() => {
+      setShowNavigatingLoader(true);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [navigatingRecordId]);
+
+  useEffect(() => {
+    const handleHash = () => {
+      if (!window.location.hash.startsWith("#panel")) {
+        setNavigatingRecordId(null);
+        setShowNavigatingLoader(false);
+      }
+    };
+    window.addEventListener("hashchange", handleHash);
+    window.addEventListener("popstate", handleHash);
+    return () => {
+      window.removeEventListener("hashchange", handleHash);
+      window.removeEventListener("popstate", handleHash);
+    };
+  }, []);
 
   const openGallery = () => {
     setGalleryOpen(true);
@@ -423,8 +453,14 @@ export function StatsModal({
 
   function handleGoToRecord(summitId?: string) {
     if (!summitId) return;
+    setNavigatingRecordId(summitId);
+    const wasInLightbox = lightboxIndex !== null;
     setLightboxIndex(null);
-    setGalleryOpen(false);
+
+    // If coming from lightbox, replace #lightbox with #galeria so history back returns cleanly to gallery
+    if (wasInLightbox && typeof window !== "undefined") {
+      window.history.replaceState({ statsGallery: true }, "", "#galeria");
+    }
 
     if (onGoToRecord) {
       onGoToRecord(summitId);
@@ -2166,6 +2202,53 @@ export function StatsModal({
       </main>
 
       {/* ── Galería de Recuerdos Full View ── */}
+      {/* Indicador de carga con logo de Atlas si la apertura del registro se prolonga */}
+      {showNavigatingLoader && (
+        <div
+          className="stats-loading-overlay"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10095,
+            backgroundColor: activeMode === "experiences" ? "rgba(17, 17, 27, 0.92)" : "rgba(250, 248, 241, 0.92)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "1.25rem",
+            animation: "fadeIn 0.2s ease-in",
+          }}
+        >
+          <div
+            style={{
+              width: "56px",
+              height: "56px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              animation: "atlasPulse 1.6s ease-in-out infinite",
+            }}
+          >
+            <IconLogo style={{ width: "48px", height: "48px" }} />
+          </div>
+
+          <span
+            style={{
+              fontSize: "0.85rem",
+              letterSpacing: "1.5px",
+              textTransform: "uppercase",
+              fontFamily: "'DM Mono', monospace",
+              color: activeMode === "experiences" ? "#cba6f7" : "var(--sage, #5c9b7d)",
+              fontWeight: 600,
+            }}
+          >
+            Cargando…
+          </span>
+        </div>
+      )}
+
       {galleryOpen && (
         <div className="stats-gallery-overlay" role="dialog" aria-modal="true">
           <header className="stats-header stats-header--gallery">

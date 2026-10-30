@@ -16,8 +16,9 @@ import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { peaks } from "@/data/peaks";
 import { countries } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
-import { UserRoundCheck, ChartNoAxesColumn } from "lucide-react";
+import { UserRoundCheck, ChartNoAxesColumn, Share2, QrCode } from "lucide-react";
 import { StatsModal } from "./stats-modal";
+import { QrModal } from "./qr-modal";
 import { usePendingRequests, notifyPendingChanged } from "./use-pending-requests";
 import { getLocationInfo } from "@/lib/stats-utils";
 
@@ -276,6 +277,37 @@ export function SocialTab({
   const [authOpen, setAuthOpen] = useState<"login" | "register" | false>(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(() => (typeof window !== "undefined" ? window.location.hash === "#estadisticas" : false));
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [toastNotice, setToastNotice] = useState<string | null>(null);
+
+  const handleShareApp = useCallback(async () => {
+    const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://atlas.app";
+    const shareTitle = "Atlas · 47 Picos & 196 Países";
+    const shareText = "¡Únete a Atlas! Registra tus países visitados, experiencias y picos.";
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+      }
+    }
+
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        setToastNotice("Enlace copiado al portapapeles");
+        setTimeout(() => setToastNotice(null), 3000);
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
   const [mapLink, setMapLink] = useState(() => currentMode === "peaks" ? "/picos" : "/");
   const [mounted, setMounted] = useState(false);
   
@@ -1089,16 +1121,40 @@ export function SocialTab({
                 </div>
               </div>
 
-              <aside className="hero-stat" suppressHydrationWarning>
-                <strong suppressHydrationWarning>
-                  <span suppressHydrationWarning>{activeAchieved}</span>
-                  <small suppressHydrationWarning> / {activeTotal}</small>
-                </strong>
-                <span suppressHydrationWarning>{activeUnit}</span>
-                <div className="progress">
-                  <span style={{ width: `${activeCompletion}%` }} suppressHydrationWarning />
+              <div className="hero-stat-wrap">
+                <aside className="hero-stat" suppressHydrationWarning>
+                  <strong suppressHydrationWarning>
+                    <span suppressHydrationWarning>{activeAchieved}</span>
+                    <small suppressHydrationWarning> / {activeTotal}</small>
+                  </strong>
+                  <span suppressHydrationWarning>{activeUnit}</span>
+                  <div className="progress">
+                    <span style={{ width: `${activeCompletion}%` }} suppressHydrationWarning />
+                  </div>
+                </aside>
+
+                {/* Botones móviles: Compartir y QR */}
+                <div className="hero-stat-actions-mobile">
+                  <button
+                    type="button"
+                    className="hero-stat-action-btn"
+                    onClick={handleShareApp}
+                    title="Compartir Atlas"
+                    aria-label="Compartir enlace de Atlas"
+                  >
+                    <Share2 size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className="hero-stat-action-btn"
+                    onClick={() => setQrModalOpen(true)}
+                    title="Código QR de Atlas"
+                    aria-label="Ver código QR de Atlas"
+                  >
+                    <QrCode size={13} />
+                  </button>
                 </div>
-              </aside>
+              </div>
             </>
           ) : (
             <>
@@ -1546,6 +1602,15 @@ export function SocialTab({
         }}
         onCancel={() => setConfirmConfig(null)}
       />
+      <QrModal
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+      />
+      {toastNotice && (
+        <div className="toast" role="status">
+          {toastNotice}
+        </div>
+      )}
     </main>
   );
 }

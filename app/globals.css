@@ -5371,13 +5371,68 @@ textarea:focus {
     margin-top: 4px !important;
     margin-bottom: 0 !important;
   }
+  .hero-main--social .hero-stat-wrap {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
   .hero-main--social .hero-stat {
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 100% !important;
     text-align: center !important;
+    padding: 0 !important;
+    margin-left: -6px !important;
+  }
+  .hero-main--social .hero-stat-actions-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+  }
+  .hero-main--social .hero-stat-action-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 28px !important;
+    height: 26px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--line) !important;
+    background: #ffffff !important;
+    color: var(--muted) !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s !important;
+  }
+  .hero-main--social .hero-stat-action-btn:hover,
+  .hero-main--social .hero-stat-action-btn:active {
+    background: #f7faf5 !important;
+    border-color: var(--sage) !important;
+    color: var(--ink) !important;
+  }
+  .mode-countries .hero-main--social .hero-stat-action-btn:hover,
+  .mode-countries .hero-main--social .hero-stat-action-btn:active {
+    background: #f7f3fb !important;
+    border-color: #9570c7 !important;
+    color: #5b3a8c !important;
+  }
+  .mode-experiences .hero-main--social .hero-stat-action-btn {
+    background: #181825 !important;
+    border-color: #313244 !important;
+    color: #a6adc8 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+  }
+  .mode-experiences .hero-main--social .hero-stat-action-btn:hover,
+  .mode-experiences .hero-main--social .hero-stat-action-btn:active {
+    background: #313244 !important;
+    border-color: #cba6f7 !important;
+    color: #ffffff !important;
   }
   .hero-main--social .hero-title-wrap {
     display: none !important;
@@ -6379,3 +6434,29 @@ main.mode-experiences {
 }
 
 
+
+/* Mobile Hero Stat Actions: Share & QR */
+.hero-stat-wrap {
+  display: contents;
+}
+.hero-stat-actions-mobile {
+  display: none !important;
+}
+
+/* QR Modal Dark Theme */
+.mode-experiences .qr-modal-card {
+  background: #181825 !important;
+  border-color: #313244 !important;
+  color: #f0f0f0 !important;
+}
+.mode-experiences .qr-modal-card h2 {
+  color: #ffffff !important;
+}
+.mode-experiences .qr-modal-card p {
+  color: #a6adc8 !important;
+}
+.mode-experiences .qr-modal-card .button--secondary {
+  background: #1e1e2e !important;
+  border-color: #313244 !important;
+  color: #f0f0f0 !important;
+}
