@@ -23,7 +23,7 @@ export function getPhotoDisplayUrl(
   if (!url && !storagePath) return "";
 
   if (storagePath) {
-    if (!url || url.includes(".r2.dev")) {
+    if (!url || url.includes(".r2.dev") || (!url.startsWith("http") && !url.startsWith("/"))) {
       return `/api/photos/view/${storagePath}`;
     }
   }
@@ -34,6 +34,9 @@ export function getPhotoDisplayUrl(
       if (match && match[1]) {
         return `/api/photos/view/${match[1]}`;
       }
+    }
+    if (!url.startsWith("http") && !url.startsWith("/")) {
+      return `/api/photos/view/${url}`;
     }
     return url;
   }

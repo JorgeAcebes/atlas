@@ -260,7 +260,15 @@ export function StatsModal({
     const timer = setTimeout(() => {
       setShowNavigatingLoader(true);
     }, 150);
-    return () => clearTimeout(timer);
+    // Auto-dismiss after 1200ms once panel renders so loader never blocks view
+    const autoDismiss = setTimeout(() => {
+      setShowNavigatingLoader(false);
+      setNavigatingRecordId(null);
+    }, 1200);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(autoDismiss);
+    };
   }, [navigatingRecordId]);
 
   useEffect(() => {

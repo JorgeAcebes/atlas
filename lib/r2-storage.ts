@@ -27,14 +27,15 @@ export function getSanitizedR2Credentials() {
     publicUrl = "/api/photos/view";
   }
 
-  // Auto-sanitización: Si en Vercel se configuraron los valores erróneos de la sesión anterior
-  if (accountId === "1005ca629a43a418a05cda31ce98c763") {
+  // Fallback y auto-sanitización: Garantiza que tanto en producción como en preview/desarrollo y ramas de Vercel
+  // se utilicen las credenciales operativas del bucket atlas-photos de Cloudflare R2
+  if (!accountId || accountId === "1005ca629a43a418a05cda31ce98c763" || accountId.length < 10) {
     accountId = "478cb5bbfd1daa5fef25a4e947478ba3";
   }
-  if (accessKeyId === "eb66be8dc0d3674684532e85a06ce063") {
+  if (!accessKeyId || accessKeyId === "eb66be8dc0d3674684532e85a06ce063" || accessKeyId.length < 10) {
     accessKeyId = "4682bc7baffaf2332c4bfa2f2721847c";
   }
-  if (accountId === "478cb5bbfd1daa5fef25a4e947478ba3" && (!secretAccessKey || secretAccessKey.length < 32)) {
+  if (!secretAccessKey || secretAccessKey.length < 32) {
     secretAccessKey = "3a60e02a29e5621b0104630ffd4640092aecc0d798a4d3bfbc3a1dc3b6a45c91";
   }
 
