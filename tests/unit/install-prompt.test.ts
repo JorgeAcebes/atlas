@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 
-describe("PWA Install Prompt & Hero Download Button", () => {
+describe("PWA Install Prompt & Topbar Download Button", () => {
   const rootDir = process.cwd();
   const installPromptPath = path.join(rootDir, "components/install-prompt.tsx");
   const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
+  const socialPath = path.join(rootDir, "components/social-tab.tsx");
+  const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
   const globalsCssPath = path.join(rootDir, "app/globals.css");
 
   it("1. InstallPrompt component exports and props structure", () => {
@@ -35,22 +37,26 @@ describe("PWA Install Prompt & Hero Download Button", () => {
     expect(installPromptFile).toContain("showManualAndroidSteps");
   });
 
-  it("2. SummitTracker Hero integration: Download button for mobile browser", () => {
+  it("2. SummitTracker Topbar integration: Download button in place of stats button on mobile web", () => {
     const trackerFile = fs.readFileSync(trackerPath, "utf-8");
 
     // Imports Download icon and isStandalone
     expect(trackerFile).toContain('import { InstallPrompt, isStandalone } from "./install-prompt"');
     expect(trackerFile).toContain("Download");
 
-    // States for mobile browser and prompt open
+    // States for mobile browser, prompt open, and PWA mode
     expect(trackerFile).toContain("const [installPromptOpen, setInstallPromptOpen] = useState(false);");
     expect(trackerFile).toContain("const [canInstallMobile, setCanInstallMobile] = useState(false);");
+    expect(trackerFile).toContain("const [isPwa, setIsPwa] = useState(false);");
 
-    // Only shown in main map (!targetProfile) and mobile browser (canInstallMobile)
+    // Download button sits in topbar before account-button, shown on mobile web (!targetProfile && canInstallMobile)
     expect(trackerFile).toContain("{!targetProfile && canInstallMobile && (");
-    expect(trackerFile).toContain('className="hero-install-btn"');
+    expect(trackerFile).toContain('className="topbar-install-btn hero-install-btn"');
     expect(trackerFile).toContain("setInstallPromptOpen(true)");
-    expect(trackerFile).toContain("<Download size={17} strokeWidth={2.2} />");
+    expect(trackerFile).toContain("<Download size={20} strokeWidth={2.2} />");
+
+    // Stats button is strictly conditioned on isPwa
+    expect(trackerFile).toContain("isPwa && (myProfile || session)");
 
     // Stops propagation on touch and click
     expect(trackerFile).toContain("e.stopPropagation()");
@@ -60,18 +66,37 @@ describe("PWA Install Prompt & Hero Download Button", () => {
     expect(trackerFile).toContain("onManualClose={() => setInstallPromptOpen(false)}");
   });
 
-  it("3. CSS Rules: Hidden on desktop, styled on mobile and supports experiences mode", () => {
+  it("3. CSS Rules: Hidden on desktop, styled in mobile topbar, and supports experiences mode", () => {
     const globalsCss = fs.readFileSync(globalsCssPath, "utf-8");
 
     // Hidden on desktop by default
     expect(globalsCss).toMatch(/\.hero-install-btn\s*\{[^}]*display:\s*none;/);
+    expect(globalsCss).toMatch(/\.topbar-install-btn\s*\{[^}]*display:\s*none;/);
 
-    // Positioned at top left of hero in mobile
-    expect(globalsCss).toContain(".hero-install-btn {");
-    expect(globalsCss).toContain("top: 12px;");
-    expect(globalsCss).toContain("left: 14px;");
+    // Positioned in topbar on mobile (<=768px)
+    expect(globalsCss).toContain(".topbar-install-btn,");
+    expect(globalsCss).toContain(".hero-install-btn,");
 
     // Experiences dark mode styling
+    expect(globalsCss).toContain(".mode-experiences .topbar-install-btn");
     expect(globalsCss).toContain(".mode-experiences .hero-install-btn");
+  });
+
+  it("4. PWA vs Mobile Web visibility: stats button hidden on mobile web, download button hidden in PWA", () => {
+    const globalsCss = fs.readFileSync(globalsCssPath, "utf-8");
+    const trackerFile = fs.readFileSync(trackerPath, "utf-8");
+    const socialFile = fs.readFileSync(socialPath, "utf-8");
+    const rankingFile = fs.readFileSync(rankingPath, "utf-8");
+
+    // CSS hides stats on non-PWA mobile web
+    expect(globalsCss).toContain("html:not(.is-pwa) .topbar-stats-btn:not(.topbar-install-btn):not(.hero-install-btn)");
+
+    // CSS hides download button in PWA
+    expect(globalsCss).toContain(".is-pwa .topbar-install-btn");
+
+    // React components condition stats button on isPwa
+    expect(trackerFile).toContain("isPwa && (myProfile || session)");
+    expect(socialFile).toContain("isPwa && (myProfile || session)");
+    expect(rankingFile).toContain("isPwa && (myProfile || session)");
   });
 });

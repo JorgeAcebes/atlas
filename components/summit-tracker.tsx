@@ -808,12 +808,14 @@ export function SummitTracker({
   const [profileOpen, setProfileOpen] = useState(false);
   const [installPromptOpen, setInstallPromptOpen] = useState(false);
   const [canInstallMobile, setCanInstallMobile] = useState(false);
+  const [isPwa, setIsPwa] = useState(false);
 
   useEffect(() => {
     const checkMobileBrowser = () => {
       if (typeof window === "undefined") return;
       const standalone = isStandalone();
-      const isMobileWidth = window.innerWidth <= 700;
+      setIsPwa(standalone);
+      const isMobileWidth = window.innerWidth <= 768;
       const alreadyInstalled = typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true";
       setCanInstallMobile(!standalone && isMobileWidth && !alreadyInstalled);
 
@@ -5114,8 +5116,8 @@ export function SummitTracker({
             </>
           )}
 
-          {/* Mobile-only Stats button (a la izquierda de la foto de perfil) */}
-          {(myProfile || session) && (
+          {/* Mobile-only Stats button (solo visible en PWA, oculto en web móvil) */}
+          {isPwa && (myProfile || session) && (
             <button
               type="button"
               className="topbar-stats-btn"
@@ -5127,6 +5129,21 @@ export function SummitTracker({
               }}
             >
               <ChartNoAxesColumn size={20} />
+            </button>
+          )}
+
+          {/* Mobile Web Download button (en web móvil cuando no es PWA, en el mismo lugar que las estadísticas) */}
+          {!targetProfile && canInstallMobile && (
+            <button
+              type="button"
+              className="topbar-install-btn hero-install-btn"
+              onClick={handleHeroInstallClick}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              aria-label="Instalar app"
+              title="Instalar aplicación"
+            >
+              <Download size={20} strokeWidth={2.2} />
             </button>
           )}
 
@@ -5176,19 +5193,6 @@ export function SummitTracker({
         onTouchStart={handleSwipeTouchStart}
         onTouchEnd={handleSwipeTouchEnd}
       >
-        {!targetProfile && canInstallMobile && (
-          <button
-            type="button"
-            className="hero-install-btn"
-            onClick={handleHeroInstallClick}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
-            aria-label="Instalar app"
-            title="Instalar aplicación"
-          >
-            <Download size={17} strokeWidth={2.2} />
-          </button>
-        )}
         <div
           className={`hero-main ${!targetProfile
               ? "hero-main--motto"

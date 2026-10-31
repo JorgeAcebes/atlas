@@ -291,7 +291,8 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 
 3. **Detección de Instalación y Auto-ocultación de Controles**:
    - Tras aceptar la instalación (`outcome === "accepted"` o eventos `appinstalled` / `atlas-app-installed`), se persiste `pwa_app_installed = "true"` en `localStorage`.
-   - Cuando la app ya está instalada (`alreadyInstalled` o `isStandalone()`), el botón de descarga del hero se oculta automáticamente (`!alreadyInstalled`).
+   - En la web móvil, el icono de descargar se ubica en la cabecera (topbar) a la izquierda de la foto de perfil en el mismo lugar donde en PWA se ubica el icono de estadísticas (el icono de estadísticas permanece estrictamente oculto en web móvil cuando no sea PWA).
+   - Cuando la app ya está instalada o se ejecuta en PWA (`alreadyInstalled` o `isStandalone()`), el botón de descarga se oculta automáticamente (`!alreadyInstalled`), mostrándose en su lugar el botón de estadísticas si es PWA.
    - Si no hay prompt activo por encontrarse la app ya instalada, la interfaz no debe inducir a error con instrucciones manuales ("dale a los 3 puntos"), sino informar de que la aplicación ya está instalada o lista para usar en la pantalla de inicio.
 
 ---
@@ -313,7 +314,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 4. **Reactividad Asíncrona en el Diálogo de Instalación PWA**:
    - Tanto en `components/install-prompt.tsx` como en `components/summit-tracker.tsx`, el manejador de clic de instalación implementa una espera asíncrona ante el evento `beforeinstallprompt` (evento personalizado `atlas-install-prompt-ready`) con fallback automático a instrucciones si el dispositivo no soporta el prompt nativo.
    - Purgado automático de claves antiguas de descarte en `localStorage` (`pwa_install_dismissed`) para permitir que la sugerencia de instalación vuelva a estar activa tras una desinstalación.
-   - Detección preventiva con `navigator.getInstalledRelatedApps()` para no mostrar el botón de descarga en el hero si la app ya se encuentra instalada.
+   - Detección preventiva con `navigator.getInstalledRelatedApps()` para no mostrar el botón de descarga en la cabecera si la app ya se encuentra instalada.
 
 
 

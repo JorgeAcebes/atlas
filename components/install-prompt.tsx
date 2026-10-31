@@ -23,7 +23,10 @@ export function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as any).standalone === true
+    (window.navigator as any).standalone === true ||
+    (typeof document !== "undefined" && document.documentElement.classList.contains("is-pwa")) ||
+    (typeof document !== "undefined" && document.referrer && document.referrer.indexOf("android-app://") !== -1) ||
+    window.location.search.indexOf("mode=pwa") !== -1
   );
 }
 

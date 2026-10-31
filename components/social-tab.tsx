@@ -16,11 +16,12 @@ import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { peaks } from "@/data/peaks";
 import { countries } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
-import { UserRoundCheck, ChartNoAxesColumn, Share2, QrCode } from "lucide-react";
+import { UserRoundCheck, ChartNoAxesColumn, Share2, QrCode, Download } from "lucide-react";
 import { StatsModal } from "./stats-modal";
 import { QrModal } from "./qr-modal";
 import { usePendingRequests, notifyPendingChanged } from "./use-pending-requests";
 import { getLocationInfo } from "@/lib/stats-utils";
+import { InstallPrompt, isStandalone, getInstallPrompt, clearInstallPrompt } from "./install-prompt";
 
 type Profile = {
   id: string;
@@ -83,6 +84,95 @@ export function SocialTab({
   const [currentMode, setCurrentMode] = useState<"countries" | "peaks">(() => {
     return enableCountries ? "countries" : "peaks";
   });
+
+  const [installPromptOpen, setInstallPromptOpen] = useState(false);
+  const [canInstallMobile, setCanInstallMobile] = useState(false);
+  const [isPwa, setIsPwa] = useState(false);
+
+  useEffect(() => {
+    const checkMobileBrowser = () => {
+      if (typeof window === "undefined") return;
+      const standalone = isStandalone();
+      setIsPwa(standalone);
+      const isMobileWidth = window.innerWidth <= 768;
+      const alreadyInstalled = typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true";
+      setCanInstallMobile(!standalone && isMobileWidth && !alreadyInstalled);
+
+      if (!standalone && isMobileWidth && typeof navigator !== "undefined" && "getInstalledRelatedApps" in navigator) {
+        (navigator as any).getInstalledRelatedApps().then((apps: any[]) => {
+          if (apps && apps.length > 0) {
+            setCanInstallMobile(false);
+          }
+        }).catch(() => {});
+      }
+    };
+    checkMobileBrowser();
+    window.addEventListener("resize", checkMobileBrowser);
+    const handleInstalled = () => {
+      try {
+        localStorage.setItem("pwa_app_installed", "true");
+      } catch {
+        /* ignore */
+      }
+      setCanInstallMobile(false);
+      setInstallPromptOpen(false);
+    };
+    window.addEventListener("appinstalled", handleInstalled);
+    window.addEventListener("atlas-app-installed", handleInstalled);
+    return () => {
+      window.removeEventListener("resize", checkMobileBrowser);
+      window.removeEventListener("appinstalled", handleInstalled);
+      window.removeEventListener("atlas-app-installed", handleInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    let promptEvent = getInstallPrompt();
+    if (!promptEvent) {
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const onReady = () => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        };
+        window.addEventListener("atlas-install-prompt-ready", onReady);
+        setTimeout(() => {
+          if (!done) {
+            done = true;
+            window.removeEventListener("atlas-install-prompt-ready", onReady);
+            resolve();
+          }
+        }, 300);
+      });
+      promptEvent = getInstallPrompt();
+    }
+
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === "accepted") {
+          try {
+            localStorage.setItem("pwa_app_installed", "true");
+          } catch {
+            /* ignore */
+          }
+          clearInstallPrompt();
+          setCanInstallMobile(false);
+          setInstallPromptOpen(false);
+        }
+        return;
+      } catch (err) {
+        console.error("Topbar direct install error:", err);
+      }
+    }
+
+    setInstallPromptOpen(true);
+  };
 
   const [experiencesMode, setExperiencesMode] = useState<boolean>(() => {
     if (controlledExperiencesMode !== undefined) return controlledExperiencesMode;
@@ -1021,8 +1111,8 @@ export function SocialTab({
           >
             Ranking
           </Link>
-          {/* Mobile-only Stats button (a la izquierda de la foto de perfil) */}
-          {(myProfile || session) && (
+          {/* Mobile-only Stats button (solo visible en PWA, oculto en web móvil) */}
+          {isPwa && (myProfile || session) && (
             <button
               type="button"
               className="topbar-stats-btn"
@@ -1034,6 +1124,20 @@ export function SocialTab({
               }}
             >
               <ChartNoAxesColumn size={20} />
+            </button>
+          )}
+          {/* Mobile Web Download button (en web móvil cuando no es PWA, en el mismo lugar que las estadísticas) */}
+          {canInstallMobile && (
+            <button
+              type="button"
+              className="topbar-install-btn hero-install-btn"
+              onClick={handleInstallClick}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              aria-label="Instalar app"
+              title="Instalar aplicación"
+            >
+              <Download size={20} strokeWidth={2.2} />
             </button>
           )}
           {(myProfile || session) ? (
@@ -1628,6 +1732,7 @@ export function SocialTab({
         isOpen={qrModalOpen}
         onClose={() => setQrModalOpen(false)}
       />
+      <InstallPrompt manualOpen={installPromptOpen} onManualClose={() => setInstallPromptOpen(false)} />
       {toastNotice && (
         <div className="toast" role="status">
           {toastNotice}

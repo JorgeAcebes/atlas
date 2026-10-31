@@ -135,6 +135,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                   (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('android-app://') !== -1) ||
                   window.location.search.indexOf('mode=pwa') !== -1;
 
+                if (isStandalone && typeof document !== 'undefined') {
+                  document.documentElement.classList.add('is-pwa');
+                }
+
                 function registerAtlasSW() {
                   if ('serviceWorker' in navigator) {
                     navigator.serviceWorker.register('/sw.js').then(function(reg) {

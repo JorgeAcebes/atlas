@@ -3466,6 +3466,9 @@ textarea:focus {
 .hero-install-btn {
   display: none;
 }
+.topbar-install-btn {
+  display: none;
+}
 
 /* Ranking Feature */
 .ranking-button {
@@ -4528,41 +4531,6 @@ textarea:focus {
     max-height: 76px !important;
     padding: 0 14px !important;
     gap: 0 !important;
-  }
-  .hero-install-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 12px;
-    left: 14px;
-    z-index: 10;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(36, 95, 82, 0.18);
-    color: #245f52;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    cursor: pointer;
-    padding: 0;
-    transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .hero-install-btn:active {
-    transform: scale(0.92);
-    background: #ffffff;
-  }
-  .mode-experiences .hero-install-btn {
-    background: rgba(30, 30, 46, 0.9);
-    border-color: #313244;
-    color: #cba6f7;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-  }
-  .mode-experiences .hero-install-btn:active {
-    background: #313244;
   }
   .hero-main {
     gap: 10px !important;
@@ -6187,8 +6155,12 @@ main.mode-experiences {
   display: none;
 }
 
-/* Hidden by default on desktop: Mobile-only Stats button */
+/* Hidden by default on desktop: Mobile-only Stats button & Download button */
 .topbar-stats-btn {
+  display: none !important;
+}
+.topbar-install-btn,
+.hero-install-btn {
   display: none !important;
 }
 
@@ -6439,6 +6411,73 @@ main.mode-experiences {
   .topbar.mode-experiences .topbar-stats-btn:active {
     background: transparent !important;
     opacity: 0.6 !important;
+  }
+
+  /* Mobile-only Download button for web mobile (in place of stats button) */
+  .topbar-install-btn,
+  .topbar nav .topbar-install-btn,
+  .hero-install-btn,
+  .topbar nav .hero-install-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--ink) !important;
+    cursor: pointer !important;
+    transition: opacity var(--transition), transform var(--transition) !important;
+    margin: 0 !important;
+    padding: 4px 3px !important;
+    flex-shrink: 0 !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .topbar-install-btn:active,
+  .hero-install-btn:active {
+    transform: scale(0.9) !important;
+    opacity: 0.6 !important;
+    background: transparent !important;
+  }
+
+  .topbar-install-btn svg,
+  .hero-install-btn svg {
+    display: block !important;
+    width: 20px !important;
+    height: 20px !important;
+    stroke: currentColor !important;
+  }
+
+  .mode-experiences .topbar-install-btn,
+  .topbar.mode-experiences .topbar-install-btn,
+  .mode-experiences .hero-install-btn,
+  .topbar.mode-experiences .hero-install-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #cba6f7 !important;
+  }
+
+  .mode-experiences .topbar-install-btn:active,
+  .topbar.mode-experiences .topbar-install-btn:active,
+  .mode-experiences .hero-install-btn:active,
+  .topbar.mode-experiences .hero-install-btn:active {
+    background: transparent !important;
+    opacity: 0.6 !important;
+  }
+
+  /* En web móvil cuando no sea PWA, el botón de estadísticas está estrictamente oculto */
+  html:not(.is-pwa) .topbar-stats-btn:not(.topbar-install-btn):not(.hero-install-btn),
+  body:not(.is-pwa) .topbar-stats-btn:not(.topbar-install-btn):not(.hero-install-btn) {
+    display: none !important;
+  }
+
+  /* En PWA instalada, el botón de descarga está estrictamente oculto */
+  .is-pwa .topbar-install-btn,
+  .is-pwa .hero-install-btn {
+    display: none !important;
   }
 }
 
