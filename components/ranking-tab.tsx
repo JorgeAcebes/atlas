@@ -140,19 +140,19 @@ export function RankingTab({
     }
   }, [enablePeaks, enableCountries, mode]);
 
-  useEffect(() => {
-    if (!isActive) return;
+    useEffect(() => {
     let ignore = false;
+    let timer: NodeJS.Timeout | null = null;
 
-    async function fetchRanking() {
+    async function fetchRanking(isBackground = false) {
       const cacheKey = `${mode}-${scope}-${session?.user?.id || 'anon'}`;
       const now = Date.now();
       const isFresh = globalRankingCache[cacheKey] && (now - (globalRankingLastFetched[cacheKey] || 0) < RANKING_CACHE_TTL);
 
-      if (globalRankingCache[cacheKey]) {
+            if (globalRankingCache[cacheKey]) {
         setEntries(globalRankingCache[cacheKey]);
         setLoading(false);
-      } else {
+      } else if (!isBackground) {
         setLoading(true);
       }
 
@@ -240,12 +240,19 @@ export function RankingTab({
       }
     }
 
-    if (supabase) {
-      fetchRanking();
+        if (supabase) {
+      if (isActive) {
+        fetchRanking(false);
+      } else {
+        timer = setTimeout(() => {
+          if (!ignore) fetchRanking(true);
+        }, 1300);
+      }
     }
 
     return () => {
       ignore = true;
+      if (timer) clearTimeout(timer);
     };
   }, [mode, scope, session?.user?.id, isActive]);
 

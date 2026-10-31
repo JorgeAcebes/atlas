@@ -21,8 +21,44 @@ import { SweepOverlay } from "./sweep-overlay";
 import { X } from "lucide-react";
 
 // Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
-L.Canvas.prototype.options.padding = 0.5;
+L.Canvas.prototype.options.padding = 1.0;
 L.Polyline.prototype.options.smoothFactor = 1.2;
+
+// Ensure Leaflet Canvas expands dynamically during dragging when nearing canvas edge
+if (typeof window !== "undefined" && L && L.Canvas) {
+  const proto = L.Canvas.prototype as any;
+  if (!proto._atlasMovePatched) {
+    proto._atlasMovePatched = true;
+    const originalGetEvents = proto.getEvents;
+    proto.getEvents = function () {
+      const events = originalGetEvents.call(this);
+      events.move = this._onCanvasMove;
+      return events;
+    };
+    proto._onCanvasMove = function () {
+      if (!this._map || !this._bounds) return;
+      const size = this._map.getSize();
+      if (!size || size.x === 0 || size.y === 0) return;
+      const vpMin = this._map.containerPointToLayerPoint([0, 0]);
+      const vpMax = this._map.containerPointToLayerPoint(size);
+      const pad = 60;
+      if (
+        vpMin.x - pad < this._bounds.min.x ||
+        vpMin.y - pad < this._bounds.min.y ||
+        vpMax.x + pad > this._bounds.max.x ||
+        vpMax.y + pad > this._bounds.max.y
+      ) {
+        if (this._moveRaf) return;
+        this._moveRaf = requestAnimationFrame(() => {
+          this._moveRaf = null;
+          if (this._map) {
+            this._update();
+          }
+        });
+      }
+    };
+  }
+}
 
 const WORLD_TOPO_URL = "/world-countries.topo.json";
 const WORLD_TOPO_FALLBACK_URL =

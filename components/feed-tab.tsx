@@ -674,10 +674,11 @@ export function FeedTab({
   const [feedItems, setFeedItems] = useState<any[]>(() => globalCachedFeedItems || getStoredFeedItems() || []);
   const [loading, setLoading] = useState(() => (!globalCachedFeedItems && !getStoredFeedItems()) || (globalCachedFeedItems ? globalCachedFeedItems.length === 0 : false));
 
-  useEffect(() => {
-    if (!isActive) return;
+    useEffect(() => {
+    let ignore = false;
+    let timer: NodeJS.Timeout | null = null;
 
-    async function fetchFeed() {
+    async function fetchFeed(isBackground = false) {
       if (!supabase || isFetchingFeed) return;
       const now = Date.now();
       if (globalCachedFeedItems && globalCachedFeedItems.length > 0 && (now - globalFeedLastFetched < FEED_CACHE_TTL)) {
@@ -686,7 +687,7 @@ export function FeedTab({
         return;
       }
 
-      if (!globalCachedFeedItems || globalCachedFeedItems.length === 0) {
+      if (!isBackground && (!globalCachedFeedItems || globalCachedFeedItems.length === 0)) {
         setLoading(true);
       }
       isFetchingFeed = true;
@@ -972,28 +973,58 @@ export function FeedTab({
           sessionStorage.setItem("app_cached_feed_items", JSON.stringify(combined.slice(0, 50)));
         } catch { /* ignore */ }
 
-        // Precargar inmediatamente las fotos de los primeros elementos en el navegador
+                // Precargar inmediatamente las fotos de los primeros elementos en el navegador
         try {
           const topPhotosToPreload: string[] = [];
-          for (const feedItem of combined.slice(0, 6)) {
+          const countryPhotosToPreload: string[] = [];
+          const peakPhotosToPreload: string[] = [];
+
+          for (const feedItem of combined) {
             if (feedItem.photos && Array.isArray(feedItem.photos)) {
+              const isCountry = (feedItem.summit_id || "").toLowerCase().startsWith("country-");
               for (const p of feedItem.photos) {
-                const pUrl = getPhotoDisplayUrl(p?.public_url, p?.storage_path); if (pUrl) topPhotosToPreload.push(pUrl);
+                const pUrl = getPhotoDisplayUrl(p?.public_url, p?.storage_path);
+                if (!pUrl) continue;
+                if (!topPhotosToPreload.includes(pUrl) && topPhotosToPreload.length < 60) {
+                  topPhotosToPreload.push(pUrl);
+                }
+                if (isCountry && !countryPhotosToPreload.includes(pUrl) && countryPhotosToPreload.length < 30) {
+                  countryPhotosToPreload.push(pUrl);
+                } else if (!isCountry && !peakPhotosToPreload.includes(pUrl) && peakPhotosToPreload.length < 30) {
+                  peakPhotosToPreload.push(pUrl);
+                }
               }
             }
           }
-          topPhotosToPreload.slice(0, 8).forEach((url) => {
+
+          const allPhotos = Array.from(new Set([...topPhotosToPreload, ...countryPhotosToPreload, ...peakPhotosToPreload]));
+          allPhotos.forEach((url) => {
             const img = new Image();
+            img.decoding = "async";
             img.src = url;
           });
         } catch { /* ignore */ }
       }
-      setFeedItems(combined);
-      setLoading(false);
+      if (!ignore) {
+        setFeedItems(combined);
+        setLoading(false);
+      }
       isFetchingFeed = false;
     }
-    
-    fetchFeed();
+
+    if (isActive) {
+      fetchFeed(false);
+    } else {
+      // Precargar en segundo plano tras estabilizarse la vista principal del mapa
+      timer = setTimeout(() => {
+        if (!ignore) fetchFeed(true);
+      }, 1100);
+    }
+
+    return () => {
+      ignore = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [isActive]);
 
   const followingUserIdsSet = useMemo(

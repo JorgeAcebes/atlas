@@ -387,10 +387,11 @@ export function SocialTab({
     return [];
   });
 
-  useEffect(() => {
-    if (!isActive || !session || !supabase) return;
+    useEffect(() => {
+    if (!session || !supabase) return;
     const uid = session.user.id;
     let ignore = false;
+    let timer: NodeJS.Timeout | null = null;
 
     async function fetchUserProgress() {
       try {
@@ -428,9 +429,17 @@ export function SocialTab({
       }
     }
 
-    fetchUserProgress();
+        if (isActive) {
+      fetchUserProgress();
+    } else {
+      timer = setTimeout(() => {
+        if (!ignore) fetchUserProgress();
+      }, 800);
+    }
+
     return () => {
       ignore = true;
+      if (timer) clearTimeout(timer);
     };
   }, [isActive, session]);
 
@@ -577,13 +586,15 @@ export function SocialTab({
     };
   }, [connectionsModal]);
 
-  useEffect(() => {
-    if (!isActive || !session || !supabase) return;
+    useEffect(() => {
+    if (!session || !supabase) return;
     
     const now = Date.now();
     const isFresh = cachedDataUserId === session.user.id && (now - cachedConnectionsLastFetched < SOCIAL_CACHE_TTL);
     if (isFresh || isFetchingSocial) return;
     
+    let ignore = false;
+    let timer: NodeJS.Timeout | null = null;
     isFetchingSocial = true;
     async function fetchConnections() {
       // Fetch who I am following
@@ -652,7 +663,18 @@ export function SocialTab({
       isFetchingSocial = false;
     }
     
-    fetchConnections();
+    if (isActive) {
+      fetchConnections();
+    } else {
+      timer = setTimeout(() => {
+        if (!ignore) fetchConnections();
+      }, 1000);
+    }
+
+    return () => {
+      ignore = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [session, isActive, hookPending]);
 
   async function connect(profileId: string, isPublic: boolean) {

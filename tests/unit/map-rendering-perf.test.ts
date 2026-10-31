@@ -5,7 +5,7 @@ import path from "path";
 describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
   const rootDir = process.cwd();
 
-  it("1. spain-map.tsx: optimizes 47 vector markers with memoization, singleton icons, and smooth tile streaming", () => {
+  it("1. spain-map.tsx: optimizes 47 vector markers with memoization, singleton icons, smooth tile streaming, and dynamic canvas bounds", () => {
     const spainMapPath = path.join(rootDir, "components/spain-map.tsx");
     const content = fs.readFileSync(spainMapPath, "utf-8");
 
@@ -26,9 +26,13 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
     // Canvas padding preserved
     expect(content).toContain("L.Canvas.prototype.options.padding = 0.5;");
+
+    // Real-time canvas bounds expansion on drag
+    expect(content).toContain("_atlasMovePatched");
+    expect(content).toContain("_onCanvasMove");
   });
 
-  it("2. world-map.tsx: throttles zoom listeners, memoizes country markers, and streams tiles fluidly", () => {
+  it("2. world-map.tsx: throttles zoom listeners, memoizes country markers, streams tiles fluidly, and dynamically expands canvas bounds", () => {
     const worldMapPath = path.join(rootDir, "components/world-map.tsx");
     const content = fs.readFileSync(worldMapPath, "utf-8");
 
@@ -49,9 +53,14 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
 
     // Canvas polygon simplification via Polyline prototype options
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
+
+    // Large canvas padding + real-time move expansion to eliminate cut-off during drag
+    expect(content).toContain("L.Canvas.prototype.options.padding = 1.0;");
+    expect(content).toContain("_atlasMovePatched");
+    expect(content).toContain("_onCanvasMove");
   });
 
-  it("3. collective-map.tsx: streams tiles smoothly and simplifies vector paths", () => {
+  it("3. collective-map.tsx: streams tiles smoothly, simplifies vector paths, and expands canvas dynamically", () => {
     const collectivePath = path.join(rootDir, "components/collective-map.tsx");
     const content = fs.readFileSync(collectivePath, "utf-8");
 
@@ -62,6 +71,8 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
 
     // Polyline smoothFactor on collective map
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
+    expect(content).toContain("_atlasMovePatched");
+    expect(content).toContain("_onCanvasMove");
   });
 
   it("4. app/globals.css: isolates summit-pin GPU compositor layers and removes drag transitions", () => {
@@ -89,5 +100,32 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     const content = fs.readFileSync(swPath, "utf-8");
 
     expect(content).toContain("url.hostname.endsWith('tile.openstreetmap.org')");
+  });
+
+  it("6. feed-tab.tsx & social-tab.tsx: enables background prefetching and preloads up to 30 photos for countries & peaks", () => {
+    const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+    const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+
+    // Feed background prefetching when not active
+    expect(feedContent).toContain("fetchFeed(true)");
+    expect(feedContent).toContain("topPhotosToPreload");
+    expect(feedContent).toContain("countryPhotosToPreload");
+    expect(feedContent).toContain("peakPhotosToPreload");
+
+    // Social background prefetching of user progress and connections
+    expect(socialContent).toContain("fetchUserProgress()");
+    expect(socialContent).toContain("fetchConnections()");
+  });
+
+  it("7. ranking-tab.tsx & summit-tracker.tsx: preloads ranking data and user summit photos in background", () => {
+    const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
+    const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+
+    // Ranking background prefetch
+    expect(rankingContent).toContain("fetchRanking(true)");
+    expect(rankingContent).toContain("globalRankingCache");
+
+    // SummitTracker user photos preloading
+    expect(trackerContent).toContain("photos.slice(0, 30).forEach");
   });
 });

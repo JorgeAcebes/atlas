@@ -2202,6 +2202,22 @@ export function SummitTracker({
     });
   }, [selected, photos]);
 
+  // Precarga en segundo plano de las primeras 30 fotos de ascensiones y paises del usuario
+  useEffect(() => {
+    if (typeof window === "undefined" || !photos || photos.length === 0) return;
+    const timer = setTimeout(() => {
+      photos.slice(0, 30).forEach((p) => {
+        const url = getPhotoDisplayUrl(p.public_url, p.storage_path);
+        if (url) {
+          const img = new Image();
+          img.decoding = "async";
+          img.src = url;
+        }
+      });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [photos]);
+
   /* ── Derived state ────────────────────── */
   // Completed set for SpainMap (province codes)
   const completedPeakCodes = useMemo(
