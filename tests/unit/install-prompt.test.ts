@@ -113,6 +113,6 @@ describe("PWA Install Prompt & Topbar Download Button", () => {
 
     // CSS tightens gap to Entrar and eliminates margin-left
     expect(globalsCss).toContain(".topbar-nav--unauth");
-    expect(globalsCss).toContain("gap: 2px !important;");
+    expect(globalsCss).toContain("gap: 6px !important;");
   });
 });

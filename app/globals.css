@@ -6376,7 +6376,7 @@ main.mode-experiences {
   .topbar-nav--unauth,
   .topbar nav:has(> .button),
   .topbar nav:has(> .button--outline) {
-    gap: 2px !important;
+    gap: 6px !important;
   }
 
   .topbar-nav--unauth > .button,
@@ -6393,7 +6393,7 @@ main.mode-experiences {
   .topbar-nav--unauth .topbar-install-btn,
   .topbar nav:has(> .button) .topbar-install-btn,
   .topbar nav:has(> .button--outline) .topbar-install-btn {
-    padding: 4px 1px !important;
+    padding: 4px 3px !important;
     margin-right: 0 !important;
   }
 
