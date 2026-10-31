@@ -1039,6 +1039,54 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(installPromptContent).toContain('localStorage.removeItem("pwa_install_dismissed")');
       expect(installPromptContent).toContain("atlas-install-prompt-ready");
     });
+
+    it("Invariant 11.38: Canvas real-time drag expansion, padding and smoothFactor in Leaflet maps", () => {
+      const worldMapContent = fs.readFileSync(path.join(rootDir, "components/world-map.tsx"), "utf-8");
+      const collectiveMapContent = fs.readFileSync(path.join(rootDir, "components/collective-map.tsx"), "utf-8");
+      const spainMapContent = fs.readFileSync(path.join(rootDir, "components/spain-map.tsx"), "utf-8");
+
+      // 1. world-map.tsx: padding 1.0, smoothFactor 1.2, move hook
+      expect(worldMapContent).toContain("L.Canvas.prototype.options.padding = 1.0;");
+      expect(worldMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
+      expect(worldMapContent).toContain("_atlasMovePatched");
+      expect(worldMapContent).toContain("_onCanvasMove");
+
+      // 2. collective-map.tsx: padding 1.0, smoothFactor 1.2, move hook
+      expect(collectiveMapContent).toContain("L.Canvas.prototype.options.padding = 1.0;");
+      expect(collectiveMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
+      expect(collectiveMapContent).toContain("_atlasMovePatched");
+      expect(collectiveMapContent).toContain("_onCanvasMove");
+
+      // 3. spain-map.tsx: preserves padding 0.5 (tested by polish-enhancements), smoothFactor 1.2, move hook
+      expect(spainMapContent).toContain("L.Canvas.prototype.options.padding = 0.5;");
+      expect(spainMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
+      expect(spainMapContent).toContain("_atlasMovePatched");
+      expect(spainMapContent).toContain("_onCanvasMove");
+    });
+
+    it("Invariant 11.39: Staggered background preloading for Feed, Social, Ranking and Summit photos", () => {
+      const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
+      const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+
+      // 1. FeedTab: preloads feed in background and 30 photos for countries & peaks with decoding=async
+      expect(feedContent).toContain("fetchFeed(true)");
+      expect(feedContent).toContain("countryPhotosToPreload.length < 30");
+      expect(feedContent).toContain("peakPhotosToPreload.length < 30");
+      expect(feedContent).toContain('img.decoding = "async"');
+
+      // 2. SocialTab: preloads user progress and connections in background
+      expect(socialContent).toContain("fetchUserProgress()");
+      expect(socialContent).toContain("fetchConnections()");
+
+      // 3. RankingTab: preloads ranking data in background and caches both modes
+      expect(rankingContent).toContain("fetchRanking(true)");
+      expect(rankingContent).toContain("globalRankingCache");
+
+      // 4. SummitTracker: preloads up to 30 user summit photos in background
+      expect(trackerContent).toContain("photos.slice(0, 30).forEach");
+    });
   });
 });
 

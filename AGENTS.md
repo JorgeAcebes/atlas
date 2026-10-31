@@ -188,6 +188,21 @@ Una tarea sólo se considera concluida cuando:
   - Purgado automático de claves antiguas de descarte en `localStorage` (`pwa_install_dismissed`) para permitir que la sugerencia de instalación vuelva a estar activa tras una desinstalación.
   - Detección preventiva con `navigator.getInstalledRelatedApps()` para no mostrar el botón de descarga en la cabecera si la app ya se encuentra instalada.
 
+### 4.21 Sincronización y Renderizado Continuo de Capa Vectorial en Mapas Leaflet (`components/world-map.tsx`, `components/spain-map.tsx`, `components/collective-map.tsx`)
+- **Prevención de Cortes Rectos de Lienzo (Padding Expandido)**: El renderizador `L.Canvas` de Leaflet utiliza `options.padding = 1.0` en el mapa mundial (`world-map.tsx`) y mapa colectivo (`collective-map.tsx`), manteniendo `0.5` en el mapa de España (`spain-map.tsx`), para disponer de un buffer de renderizado 3x del tamaño de la ventana gráfica en memoria y evitar bordes vacíos durante el desplazamiento.
+- **Hook Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`)**: Se engancha el manejador `_onCanvasMove` al evento continuo `events.move`. Al aproximarse la vista a menos de 60px del borde del canvas (`pxBounds`), se dispara un repintado fluido mediante `requestAnimationFrame(() => this._update())`. Esto garantiza que los países y demarcaciones poligonales se expandan y actualicen dinámicamente al ritmo del mapa base durante el arrastre con el dedo o ratón, eliminando por completo cualquier corte recto horizontal o vertical sin esperar a que el usuario levante el dedo (`moveend`).
+- **Suavizado y Optimización de Polilíneas Vectoriales**: Se fija `L.Polyline.prototype.options.smoothFactor = 1.2;` de manera canónica para simplificar y optimizar el cómputo de trazado de fronteras y polígonos sin degradar la precisión geográfica.
+
+### 4.22 Precarga en Segundo Plano Escalonada (Social, Ranking y Fotos) (`components/feed-tab.tsx`, `components/social-tab.tsx`, `components/ranking-tab.tsx`, `components/summit-tracker.tsx`)
+- **Eliminación de Bloqueos Estrictos por Inactividad**: Queda estrictamente prohibido bloquear la descarga de datos mediante `if (!isActive) return;` en pestañas que ya están montadas en memoria dentro de `app-tabs-shell.tsx`. La navegación entre pestañas (Mapa, Social, Ranking) debe ser instantánea y sin pantallas de carga ni spinners perceptibles.
+- **Escalonamiento Diferido de Prioridad Cero sobre el Mapa Inicial**:
+  - Para garantizar que el mapa inicial cargue con máxima prioridad, las peticiones en segundo plano se posponen de forma escalonada:
+    - **800ms - 1000ms**: `social-tab.tsx` precarga el progreso del usuario (`fetchUserProgress`) y sus conexiones (`fetchConnections`).
+    - **1100ms**: `feed-tab.tsx` precarga el feed social (`fetchFeed(true)`) y realiza la precarga en caché de las **primeras 30 fotos tanto para países como para picos** (`countryPhotosToPreload` y `peakPhotosToPreload`) utilizando `new Image()` y `img.decoding = "async"`.
+    - **1300ms**: `ranking-tab.tsx` precarga el ranking (`fetchRanking(true)`) en **ambas modalidades** (países y picos) en `globalRankingCache` y precarga las imágenes de perfil/avatares del top 30 de exploradores.
+    - **1500ms**: `summit-tracker.tsx` precarga en segundo plano las primeras 30 fotos de ascensiones o países del usuario.
+- **Invarianza de Experiencia de Usuario sin Esperas**: Al pulsar en las pestañas «Social» o «Ranking», o al conmutar modalidades, todos los datos, recuentos e imágenes deben encontrarse ya en memoria caché, asegurando una experiencia completamente instantánea y fluida.
+
 ---
 
 ## 5. Reglas Críticas de Seguridad y Base de Datos

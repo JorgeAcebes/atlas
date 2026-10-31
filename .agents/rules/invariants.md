@@ -316,6 +316,35 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
    - Purgado automático de claves antiguas de descarte en `localStorage` (`pwa_install_dismissed`) para permitir que la sugerencia de instalación vuelva a estar activa tras una desinstalación.
    - Detección preventiva con `navigator.getInstalledRelatedApps()` para no mostrar el botón de descarga en la cabecera si la app ya se encuentra instalada.
 
+---
+
+## 24. Sincronización y Renderizado Continuo de Capa Vectorial en Mapas Leaflet (`components/world-map.tsx`, `components/spain-map.tsx`, `components/collective-map.tsx`)
+
+1. **Padding Expandido de Canvas**:
+   - `L.Canvas.prototype.options.padding = 1.0` en el mapa mundial (`world-map.tsx`) y mapa colectivo (`collective-map.tsx`) (conservando `0.5` en `spain-map.tsx`), proporcionando un margen de seguridad amplio que cubre el triple del viewport visible para prevenir bordes vacíos durante el desplazamiento.
+2. **Repintado Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`)**:
+   - Leaflet solo actualiza el canvas en `moveend` por defecto. Se sobreescribe `getEvents` para añadir `events.move = this._onCanvasMove`.
+   - Cuando la vista se aproxima a menos de 60px del borde actual del canvas (`pxBounds`), `_onCanvasMove` solicita un fotograma mediante `requestAnimationFrame(() => this._update())` para reubicar y redibujar el canvas en vivo.
+   - Esto erradica cualquier corte recto horizontal o vertical (recorte a mitad de país o polígono) durante el arrastre continuo en móvil o escritorio, garantizando que la tesela se renderice al ritmo del mapa base.
+3. **Optimización de Trazado de Polígonos**:
+   - `L.Polyline.prototype.options.smoothFactor = 1.2` de forma canónica para aligerar el cálculo y dibujo de fronteras vectoriales complejas sin pérdida apreciable de detalle visual.
+
+---
+
+## 25. Precarga en Segundo Plano Escalonada de Social, Ranking y Fotos (`components/feed-tab.tsx`, `components/social-tab.tsx`, `components/ranking-tab.tsx`, `components/summit-tracker.tsx`)
+
+1. **Prohibición de Bloqueo por Inactividad (`!isActive`)**:
+   - Las pestañas montadas en `AppTabsShell` no deben detener indefinidamente la obtención de datos cuando `isActive === false`.
+2. **Escalonamiento Secuencial en Segundo Plano (Staggered Fetching)**:
+   - Los datos secundarios se descargan con retrasos programados para no restar ancho de banda ni hilos de CPU al renderizado inicial del mapa:
+     - **800ms - 1000ms**: Progreso y conexiones del usuario en `SocialTab`.
+     - **1100ms**: Publicaciones del feed en `FeedTab` con precarga en caché de hasta 30 fotos para países y hasta 30 fotos para picos mediante `new Image()` y `img.decoding = "async"`.
+     - **1300ms**: Ranking global en `RankingTab` precargando ambas modalidades (`countries` y `peaks`) en caché y las fotos de avatar del top 30.
+     - **1500ms**: Las primeras 30 fotos de ascensiones y visitas del propio usuario en `SummitTracker`.
+3. **Cero Percepción de Carga al Navegar**:
+   - El cambio entre pestañas (Mapa ↔ Social ↔ Ranking) debe ser inmediato, sin requerir spinners ni recargas perceptibles ("cero sensación de cutrez").
+
+
 
 
 
