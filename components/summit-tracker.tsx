@@ -5005,7 +5005,7 @@ export function SummitTracker({
           </div>
         )}
 
-        <nav>
+        <nav className={!session && !myProfile ? "topbar-nav--unauth" : undefined}>
           {isReadOnly ? (
             <>
               <Link

@@ -6366,6 +6366,37 @@ main.mode-experiences {
     margin-left: 0 !important;
   }
 
+  /* Cuando no está iniciada sesión en web móvil, pegar el icono de descargar a "Entrar" para no solapar con el toggle */
+  .topbar:has(.topbar-nav--unauth),
+  .topbar:has(.topbar-install-btn) {
+    padding-left: 14px !important;
+    padding-right: 12px !important;
+  }
+
+  .topbar-nav--unauth,
+  .topbar nav:has(> .button),
+  .topbar nav:has(> .button--outline) {
+    gap: 2px !important;
+  }
+
+  .topbar-nav--unauth > .button,
+  .topbar-nav--unauth > .button--outline,
+  .topbar nav:has(> .button) > .button,
+  .topbar nav:has(> .button--outline) > .button--outline,
+  .topbar nav .topbar-install-btn + .button,
+  .topbar nav .topbar-install-btn + .button--outline {
+    margin-left: 0 !important;
+    padding: 6px 9px !important;
+    font-size: 12px !important;
+  }
+
+  .topbar-nav--unauth .topbar-install-btn,
+  .topbar nav:has(> .button) .topbar-install-btn,
+  .topbar nav:has(> .button--outline) .topbar-install-btn {
+    padding: 4px 1px !important;
+    margin-right: 0 !important;
+  }
+
   /* Mobile-only Stats button (a la izquierda de la foto de perfil) - Sin círculo */
   .topbar-stats-btn,
   .topbar nav .topbar-stats-btn {

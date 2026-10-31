@@ -99,4 +99,20 @@ describe("PWA Install Prompt & Topbar Download Button", () => {
     expect(socialFile).toContain("isPwa && (myProfile || session)");
     expect(rankingFile).toContain("isPwa && (myProfile || session)");
   });
+
+  it("5. Mobile Web unauthenticated spacing: download icon is tucked tight to Entrar button to prevent mode switch overlap", () => {
+    const globalsCss = fs.readFileSync(globalsCssPath, "utf-8");
+    const trackerFile = fs.readFileSync(trackerPath, "utf-8");
+    const socialFile = fs.readFileSync(socialPath, "utf-8");
+    const rankingFile = fs.readFileSync(rankingPath, "utf-8");
+
+    // All tabs add topbar-nav--unauth when not logged in
+    expect(trackerFile).toContain('className={!session && !myProfile ? "topbar-nav--unauth" : undefined}');
+    expect(socialFile).toContain('className={!session && !myProfile ? "topbar-nav--unauth" : undefined}');
+    expect(rankingFile).toContain('className={!session && !myProfile ? "topbar-nav--unauth" : undefined}');
+
+    // CSS tightens gap to Entrar and eliminates margin-left
+    expect(globalsCss).toContain(".topbar-nav--unauth");
+    expect(globalsCss).toContain("gap: 2px !important;");
+  });
 });

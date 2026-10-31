@@ -562,7 +562,7 @@ export function RankingTab({
           </div>
         )}
 
-        <nav>
+        <nav className={!session && !myProfile ? "topbar-nav--unauth" : undefined}>
           <Link href={mapLink} prefetch={true} className="topbar-nav-link topbar-nav-link--mapa">Mapa</Link>
           <Link
             href={`/social?challenge=${mode}`}
