@@ -86,6 +86,22 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              (function() {
+                try {
+                  var isStandalone = 
+                    window.matchMedia('(display-mode: standalone)').matches ||
+                    window.matchMedia('(display-mode: fullscreen)').matches ||
+                    window.matchMedia('(display-mode: minimal-ui)').matches ||
+                    window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+                    (typeof navigator !== 'undefined' && 'standalone' in navigator && navigator.standalone === true) ||
+                    (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('android-app://') !== -1) ||
+                    (typeof localStorage !== 'undefined' && localStorage.getItem('pwa_app_installed') === 'true') ||
+                    window.location.search.indexOf('mode=pwa') !== -1;
+                  if (isStandalone && typeof document !== 'undefined') {
+                    document.documentElement.classList.add('is-pwa');
+                  }
+                } catch(e) {}
+              })();
               window.__atlasInstallPrompt = null;
               window.addEventListener('beforeinstallprompt', function(e) {
                 e.preventDefault();
@@ -93,6 +109,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 window.dispatchEvent(new CustomEvent('atlas-install-prompt-ready'));
               });
               window.addEventListener('appinstalled', function() {
+                try { localStorage.setItem('pwa_app_installed', 'true'); } catch(e) {}
+                if (typeof document !== 'undefined') {
+                  document.documentElement.classList.add('is-pwa');
+                }
                 window.__atlasInstallPrompt = null;
                 window.dispatchEvent(new CustomEvent('atlas-app-installed'));
               });

@@ -6159,6 +6159,11 @@ main.mode-experiences {
 .topbar-stats-btn {
   display: none !important;
 }
+
+.is-pwa .topbar-stats-btn,
+.is-pwa .topbar nav .topbar-stats-btn {
+  display: inline-flex !important;
+}
 .topbar-install-btn,
 .hero-install-btn {
   display: none !important;
