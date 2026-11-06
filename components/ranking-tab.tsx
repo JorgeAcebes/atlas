@@ -66,14 +66,25 @@ export function RankingTab({
     const checkMobileBrowser = () => {
       if (typeof window === "undefined") return;
       const standalone = isStandalone();
-      setIsPwa(standalone);
-      const isMobileWidth = window.innerWidth <= 768;
       const alreadyInstalled = typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true";
+      const isInstalledOrPwa = standalone || alreadyInstalled;
+      setIsPwa(isInstalledOrPwa);
+      if (isInstalledOrPwa && typeof document !== "undefined" && !document.documentElement.classList.contains("is-pwa")) {
+        document.documentElement.classList.add("is-pwa");
+      }
+      const isMobileWidth = window.innerWidth <= 768;
       setCanInstallMobile(!standalone && isMobileWidth && !alreadyInstalled);
 
-      if (!standalone && isMobileWidth && typeof navigator !== "undefined" && "getInstalledRelatedApps" in navigator) {
+      if (!isInstalledOrPwa && isMobileWidth && typeof navigator !== "undefined" && "getInstalledRelatedApps" in navigator) {
         (navigator as any).getInstalledRelatedApps().then((apps: any[]) => {
           if (apps && apps.length > 0) {
+            try {
+              localStorage.setItem("pwa_app_installed", "true");
+            } catch {}
+            if (typeof document !== "undefined") {
+              document.documentElement.classList.add("is-pwa");
+            }
+            setIsPwa(true);
             setCanInstallMobile(false);
           }
         }).catch(() => {});
@@ -87,6 +98,10 @@ export function RankingTab({
       } catch {
         /* ignore */
       }
+      if (typeof document !== "undefined") {
+        document.documentElement.classList.add("is-pwa");
+      }
+      setIsPwa(true);
       setCanInstallMobile(false);
       setInstallPromptOpen(false);
     };

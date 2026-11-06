@@ -131,8 +131,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                   window.matchMedia('(display-mode: standalone)').matches ||
                   window.matchMedia('(display-mode: fullscreen)').matches ||
                   window.matchMedia('(display-mode: minimal-ui)').matches ||
+                  window.matchMedia('(display-mode: window-controls-overlay)').matches ||
                   (typeof navigator !== 'undefined' && 'standalone' in navigator && navigator.standalone === true) ||
                   (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('android-app://') !== -1) ||
+                  (typeof localStorage !== 'undefined' && localStorage.getItem('pwa_app_installed') === 'true') ||
                   window.location.search.indexOf('mode=pwa') !== -1;
 
                 if (isStandalone && typeof document !== 'undefined') {

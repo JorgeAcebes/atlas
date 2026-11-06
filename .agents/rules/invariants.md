@@ -292,7 +292,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 3. **Detección de Instalación y Auto-ocultación de Controles**:
    - Tras aceptar la instalación (`outcome === "accepted"` o eventos `appinstalled` / `atlas-app-installed`), se persiste `pwa_app_installed = "true"` en `localStorage`.
    - En la web móvil, el icono de descargar se ubica en la cabecera (topbar) a la izquierda de la foto de perfil en el mismo lugar donde en PWA se ubica el icono de estadísticas (el icono de estadísticas permanece estrictamente oculto en web móvil cuando no sea PWA).
-   - Cuando la app ya está instalada o se ejecuta en PWA (`alreadyInstalled` o `isStandalone()`), el botón de descarga se oculta automáticamente (`!alreadyInstalled`), mostrándose en su lugar el botón de estadísticas si es PWA.
+   - Cuando la app ya está instalada o se ejecuta en PWA (`alreadyInstalled` o `isStandalone()`), el botón de descarga se oculta automáticamente (`!alreadyInstalled`), mostrándose en su lugar el botón de estadísticas (`isPwa` activo y clase `.is-pwa` en `document.documentElement`).
    - Si no hay prompt activo por encontrarse la app ya instalada, la interfaz no debe inducir a error con instrucciones manuales ("dale a los 3 puntos"), sino informar de que la aplicación ya está instalada o lista para usar en la pantalla de inicio.
 
 ---
@@ -322,9 +322,10 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 
 1. **Padding Expandido de Canvas**:
    - `L.Canvas.prototype.options.padding = 1.0` en el mapa mundial (`world-map.tsx`) y mapa colectivo (`collective-map.tsx`) (conservando `0.5` en `spain-map.tsx`), proporcionando un margen de seguridad amplio que cubre el triple del viewport visible para prevenir bordes vacíos durante el desplazamiento.
-2. **Repintado Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`)**:
+2. **Repintado Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`) y Protección de Zoom**:
    - Leaflet solo actualiza el canvas en `moveend` por defecto. Se sobreescribe `getEvents` para añadir `events.move = this._onCanvasMove`.
    - Cuando la vista se aproxima a menos de 60px del borde actual del canvas (`pxBounds`), `_onCanvasMove` solicita un fotograma mediante `requestAnimationFrame(() => this._update())` para reubicar y redibujar el canvas en vivo.
+   - **Protección Estricta contra Zoom**: Durante gestos o animaciones de zoom (`_animatingZoom`, `touchZoom._zooming`, cambio de nivel de zoom o cuando no se está arrastrando activamente `!dragging.moving()`), `_onCanvasMove` debe interrumpirse de forma inmediata sin invocar `this._update()`. Esto evita que el canvas recalcule su posición y se desplace fuera del viewport mientras el contenedor pane de Leaflet tiene aplicada una transformación CSS activa, permitiendo que la tesela y los vectores mantengan su posición perfectamente anclada durante el zoom.
    - Esto erradica cualquier corte recto horizontal o vertical (recorte a mitad de país o polígono) durante el arrastre continuo en móvil o escritorio, garantizando que la tesela se renderice al ritmo del mapa base.
 3. **Optimización de Trazado de Polígonos**:
    - `L.Polyline.prototype.options.smoothFactor = 1.2` de forma canónica para aligerar el cálculo y dibujo de fronteras vectoriales complejas sin pérdida apreciable de detalle visual.

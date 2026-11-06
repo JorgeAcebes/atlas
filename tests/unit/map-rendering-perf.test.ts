@@ -27,9 +27,11 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     // Canvas padding preserved
     expect(content).toContain("L.Canvas.prototype.options.padding = 0.5;");
 
-    // Real-time canvas bounds expansion on drag
+    // Real-time canvas bounds expansion on drag with zoom protection
     expect(content).toContain("_atlasMovePatched");
     expect(content).toContain("_onCanvasMove");
+    expect(content).toContain("_map._animatingZoom");
+    expect(content).toContain("!(this._map.dragging && this._map.dragging.moving())");
   });
 
   it("2. world-map.tsx: throttles zoom listeners, memoizes country markers, streams tiles fluidly, and dynamically expands canvas bounds", () => {

@@ -115,4 +115,17 @@ describe("PWA Install Prompt & Topbar Download Button", () => {
     expect(globalsCss).toContain(".topbar-nav--unauth");
     expect(globalsCss).toContain("gap: 6px !important;");
   });
+
+  it("6. Already installed app detection: isPwa is true and is-pwa class added when app is already installed", () => {
+    const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+    const layoutPath = path.join(rootDir, "app/layout.tsx");
+    const layoutContent = fs.readFileSync(layoutPath, "utf-8");
+
+    // Layout inline script checks pwa_app_installed in localStorage to set is-pwa class
+    expect(layoutContent).toContain("localStorage.getItem('pwa_app_installed') === 'true'");
+
+    // SummitTracker sets isPwa to true when standalone or already installed
+    expect(trackerContent).toContain("const isInstalledOrPwa = standalone || alreadyInstalled;");
+    expect(trackerContent).toContain("setIsPwa(isInstalledOrPwa);");
+  });
 });

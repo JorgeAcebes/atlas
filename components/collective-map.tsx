@@ -46,6 +46,15 @@ if (typeof window !== "undefined" && L && L.Canvas) {
     };
     proto._onCanvasMove = function () {
       if (!this._map || !this._bounds) return;
+      // Never expand or re-render canvas during zoom gestures/animations to prevent canvas displacement
+      if (
+        this._map._animatingZoom ||
+        (this._map.touchZoom && (this._map.touchZoom as any)._zooming) ||
+        this._map.getZoom() !== this._zoom ||
+        !(this._map.dragging && this._map.dragging.moving())
+      ) {
+        return;
+      }
       const size = this._map.getSize();
       if (!size || size.x === 0 || size.y === 0) return;
       const vpMin = this._map.containerPointToLayerPoint([0, 0]);
@@ -60,7 +69,14 @@ if (typeof window !== "undefined" && L && L.Canvas) {
         if (this._moveRaf) return;
         this._moveRaf = requestAnimationFrame(() => {
           this._moveRaf = null;
-          if (this._map) {
+          if (
+            this._map &&
+            !this._map._animatingZoom &&
+            !(this._map.touchZoom && (this._map.touchZoom as any)._zooming) &&
+            this._map.getZoom() === this._zoom &&
+            this._map.dragging &&
+            this._map.dragging.moving()
+          ) {
             this._update();
           }
         });
