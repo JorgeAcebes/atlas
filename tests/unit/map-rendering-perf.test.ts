@@ -47,9 +47,9 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toMatch(/CountryMarkersLayer[\s\S]*?useMapEvents\(\{\s*zoomend:/);
 
     // Continuous tile streaming and large buffer for unseen areas
-    expect(content).toContain("keepBuffer={16}");
+    expect(content).toContain("keepBuffer={32}");
     expect(content).toContain("updateWhenIdle={false}");
-    expect(content).toContain("updateInterval={100}");
+    expect(content).toContain("updateInterval={50}");
     expect(content).toContain("maxNativeZoom={19}");
     expect(content).not.toContain("updateWhenZooming={false}");
 
@@ -57,7 +57,7 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
 
     // Large canvas padding + real-time move expansion to eliminate cut-off during drag
-    expect(content).toContain("L.Canvas.prototype.options.padding = 1.0;");
+    expect(content).toContain("L.Canvas.prototype.options.padding = 2.5;");
     expect(content).toContain("_atlasMovePatched");
     expect(content).toContain("_onCanvasMove");
   });
@@ -66,9 +66,9 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     const collectivePath = path.join(rootDir, "components/collective-map.tsx");
     const content = fs.readFileSync(collectivePath, "utf-8");
 
-    expect(content).toContain("keepBuffer={16}");
+    expect(content).toContain("keepBuffer={32}");
     expect(content).toContain("updateWhenIdle={false}");
-    expect(content).toContain("updateInterval={100}");
+    expect(content).toContain("updateInterval={50}");
     expect(content).toContain("maxNativeZoom={19}");
 
     // Polyline smoothFactor on collective map

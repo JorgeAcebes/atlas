@@ -44,7 +44,7 @@ export function LocationSearch({ value, onChange, onSelect, placeholder = "Busca
       }
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/geocoding?q=${encodeURIComponent(value)}`);
+        const res = await fetch(`/api/geocoding?q=${encodeURIComponent(value.trim())}`);
         const data = await res.json();
         if (Array.isArray(data)) {
           setResults(data);

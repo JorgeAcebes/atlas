@@ -3374,12 +3374,12 @@ textarea:focus {
 .install-prompt-icon {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, #f1ede1, #e8eee6);
-  border-radius: 14px;
+  background: transparent;
+  border-radius: 0;
   display: grid;
   place-items: center;
   margin-bottom: 14px;
-  box-shadow: 0 2px 8px rgba(36, 95, 82, 0.12);
+  box-shadow: none;
 }
 
 .install-prompt-icon svg {

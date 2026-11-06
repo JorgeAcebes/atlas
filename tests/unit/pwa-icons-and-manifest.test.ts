@@ -74,14 +74,14 @@ describe("PWA Manifest, Icons, and Standalone Configuration", () => {
       expect(icon512).not.toContain("<rect");
     });
 
-    it("maskable SVGs must have solid white background", () => {
+    it("maskable SVGs and any SVGs must have no background rectangles (clean transparent icon without borders)", () => {
       const mask192 = fs.readFileSync(path.join(rootDir, "public/icon-maskable-192.svg"), "utf8");
       const mask512 = fs.readFileSync(path.join(rootDir, "public/icon-maskable-512.svg"), "utf8");
       const mask1024 = fs.readFileSync(path.join(rootDir, "public/icon-maskable-1024.svg"), "utf8");
 
-      expect(mask192).toContain('<rect width="192" height="192" fill="#ffffff"');
-      expect(mask512).toContain('<rect width="512" height="512" fill="#ffffff"');
-      expect(mask1024).toContain('<rect width="1024" height="1024" fill="#ffffff"');
+      expect(mask192).not.toContain("<rect");
+      expect(mask512).not.toContain("<rect");
+      expect(mask1024).not.toContain("<rect");
     });
   });
 

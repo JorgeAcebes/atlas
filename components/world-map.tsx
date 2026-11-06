@@ -21,7 +21,7 @@ import { SweepOverlay } from "./sweep-overlay";
 import { X } from "lucide-react";
 
 // Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
-L.Canvas.prototype.options.padding = 1.0;
+L.Canvas.prototype.options.padding = 2.5;
 L.Polyline.prototype.options.smoothFactor = 1.2;
 
 // Ensure Leaflet Canvas expands dynamically during dragging when nearing canvas edge
@@ -41,8 +41,7 @@ if (typeof window !== "undefined" && L && L.Canvas) {
       if (
         this._map._animatingZoom ||
         (this._map.touchZoom && (this._map.touchZoom as any)._zooming) ||
-        this._map.getZoom() !== this._zoom ||
-        !(this._map.dragging && this._map.dragging.moving())
+        this._map.getZoom() !== this._zoom
       ) {
         return;
       }
@@ -50,12 +49,13 @@ if (typeof window !== "undefined" && L && L.Canvas) {
       if (!size || size.x === 0 || size.y === 0) return;
       const vpMin = this._map.containerPointToLayerPoint([0, 0]);
       const vpMax = this._map.containerPointToLayerPoint(size);
-      const pad = 60;
+      const padX = Math.max(300, size.x * 0.8);
+      const padY = Math.max(300, size.y * 0.8);
       if (
-        vpMin.x - pad < this._bounds.min.x ||
-        vpMin.y - pad < this._bounds.min.y ||
-        vpMax.x + pad > this._bounds.max.x ||
-        vpMax.y + pad > this._bounds.max.y
+        vpMin.x - padX < this._bounds.min.x ||
+        vpMin.y - padY < this._bounds.min.y ||
+        vpMax.x + padX > this._bounds.max.x ||
+        vpMax.y + padY > this._bounds.max.y
       ) {
         if (this._moveRaf) return;
         this._moveRaf = requestAnimationFrame(() => {
@@ -64,9 +64,7 @@ if (typeof window !== "undefined" && L && L.Canvas) {
             this._map &&
             !this._map._animatingZoom &&
             !(this._map.touchZoom && (this._map.touchZoom as any)._zooming) &&
-            this._map.getZoom() === this._zoom &&
-            this._map.dragging &&
-            this._map.dragging.moving()
+            this._map.getZoom() === this._zoom
           ) {
             this._update();
           }
@@ -991,9 +989,9 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         minZoom={1}
-        keepBuffer={16}
+        keepBuffer={32}
         updateWhenIdle={false}
-        updateInterval={100}
+        updateInterval={50}
         maxNativeZoom={19}
       />
       {geo && (

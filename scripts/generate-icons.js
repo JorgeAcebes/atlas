@@ -71,14 +71,14 @@ async function generate() {
   const svg1024 = getSvgContent({ size: 1024, bg: false, ratio: 0.50 });
   fs.writeFileSync('public/icon-1024.svg', svg1024);
 
-  // Maskable SVGs (solid #ffffff background)
-  const svgMask192 = getSvgContent({ size: 192, bg: true, ratio: 0.50 });
+  // Maskable SVGs (transparent background to avoid borders/boxes on splash screen)
+  const svgMask192 = getSvgContent({ size: 192, bg: false, ratio: 0.50 });
   fs.writeFileSync('public/icon-maskable-192.svg', svgMask192);
 
-  const svgMask512 = getSvgContent({ size: 512, bg: true, ratio: 0.50 });
+  const svgMask512 = getSvgContent({ size: 512, bg: false, ratio: 0.50 });
   fs.writeFileSync('public/icon-maskable-512.svg', svgMask512);
 
-  const svgMask1024 = getSvgContent({ size: 1024, bg: true, ratio: 0.50 });
+  const svgMask1024 = getSvgContent({ size: 1024, bg: false, ratio: 0.50 });
   fs.writeFileSync('public/icon-maskable-1024.svg', svgMask1024);
 
   // 2. Render PNGs with 300 DPI supersampling for razor-sharp rendering on high-DPI screens
@@ -119,7 +119,7 @@ async function generate() {
   console.log('Generated public/icon-maskable-1024.png');
 
   // 3. apple-touch-icon.png (180x180 with solid white background for iOS)
-  const svgApple = getSvgContent({ size: 180, bg: true, ratio: 0.50 });
+  const svgApple = getSvgContent({ size: 180, bg: false, ratio: 0.50 });
   await sharp(Buffer.from(svgApple), { density: 300 })
     .resize(180, 180, { kernel: sharp.kernel.lanczos3 })
     .png({ compressionLevel: 9 })

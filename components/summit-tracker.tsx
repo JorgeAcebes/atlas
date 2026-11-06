@@ -5819,18 +5819,21 @@ export function SummitTracker({
         <div className="peak-list-grid">
           {sortedItems
             .filter((item) => {
-              // Text search filter
-              if (searchQuery) {
+              // Text search filter (supports trailing spaces and multi-word matching)
+              const trimmedQuery = searchQuery.trim();
+              if (trimmedQuery) {
                 const normalize = (s: string) =>
                   s
                     .normalize("NFD")
                     .replace(/[\u0300-\u036f]/g, "")
                     .toLowerCase();
-                const q = normalize(searchQuery);
-                const matchesText =
-                  normalize(item.title).includes(q) ||
-                  (item.label && normalize(item.label).includes(q)) ||
-                  (item.detail && normalize(item.detail).includes(q));
+                const tokens = trimmedQuery.split(/\s+/).map(normalize).filter(Boolean);
+                const matchesText = tokens.every(
+                  (t) =>
+                    normalize(item.title).includes(t) ||
+                    (item.label && normalize(item.label).includes(t)) ||
+                    (item.detail && normalize(item.detail).includes(t)),
+                );
                 if (!matchesText) return false;
               }
               let done = false;

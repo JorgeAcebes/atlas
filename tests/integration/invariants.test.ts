@@ -1045,14 +1045,14 @@ describe("Project Critical Invariants (No Regressions)", () => {
       const collectiveMapContent = fs.readFileSync(path.join(rootDir, "components/collective-map.tsx"), "utf-8");
       const spainMapContent = fs.readFileSync(path.join(rootDir, "components/spain-map.tsx"), "utf-8");
 
-      // 1. world-map.tsx: padding 1.0, smoothFactor 1.2, move hook
-      expect(worldMapContent).toContain("L.Canvas.prototype.options.padding = 1.0;");
+      // 1. world-map.tsx: padding 2.5, smoothFactor 1.2, move hook
+      expect(worldMapContent).toContain("L.Canvas.prototype.options.padding = 2.5;");
       expect(worldMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
       expect(worldMapContent).toContain("_atlasMovePatched");
       expect(worldMapContent).toContain("_onCanvasMove");
 
-      // 2. collective-map.tsx: padding 1.0, smoothFactor 1.2, move hook
-      expect(collectiveMapContent).toContain("L.Canvas.prototype.options.padding = 1.0;");
+      // 2. collective-map.tsx: padding 2.5, smoothFactor 1.2, move hook
+      expect(collectiveMapContent).toContain("L.Canvas.prototype.options.padding = 2.5;");
       expect(collectiveMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
       expect(collectiveMapContent).toContain("_atlasMovePatched");
       expect(collectiveMapContent).toContain("_onCanvasMove");

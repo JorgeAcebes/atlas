@@ -280,9 +280,9 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
           <img
             src="/icon-192.png"
             alt="Atlas"
-            width={40}
-            height={40}
-            style={{ borderRadius: 8, display: "block" }}
+            width={48}
+            height={48}
+            style={{ display: "block" }}
           />
         </div>
 

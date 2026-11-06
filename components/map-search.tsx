@@ -44,20 +44,18 @@ export function MapSearchControl({ items, onSelect, placeholder = "Buscar...", o
   }, [expanded]);
 
   useEffect(() => {
-    if (!query || query.length < 2) {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) {
       setResults([]);
       return;
     }
-    const q = query.toLowerCase();
     const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    const qNorm = normalize(q);
+    const tokens = trimmed.split(/\s+/).map(normalize).filter(Boolean);
 
     const matches = items.filter(item => {
-      const name = item.name.toLowerCase();
-      const nameLocal = (item.nameLocal || "").toLowerCase();
-      const nameNorm = normalize(name);
-      const nameLocalNorm = normalize(nameLocal);
-      return nameNorm.includes(qNorm) || nameLocalNorm.includes(qNorm) || name.includes(q) || nameLocal.includes(q);
+      const nameNorm = normalize(item.name);
+      const nameLocalNorm = normalize(item.nameLocal || "");
+      return tokens.every(t => nameNorm.includes(t) || nameLocalNorm.includes(t));
     }).slice(0, 8);
     setResults(matches);
   }, [query, items]);

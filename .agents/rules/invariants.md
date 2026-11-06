@@ -321,7 +321,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 ## 24. Sincronización y Renderizado Continuo de Capa Vectorial en Mapas Leaflet (`components/world-map.tsx`, `components/spain-map.tsx`, `components/collective-map.tsx`)
 
 1. **Padding Expandido de Canvas**:
-   - `L.Canvas.prototype.options.padding = 1.0` en el mapa mundial (`world-map.tsx`) y mapa colectivo (`collective-map.tsx`) (conservando `0.5` en `spain-map.tsx`), proporcionando un margen de seguridad amplio que cubre el triple del viewport visible para prevenir bordes vacíos durante el desplazamiento.
+   - `L.Canvas.prototype.options.padding = 2.5` en el mapa mundial (`world-map.tsx`) y mapa colectivo (`collective-map.tsx`) (conservando `0.5` en `spain-map.tsx`), proporcionando un margen de seguridad amplio que cubre seis veces el viewport visible para prevenir bordes vacíos durante el desplazamiento.
 2. **Repintado Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`) y Protección de Zoom**:
    - Leaflet solo actualiza el canvas en `moveend` por defecto. Se sobreescribe `getEvents` para añadir `events.move = this._onCanvasMove`.
    - Cuando la vista se aproxima a menos de 60px del borde actual del canvas (`pxBounds`), `_onCanvasMove` solicita un fotograma mediante `requestAnimationFrame(() => this._update())` para reubicar y redibujar el canvas en vivo.
