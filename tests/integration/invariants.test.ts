@@ -1050,18 +1050,21 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(worldMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
       expect(worldMapContent).toContain("_atlasMovePatched");
       expect(worldMapContent).toContain("_onCanvasMove");
+      expect(worldMapContent).toContain("!(this._map.dragging && this._map.dragging.moving())");
 
       // 2. collective-map.tsx: padding 2.5, smoothFactor 1.2, move hook
       expect(collectiveMapContent).toContain("L.Canvas.prototype.options.padding = 2.5;");
       expect(collectiveMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
       expect(collectiveMapContent).toContain("_atlasMovePatched");
       expect(collectiveMapContent).toContain("_onCanvasMove");
+      expect(collectiveMapContent).toContain("!(this._map.dragging && this._map.dragging.moving())");
 
       // 3. spain-map.tsx: preserves padding 0.5 (tested by polish-enhancements), smoothFactor 1.2, move hook
       expect(spainMapContent).toContain("L.Canvas.prototype.options.padding = 0.5;");
       expect(spainMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
       expect(spainMapContent).toContain("_atlasMovePatched");
       expect(spainMapContent).toContain("_onCanvasMove");
+      expect(spainMapContent).toContain("!(this._map.dragging && this._map.dragging.moving())");
     });
 
     it("Invariant 11.39: Staggered background preloading for Feed, Social, Ranking and Summit photos", () => {

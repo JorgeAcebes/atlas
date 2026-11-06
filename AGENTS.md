@@ -79,6 +79,7 @@ Una tarea sólo se considera concluida cuando:
 ### 4.4 Hidratación SSR y Mapas Leaflet
 - Mapas (`spain-map.tsx`, `world-map.tsx`) dependen de `window`: cargar siempre mediante `dynamic(() => import(...), { ssr: false })`.
 - Flag de perfil (`enable_experiences`) debe protegerse con estado `mounted` (`useEffect(() => setMounted(true), [])`) para evitar mismatch de hidratación.
+- **Blindaje de Sincronización de Canvas Vectorial en Zoom (`world-map.tsx`, `collective-map.tsx`, `spain-map.tsx`)**: El re-renderizado dinámico de Leaflet (`_atlasMovePatched`) debe suspenderse estrictamente durante cualquier gesto o animación de zoom (`this._isZooming`, `_animatingZoom`, `touchZoom._zooming`, `zoomstart`/`zoomend`, o `!(this._map.dragging && this._map.dragging.moving())`). Debe cancelarse cualquier RAF pendiente en `zoomstart` y forzarse `this._update()` al concluir `zoomend`, garantizando que la capa vectorial de países y cumbres nunca se desincronice, reduzca o desplace respecto a las teselas cartográficas base durante el zoom.
 
 ### 4.5 Ranking e Inmutabilidad de Layout (`components/ranking.css`, `app/globals.css`, `components/ranking-tab.tsx`)
 - Columnas del ranking inmutables independientemente de la longitud de textos o filtros.

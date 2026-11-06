@@ -42,15 +42,47 @@ if (typeof window !== "undefined" && L && L.Canvas) {
     proto.getEvents = function () {
       const events = originalGetEvents.call(this);
       events.move = this._onCanvasMove;
+      events.zoomstart = function () {
+        this._isZooming = true;
+        if (this._moveRaf) {
+          cancelAnimationFrame(this._moveRaf);
+          this._moveRaf = null;
+        }
+      };
+      if (events.zoomanim) {
+        const originalAnimZoom = events.zoomanim;
+        events.zoomanim = function (e: any) {
+          this._isZooming = true;
+          if (this._moveRaf) {
+            cancelAnimationFrame(this._moveRaf);
+            this._moveRaf = null;
+          }
+          originalAnimZoom.call(this, e);
+        };
+      }
+      const originalOnZoomEnd = events.zoomend;
+      events.zoomend = function () {
+        if (this._moveRaf) {
+          cancelAnimationFrame(this._moveRaf);
+          this._moveRaf = null;
+        }
+        this._isZooming = false;
+        if (originalOnZoomEnd) {
+          originalOnZoomEnd.call(this); 
+        }
+        this._update();
+      };
       return events;
     };
     proto._onCanvasMove = function () {
       if (!this._map || !this._bounds) return;
       // Never expand or re-render canvas during zoom gestures/animations to prevent canvas displacement
       if (
+        this._isZooming ||
         this._map._animatingZoom ||
         (this._map.touchZoom && (this._map.touchZoom as any)._zooming) ||
-        this._map.getZoom() !== this._zoom
+        this._map.getZoom() !== this._zoom ||
+        !(this._map.dragging && this._map.dragging.moving())
       ) {
         return;
       }
@@ -70,10 +102,13 @@ if (typeof window !== "undefined" && L && L.Canvas) {
         this._moveRaf = requestAnimationFrame(() => {
           this._moveRaf = null;
           if (
+            !this._isZooming &&
             this._map &&
             !this._map._animatingZoom &&
             !(this._map.touchZoom && (this._map.touchZoom as any)._zooming) &&
-            this._map.getZoom() === this._zoom
+            this._map.getZoom() === this._zoom &&
+            this._map.dragging &&
+            this._map.dragging.moving()
           ) {
             this._update();
           }

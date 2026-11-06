@@ -57,6 +57,7 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
 
     // Large canvas padding + real-time move expansion to eliminate cut-off during drag
+    expect(content).toContain("!(this._map.dragging && this._map.dragging.moving())");
     expect(content).toContain("L.Canvas.prototype.options.padding = 2.5;");
     expect(content).toContain("_atlasMovePatched");
     expect(content).toContain("_onCanvasMove");
@@ -72,6 +73,7 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("maxNativeZoom={19}");
 
     // Polyline smoothFactor on collective map
+    expect(content).toContain("!(this._map.dragging && this._map.dragging.moving())");
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
     expect(content).toContain("_atlasMovePatched");
     expect(content).toContain("_onCanvasMove");
