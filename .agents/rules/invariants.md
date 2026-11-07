@@ -163,7 +163,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 ## 12. Iconos y Logo de la Aplicación (`app/icon.svg`, `app/favicon.ico`, `public/icon-192.svg`, `public/icon-512.svg`, `public/apple-touch-icon.png`, `public/icon-maskable-*.png`)
 
 1. **Logo sin Fondo en Ventana/Pestaña**: El icono de la aplicación en la ventana/pestaña (favicon, PWA y accesos directos estándar) debe ser transparente, compuesto exclusivamente por los dos triángulos estilizados, sin fondo blanco ni crema.
-2. **Tamaño Óptimo en Pestaña vs PWA**: El icono de la ventana del navegador (`app/icon.svg` y `app/favicon.ico`) debe aprovechar el espacio visual de la pestaña (~85%+ de ocupación centrado) para verse grande y nítido. Los iconos de instalación PWA (`public/icon-192.png`, `public/icon-512.png`, `public/icon-1024.png`, `public/apple-touch-icon.png`) y adaptativos maskable (`public/icon-maskable-*.png`) se calibran a una escala fija del **50%** (`ratio = 0.50`) en `scripts/generate-icons.js`, garantizando un margen blanco limpio, proporcionado y centrado dentro de las máscaras circulares y squircle de Android e iOS sin pegarse a los bordes ni quedar diminuto.
+2. **Tamaño Óptimo en Pestaña vs PWA**: El icono de la ventana del navegador (`app/icon.svg` y `app/favicon.ico`) debe aprovechar el espacio visual de la pestaña (~85%+ de ocupación centrado) para verse grande y nítido. Los iconos de instalación PWA (`public/icon-192.png`, `public/icon-512.png`, `public/icon-1024.png`, `public/apple-touch-icon.png`) y adaptativos maskable (`public/icon-maskable-*.png`) se calibran a una escala fija del **50%** (`ratio = 0.375`) en `scripts/generate-icons.js`, garantizando un margen blanco limpio, proporcionado y centrado dentro de las máscaras circulares y squircle de Android e iOS sin pegarse a los bordes ni quedar diminuto.
 
 ---
 
@@ -297,7 +297,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 
 3. **Detección de Instalación y Auto-ocultación de Controles**:
    - Tras aceptar la instalación (`outcome === "accepted"` o eventos `appinstalled` / `atlas-app-installed`), se persiste `pwa_app_installed = "true"` en `localStorage`.
-   - En la web móvil, el icono de descargar se ubica en la cabecera (topbar) a la izquierda de la foto de perfil en el mismo lugar donde en PWA se ubica el icono de estadísticas (el icono de estadísticas permanece estrictamente oculto en web móvil cuando no sea PWA).
+   - En la web móvil, el icono de descargar se ubica en la cabecera (topbar) a la izquierda de la foto de perfil en el mismo lugar donde se ubica el icono de estadísticas. Siempre que no aparezca el icono de descarga (porque la app ya esté instalada, no soporte instalación directa, se visualice otro perfil, o en PWA), se muestra en su lugar el icono de estadísticas (`!canInstallMobile`, o `targetProfile`, o `isPwa`).
    - Cuando la app ya está instalada o se ejecuta en PWA (`alreadyInstalled` o `isStandalone()`), el botón de descarga se oculta automáticamente (`!alreadyInstalled`), mostrándose en su lugar el botón de estadísticas (`isPwa` activo y clase `.is-pwa` en `document.documentElement`).
    - Si no hay prompt activo por encontrarse la app ya instalada, la interfaz no debe inducir a error con instrucciones manuales ("dale a los 3 puntos"), sino informar de que la aplicación ya está instalada o lista para usar en la pantalla de inicio.
 
@@ -310,7 +310,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
    - En `<head>` y en los manifiestos PWA (`public/manifest.json` y `app/manifest.webmanifest`), se deben enlazar de forma prioritaria los iconos de alta definición `512x512` y `1024x1024` generados con remuestreo Lanczos-3 a 300 DPI, garantizando que el splash screen se renderice nítido y sin artefactos en cualquier resolución de pantalla.
 
 2. **Iconos Adaptativos Maskable al 50% con Fondo Blanco Sólido**:
-   - Para la instalación en Android, se proveen iconos dedicados con `purpose: "maskable"` (`public/icon-maskable-192.png`, `icon-maskable-512.png`, `icon-maskable-1024.png`) con fondo blanco `#ffffff` y los triángulos al 50% de escala (`ratio = 0.50`), asegurando que al recortar la máscara del sistema operativo nunca se muestren bandas grises ni recortes indeseados en los vértices.
+   - Para la instalación en Android, se proveen iconos dedicados con `purpose: "maskable"` (`public/icon-maskable-192.png`, `icon-maskable-512.png`, `icon-maskable-1024.png`) con fondo blanco `#ffffff` y los triángulos al 50% de escala (`ratio = 0.375`), asegurando que al recortar la máscara del sistema operativo nunca se muestren bandas grises ni recortes indeseados en los vértices.
    - Los iconos estándar (`public/icon-192.svg`, `icon-512.svg`, `icon-1024.svg`) no incluyen `<rect>` de fondo (transparencia obligatoria).
 
 3. **Eliminación de la Franja Fuera de Ámbito (CustomTabToolbar en Android)**:

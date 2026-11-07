@@ -1010,10 +1010,10 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(trackerContent).toContain("!alreadyInstalled");
     });
 
-    it("Invariant 11.37: PWA icon scale 50%, splash screen anti-pixelation and out-of-scope protection", () => {
-      // 1. generate-icons script must enforce 50% ratio
+    it("Invariant 11.37: PWA icon scale calibrated (ratio 0.375, 75% scale), splash screen anti-pixelation and out-of-scope protection", () => {
+      // 1. generate-icons script must enforce 0.375 ratio (reduced to 75% of previous 50% scale per user instruction)
       const genScript = fs.readFileSync(path.join(rootDir, "scripts/generate-icons.js"), "utf-8");
-      expect(genScript).toMatch(/ratio:\s*0\.50/);
+      expect(genScript).toMatch(/ratio:\s*0\.375/);
 
       // 2. app/layout.tsx must NOT declare sizes="any" for favicon.ico to prevent Android splash pixelation
       const layoutContent = fs.readFileSync(path.join(rootDir, "app/layout.tsx"), "utf-8");

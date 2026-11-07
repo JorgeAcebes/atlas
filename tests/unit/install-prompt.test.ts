@@ -82,22 +82,22 @@ describe("PWA Install Prompt & Topbar Download Button", () => {
     expect(globalsCss).toContain(".mode-experiences .hero-install-btn");
   });
 
-  it("4. PWA vs Mobile Web visibility: stats button hidden on mobile web, download button hidden in PWA", () => {
+  it("4. PWA vs Mobile Web visibility: stats button shown whenever download button is hidden", () => {
     const globalsCss = fs.readFileSync(globalsCssPath, "utf-8");
     const trackerFile = fs.readFileSync(trackerPath, "utf-8");
     const socialFile = fs.readFileSync(socialPath, "utf-8");
     const rankingFile = fs.readFileSync(rankingPath, "utf-8");
 
-    // CSS hides stats on non-PWA mobile web
-    expect(globalsCss).toContain("html:not(.is-pwa) .topbar-stats-btn:not(.topbar-install-btn):not(.hero-install-btn)");
+    // Stats button is styled for mobile topbar
+    expect(globalsCss).toContain(".topbar-stats-btn");
 
     // CSS hides download button in PWA
     expect(globalsCss).toContain(".is-pwa .topbar-install-btn");
 
-    // React components condition stats button on isPwa
-    expect(trackerFile).toContain("isPwa && (myProfile || session)");
-    expect(socialFile).toContain("isPwa && (myProfile || session)");
-    expect(rankingFile).toContain("isPwa && (myProfile || session)");
+    // React components condition stats button when download is not shown
+    expect(trackerFile).toContain("(!canInstallMobile || !!targetProfile)");
+    expect(socialFile).toContain("!canInstallMobile && (myProfile || session)");
+    expect(rankingFile).toContain("!canInstallMobile && (myProfile || session)");
   });
 
   it("5. Mobile Web unauthenticated spacing: download icon is tucked tight to Entrar button to prevent mode switch overlap", () => {

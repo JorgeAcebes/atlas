@@ -6504,12 +6504,6 @@ main.mode-experiences {
     opacity: 0.6 !important;
   }
 
-  /* En web móvil cuando no sea PWA, el botón de estadísticas está estrictamente oculto */
-  html:not(.is-pwa) .topbar-stats-btn:not(.topbar-install-btn):not(.hero-install-btn),
-  body:not(.is-pwa) .topbar-stats-btn:not(.topbar-install-btn):not(.hero-install-btn) {
-    display: none !important;
-  }
-
   /* En PWA instalada, el botón de descarga está estrictamente oculto */
   .is-pwa .topbar-install-btn,
   .is-pwa .hero-install-btn {

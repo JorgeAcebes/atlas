@@ -626,8 +626,8 @@ export function RankingTab({
           >
             Ranking
           </Link>
-          {/* Mobile-only Stats button (solo visible en PWA, oculto en web móvil) */}
-          {isPwa && (myProfile || session) && (
+          {/* Mobile-only Stats button: siempre que no aparezca el icono de descarga */}
+          {!canInstallMobile && (myProfile || session) && (
             <button
               type="button"
               className="topbar-stats-btn"
