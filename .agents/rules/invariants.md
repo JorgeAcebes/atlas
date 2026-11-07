@@ -79,10 +79,12 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
      useEffect(() => setMounted(true), []);
      {!isPeaks && (experiencesMode || (mounted && myProfile?.enable_experiences)) && ( ... )}
      ```
-3. **Blindaje de Sincronización de Canvas Vectorial en Zoom (`world-map.tsx`, `collective-map.tsx`, `spain-map.tsx`)**:
-   - El re-renderizado dinámico de Leaflet (`_atlasMovePatched`) debe suspenderse estrictamente durante cualquier gesto o animación de zoom (`this._isZooming`, `_animatingZoom`, `touchZoom._zooming`, `zoomstart`/`zoomend`, o `!(this._map.dragging && this._map.dragging.moving())`).
-   - Debe cancelarse cualquier RAF pendiente en `zoomstart` y forzarse `this._update()` al concluir `zoomend`, garantizando que la capa vectorial de países y cumbres nunca se desincronice, reduzca o desplace respecto a las teselas cartográficas base durante el zoom.
-   - Cada mapa debe emplear una instancia dedicada de renderer (`renderer={canvasRenderer}`) con acolchado generoso (`padding: 3.5` en mapa mundial y colectivo, `2.0` en España), inicialización explícita de `center` y `zoom` en `MapContainer` y `animate: false` en `fitBounds`, previniendo colisiones de prototipo global y eliminando saltos o desapariciones en el primer zoom.
+3. **Blindaje de Sincronización de Canvas Vectorial y Zoom en Mapas Leaflet (`world-map.tsx`, `collective-map.tsx`, `spain-map.tsx`)**:
+   - **Instancia Dedicada de Renderer (`renderer={canvasRenderer}`)**: Cada mapa debe instanciar y pasar su propio renderizador Canvas a `<MapContainer renderer={canvasRenderer}>` (`padding: 3.5` en mundial y colectivo —7x el viewport—, y `padding: 2.0` en España). Está prohibido depender del prototipo global `L.Canvas.prototype.options.padding` para el tamaño del canvas, previniendo que la carga de un mapa degrade el acolchado del otro y cause que al hacer zoom out rápido con los dedos los países coloreados queden recortados a un rectángulo pequeño con fondo vacío.
+   - **Coordenadas Iniciales Obligatorias en `<MapContainer>`**: Todo contenedor `<MapContainer>` debe declarar `center` y `zoom` iniciales (`center={[20, 0]}` y `zoom={2}` en mundial, `center={[40.4168, -3.7038]}` y `zoom={5}` en España, condicional en colectivo). Erradica la desaparición o desplazamiento hacia el fondo de los polígonos vectoriales en el primer zoom tras refrescar o entrar a la página.
+   - **`animate: false` en Encuadre Inicial (`FitWorld`, `FitSpain`)**: El primer `map.fitBounds` debe ejecutarse con `{ animate: false }` para evitar transiciones CSS intermedias que colisionen con los gestos táctiles iniciales.
+   - **Protección de `MapInvalidator` en Montaje**: `MapInvalidator` invalida una sola vez de forma directa en el montaje inicial, reservando el bucle RAF de 350ms exclusivamente para cuando `panelOpen` cambia de estado.
+   - **Suspensión de Repintado Dinámico en Zoom (`_atlasMovePatched`)**: El re-renderizado (`_onCanvasMove`) debe suspenderse estrictamente durante cualquier gesto o animación de zoom (`this._isZooming`, `_animatingZoom`, `touchZoom._zooming`, `zoomstart`/`zoomend`, o `!(this._map.dragging && this._map.dragging.moving())`), cancelando RAFs pendientes en `zoomstart` y forzando `this._update()` al concluir `zoomend`.
 
 ---
 
@@ -324,14 +326,23 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 
 ## 24. Sincronización y Renderizado Continuo de Capa Vectorial en Mapas Leaflet (`components/world-map.tsx`, `components/spain-map.tsx`, `components/collective-map.tsx`)
 
-1. **Padding Expandido de Canvas**:
-   - `L.Canvas.prototype.options.padding = 2.5` en el mapa mundial (`world-map.tsx`) y mapa colectivo (`collective-map.tsx`) (conservando `0.5` en `spain-map.tsx`), proporcionando un margen de seguridad amplio que cubre seis veces el viewport visible para prevenir bordes vacíos durante el desplazamiento.
-2. **Repintado Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`) y Protección de Zoom**:
+1. **Instancias Dedicadas de Renderer (`renderer={canvasRenderer}`) y Padding Expandido**:
+   - Cada mapa debe emplear una instancia dedicada pasada a `<MapContainer renderer={canvasRenderer}>`: `padding: 3.5` en el mapa mundial (`world-map.tsx`) y mapa colectivo (`collective-map.tsx`) (cubriendo 7 veces el viewport visible en todas las direcciones), y `padding: 2.0` en `spain-map.tsx` (cubriendo 4 veces el viewport).
+   - Se conserva `L.Canvas.prototype.options.padding = 2.5` (y `0.5` en España) como fallback para compatibilidad con oráculos de pruebas, pero el paso explícito de la instancia garantiza inmunidad ante contaminación de prototipo global entre módulos (`prototype pollution`).
+   - Esto elimina por completo que al hacer zoom out rápido manteniendo los dedos en la pantalla (`touchzoom`), la capa vectorial coloreada quede recortada a un rectángulo pequeño que cubra solo una fracción de la pantalla.
+2. **Inicialización Obligatoria de Coordenadas en `<MapContainer>`**:
+   - Todo `<MapContainer>` debe declarar obligatoriamente `center` y `zoom` (`center={[20, 0]}` y `zoom={2}` en mundial, `center={[40.4168, -3.7038]}` y `zoom={5}` en España, condicional en colectivo).
+   - Esto elimina el bug de desaparición o desplazamiento hacia el fondo de los polígonos vectoriales en el primer zoom nada más entrar o refrescar la página, garantizando que `_updateTransform` disponga siempre de orígenes de capa válidos.
+3. **`animate: false` en Encuadre Inicial (`FitWorld`, `FitSpain`)**:
+   - El ajuste inicial en `map.fitBounds` debe ejecutarse con `{ animate: false }` para posicionar la vista inmediatamente sin generar transiciones CSS intermedias que entren en conflicto con gestos táctiles.
+4. **Protección en `MapInvalidator` en el Montaje**:
+   - `MapInvalidator` invalida una sola vez de forma directa en el montaje inicial (`isFirstMountRef`), reservando el bucle RAF de 350ms exclusivamente para cuando el panel de detalles (`panelOpen`) conmuta de estado.
+5. **Repintado Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`) y Protección de Zoom**:
    - Leaflet solo actualiza el canvas en `moveend` por defecto. Se sobreescribe `getEvents` para añadir `events.move = this._onCanvasMove`.
    - Cuando la vista se aproxima a menos de 60px del borde actual del canvas (`pxBounds`), `_onCanvasMove` solicita un fotograma mediante `requestAnimationFrame(() => this._update())` para reubicar y redibujar el canvas en vivo.
    - **Protección Estricta contra Zoom**: Durante gestos o animaciones de zoom (`_animatingZoom`, `touchZoom._zooming`, cambio de nivel de zoom o cuando no se está arrastrando activamente `!dragging.moving()`), `_onCanvasMove` debe interrumpirse de forma inmediata sin invocar `this._update()`. Esto evita que el canvas recalcule su posición y se desplace fuera del viewport mientras el contenedor pane de Leaflet tiene aplicada una transformación CSS activa, permitiendo que la tesela y los vectores mantengan su posición perfectamente anclada durante el zoom.
    - Esto erradica cualquier corte recto horizontal o vertical (recorte a mitad de país o polígono) durante el arrastre continuo en móvil o escritorio, garantizando que la tesela se renderice al ritmo del mapa base.
-3. **Optimización de Trazado de Polígonos**:
+6. **Optimización de Trazado de Polígonos**:
    - `L.Polyline.prototype.options.smoothFactor = 1.2` de forma canónica para aligerar el cálculo y dibujo de fronteras vectoriales complejas sin pérdida apreciable de detalle visual.
 
 ---
