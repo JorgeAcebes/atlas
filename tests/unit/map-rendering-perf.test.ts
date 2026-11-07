@@ -32,6 +32,12 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("_onCanvasMove");
     expect(content).toContain("_map._animatingZoom");
     expect(content).toContain("!(this._map.dragging && this._map.dragging.moving())");
+
+    // Per-instance renderer with wide padding and initial coordinate initialization
+    expect(content).toContain("renderer={canvasRenderer}");
+    expect(content).toContain("center={[40.4168, -3.7038]}");
+    expect(content).toContain("zoom={5}");
+    expect(content).toContain("padding: [12, 12], animate: false");
   });
 
   it("2. world-map.tsx: throttles zoom listeners, memoizes country markers, streams tiles fluidly, and dynamically expands canvas bounds", () => {
@@ -61,6 +67,13 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("L.Canvas.prototype.options.padding = 2.5;");
     expect(content).toContain("_atlasMovePatched");
     expect(content).toContain("_onCanvasMove");
+
+    // Dedicated instance renderer with 3.5 padding and coordinate initialization to prevent first zoom jump
+    expect(content).toContain("renderer={canvasRenderer}");
+    expect(content).toContain("L.canvas({ padding: 3.5 })");
+    expect(content).toContain("center={[20, 0]}");
+    expect(content).toContain("zoom={2}");
+    expect(content).toContain("padding: [0, 0], animate: false");
   });
 
   it("3. collective-map.tsx: streams tiles smoothly, simplifies vector paths, and expands canvas dynamically", () => {
@@ -77,6 +90,10 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
     expect(content).toContain("_atlasMovePatched");
     expect(content).toContain("_onCanvasMove");
+
+    // Dedicated instance renderer with 3.5 padding and coordinate initialization
+    expect(content).toContain("renderer={canvasRenderer}");
+    expect(content).toContain("L.canvas({ padding: 3.5 })");
   });
 
   it("4. app/globals.css: isolates summit-pin GPU compositor layers and removes drag transitions", () => {

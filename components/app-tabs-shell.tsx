@@ -6,6 +6,7 @@ import { SummitTracker } from "@/components/summit-tracker";
 import { SocialTab } from "@/components/social-tab";
 import { RankingTab } from "@/components/ranking-tab";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { isStandalone } from "@/components/install-prompt";
 
 type MainTab = "map" | "social" | "ranking";
 type ChallengeMode = "peaks" | "countries";
@@ -62,6 +63,18 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window !== "undefined") {
+      const standalone = isStandalone();
+      const alreadyInstalled = typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true";
+      if (standalone || alreadyInstalled) {
+        document.documentElement.classList.add("is-pwa");
+        try { localStorage.setItem("pwa_app_installed", "true"); } catch(e) {}
+      }
+    }
+  }, []);
 
   const initialTab = getTabFromPath(pathname) || "map";
   const [activeTab, setActiveTab] = useState<MainTab>(initialTab);

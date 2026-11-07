@@ -241,7 +241,7 @@ function getLargestPolygonBounds(feature: any) {
 function FitWorld() {
   const map = useMap();
   useEffect(() => {
-    map.fitBounds([[-60, -180], [80, 180]], { padding: [0, 0] });
+    map.fitBounds([[-60, -180], [80, 180]], { padding: [0, 0], animate: false });
   }, [map]);
   return null;
 }
@@ -254,7 +254,7 @@ function FitSpain() {
         [27.55, -18.65],
         [43.95, 4.95],
       ],
-      { padding: [12, 12] },
+      { padding: [12, 12], animate: false },
     );
   }, [map]);
   return null;
@@ -404,6 +404,10 @@ function ExperiencesToggleControl({
 }
 
 export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode = "countries" }: Props) {
+  const canvasRenderer = useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    return L.canvas({ padding: 3.5 });
+  }, []);
   const router = useRouter();
   const { session } = useAuth();
   const [internalScope, setInternalScope] = useState<"all" | "following">("all");
@@ -929,8 +933,10 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
           <MapContainer
             key={isPeaks ? "map-peaks" : "map-countries"}
             className="map"
+            center={isPeaks ? [40.4168, -3.7038] : [20, 0]}
+            zoom={isPeaks ? 5 : 2}
+            renderer={canvasRenderer}
             scrollWheelZoom={true}
-            preferCanvas={true}
             minZoom={isPeaks ? 4 : 1}
             maxZoom={isPeaks ? 10 : 12}
             maxBounds={isPeaks ? [[24, -22], [46, 8]] : [[-85, -180], [85, 180]]}

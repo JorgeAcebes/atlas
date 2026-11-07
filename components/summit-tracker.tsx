@@ -817,8 +817,11 @@ export function SummitTracker({
       const alreadyInstalled = typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true";
       const isInstalledOrPwa = standalone || alreadyInstalled;
       setIsPwa(isInstalledOrPwa);
-      if (isInstalledOrPwa && typeof document !== "undefined" && !document.documentElement.classList.contains("is-pwa")) {
-        document.documentElement.classList.add("is-pwa");
+      if (isInstalledOrPwa && typeof document !== "undefined") {
+        if (!document.documentElement.classList.contains("is-pwa")) {
+          document.documentElement.classList.add("is-pwa");
+        }
+        try { localStorage.setItem("pwa_app_installed", "true"); } catch(e) {}
       }
       const isMobileWidth = window.innerWidth <= 768;
       setCanInstallMobile(!standalone && isMobileWidth && !alreadyInstalled);

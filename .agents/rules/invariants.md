@@ -82,6 +82,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 3. **Blindaje de Sincronización de Canvas Vectorial en Zoom (`world-map.tsx`, `collective-map.tsx`, `spain-map.tsx`)**:
    - El re-renderizado dinámico de Leaflet (`_atlasMovePatched`) debe suspenderse estrictamente durante cualquier gesto o animación de zoom (`this._isZooming`, `_animatingZoom`, `touchZoom._zooming`, `zoomstart`/`zoomend`, o `!(this._map.dragging && this._map.dragging.moving())`).
    - Debe cancelarse cualquier RAF pendiente en `zoomstart` y forzarse `this._update()` al concluir `zoomend`, garantizando que la capa vectorial de países y cumbres nunca se desincronice, reduzca o desplace respecto a las teselas cartográficas base durante el zoom.
+   - Cada mapa debe emplear una instancia dedicada de renderer (`renderer={canvasRenderer}`) con acolchado generoso (`padding: 3.5` en mapa mundial y colectivo, `2.0` en España), inicialización explícita de `center` y `zoom` en `MapContainer` y `animate: false` en `fitBounds`, previniendo colisiones de prototipo global y eliminando saltos o desapariciones en el primer zoom.
 
 ---
 

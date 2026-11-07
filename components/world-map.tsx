@@ -231,13 +231,13 @@ function FitWorld({ isActive }: { isActive?: boolean }) {
       map.fitBounds([
         [centerLat - 0.1, -180],
         [centerLat + 0.1, 180]
-      ], { padding: [0, 0] });
+      ], { padding: [0, 0], animate: false });
     } else {
       // Mobile: standard vertical bounds
       map.fitBounds([
         [-60, -180],
         [80, 180]
-      ], { padding: [0, 0] });
+      ], { padding: [0, 0], animate: false });
     }
   }, [map, isActive]);
   return null;
@@ -255,6 +255,9 @@ function safeCloseTooltip(layer: any) {
 
 function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive?: boolean }) {
   const map = useMap();
+  const prevPanelOpenRef = useRef<boolean | undefined>(panelOpen);
+  const isFirstMountRef = useRef(true);
+
   useEffect(() => {
     if (isActive === false) return;
     const container = map.getContainer();
@@ -268,6 +271,18 @@ function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive
       } catch {}
     }
     if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+
+    // On initial mount, invalidate once synchronously without a 350ms RAF loop
+    // to avoid interfering with initial user pinch gestures
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      prevPanelOpenRef.current = panelOpen;
+      map.invalidateSize({ animate: false, pan: false });
+      return;
+    }
+
+    if (prevPanelOpenRef.current === panelOpen) return;
+    prevPanelOpenRef.current = panelOpen;
 
     const TRANSITION_MS = 350; // slightly longer than the 0.3s CSS transition
     const start = performance.now();
@@ -551,6 +566,10 @@ function getLargestPolygonBounds(feature: any) {
 import { getIconComponent } from "./icons";
 
 export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, experiencesMode, experienceRecords, selectingLocation, onMapClick, onCancelSelectingLocation, onExperienceClick, onAddExperience, panelOpen, hasCompareButton, isActive = true }: Props) {
+  const canvasRenderer = useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    return L.canvas({ padding: 3.5 });
+  }, []);
   const [geo, setGeo] = useState<FeatureCollection | null>(_worldGeoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -884,16 +903,18 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
     <>
       <MapContainer
         className="map"
-      scrollWheelZoom={true}
-      preferCanvas={true}
-      minZoom={1}
-      maxZoom={12}
-      maxBounds={[
-        [-85, -180],
-        [85, 180]
-      ]}
-      maxBoundsViscosity={0.5}
-    >
+        center={[20, 0]}
+        zoom={2}
+        renderer={canvasRenderer}
+        scrollWheelZoom={true}
+        minZoom={1}
+        maxZoom={12}
+        maxBounds={[
+          [-85, -180],
+          [85, 180]
+        ]}
+        maxBoundsViscosity={0.5}
+      >
       <FitWorld isActive={isActive} />
       <MapInvalidator panelOpen={panelOpen} isActive={isActive} />
       <MapActiveSynchronizer isActive={isActive} />

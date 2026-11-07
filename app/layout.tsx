@@ -96,9 +96,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                     (typeof navigator !== 'undefined' && 'standalone' in navigator && navigator.standalone === true) ||
                     (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('android-app://') !== -1) ||
                     (typeof localStorage !== 'undefined' && localStorage.getItem('pwa_app_installed') === 'true') ||
-                    window.location.search.indexOf('mode=pwa') !== -1;
+                    window.location.search.indexOf('mode=pwa') !== -1 ||
+                    window.location.search.indexOf('source=pwa') !== -1;
                   if (isStandalone && typeof document !== 'undefined') {
                     document.documentElement.classList.add('is-pwa');
+                    try { localStorage.setItem('pwa_app_installed', 'true'); } catch(e) {}
                   }
                 } catch(e) {}
               })();

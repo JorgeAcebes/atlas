@@ -201,7 +201,7 @@ function FitSpain({ isActive }: { isActive?: boolean }) {
         [27.55, -18.65],
         [43.95, 4.95],
       ],
-      { padding: [12, 12] },
+      { padding: [12, 12], animate: false },
     );
   }, [map, isActive]);
   return null;
@@ -219,6 +219,9 @@ function safeCloseTooltip(layer: any) {
 
 function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive?: boolean }) {
   const map = useMap();
+  const prevPanelOpenRef = useRef<boolean | undefined>(panelOpen);
+  const isFirstMountRef = useRef(true);
+
   useEffect(() => {
     if (isActive === false) return;
     const container = map.getContainer();
@@ -232,6 +235,18 @@ function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; isActive
       } catch {}
     }
     if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+
+    // On initial mount, invalidate once synchronously without a 350ms RAF loop
+    // to avoid interfering with initial user pinch gestures
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      prevPanelOpenRef.current = panelOpen;
+      map.invalidateSize({ animate: false, pan: false });
+      return;
+    }
+
+    if (prevPanelOpenRef.current === panelOpen) return;
+    prevPanelOpenRef.current = panelOpen;
 
     const TRANSITION_MS = 350; // slightly longer than the 0.3s CSS transition
     const start = performance.now();
@@ -413,6 +428,10 @@ const PeakMarker = memo(function PeakMarker({ peak, icon, onClick }: PeakMarkerP
 });
 
 export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, panelOpen, hasCompareButton, isActive = true }: Props) {
+  const canvasRenderer = useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    return L.canvas({ padding: 2.0 });
+  }, []);
   const [geo, setGeo] = useState<FeatureCollection | null>(_geoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -679,8 +698,10 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
     <>
       <MapContainer
         className="map map-spain"
+        center={[40.4168, -3.7038]}
+        zoom={5}
+        renderer={canvasRenderer}
         scrollWheelZoom={true}
-        preferCanvas={true}
         minZoom={4}
         maxZoom={10}
         maxBounds={[

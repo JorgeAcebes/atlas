@@ -21,7 +21,7 @@ export function isIOS(): boolean {
 
 export function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
-  return (
+  const isMatch = (
     window.matchMedia("(display-mode: standalone)").matches ||
     window.matchMedia("(display-mode: fullscreen)").matches ||
     window.matchMedia("(display-mode: minimal-ui)").matches ||
@@ -30,8 +30,13 @@ export function isStandalone(): boolean {
     (typeof document !== "undefined" && document.documentElement.classList.contains("is-pwa")) ||
     (typeof document !== "undefined" && document.referrer && document.referrer.indexOf("android-app://") !== -1) ||
     (typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true") ||
-    window.location.search.indexOf("mode=pwa") !== -1
+    window.location.search.indexOf("mode=pwa") !== -1 ||
+    window.location.search.indexOf("source=pwa") !== -1
   );
+  if (isMatch && typeof localStorage !== "undefined") {
+    try { localStorage.setItem("pwa_app_installed", "true"); } catch(e) {}
+  }
+  return isMatch;
 }
 
 export function isMobile(): boolean {
