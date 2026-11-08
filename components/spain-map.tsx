@@ -17,6 +17,7 @@ import { peakByCode, type Peak } from "@/data/peaks";
 import { isMobileOrTablet } from "@/lib/device-utils";
 import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
+import "@/lib/leaflet-smooth-wheel-zoom";
 
 // Override Leaflet's default canvas padding to preload vector shapes outside the viewport
 L.Canvas.prototype.options.padding = 0.5;
@@ -65,8 +66,7 @@ if (typeof window !== "undefined" && L && L.Canvas) {
     };
     proto._onCanvasMove = function () {
       if (!this._map || !this._bounds) return;
-      // On desktop web, dragging uses native hardware-accelerated CSS translation without redrawing canvas paths
-      if (!isMobileOrTablet()) return;
+
       // Never expand or re-render canvas during zoom gestures/animations to prevent canvas displacement
       if (
         this._isZooming ||
@@ -483,8 +483,8 @@ const PeakMarker = memo(function PeakMarker({ peak, icon, onClick }: PeakMarkerP
 export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, panelOpen, hasCompareButton, isActive = true }: Props) {
   const canvasRenderer = useMemo(() => {
     if (typeof window === "undefined") return undefined;
-    const isMobile = isMobileOrTablet();
-    return isMobile ? L.canvas({ padding: 2.0 }) : L.canvas({ padding: 0.5 });
+
+    return L.canvas({ padding: 2.0 });
   }, []);
   const [geo, setGeo] = useState<FeatureCollection | null>(_geoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
@@ -756,7 +756,9 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
         zoom={5}
         renderer={canvasRenderer}
         preferCanvas={true}
-        scrollWheelZoom={true}
+        scrollWheelZoom={isMobileOrTablet() ? true : false}
+        {...(!isMobileOrTablet() ? { smoothWheelZoom: true, smoothSensitivity: 1, zoomSnap: 0 } : { zoomSnap: 1 })}
+        zoomDelta={1}
         minZoom={4}
         maxZoom={10}
         maxBounds={[
@@ -779,10 +781,9 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        keepBuffer={isMobileOrTablet() ? 16 : 4}
-        updateWhenIdle={isMobileOrTablet() ? false : true}
-        updateWhenZooming={isMobileOrTablet() ? undefined : false}
-        updateInterval={isMobileOrTablet() ? 100 : 150}
+        keepBuffer={16}
+        updateWhenIdle={false}
+        updateInterval={100}
         maxNativeZoom={19}
       />
       {geo && (

@@ -30,6 +30,7 @@ import { AuthDialog } from "@/components/auth-dialog";
 import { UserRoundCheck } from "lucide-react";
 import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
+import "@/lib/leaflet-smooth-wheel-zoom";
 
 // Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
 L.Canvas.prototype.options.padding = 2.5;
@@ -78,8 +79,7 @@ if (typeof window !== "undefined" && L && L.Canvas) {
     };
     proto._onCanvasMove = function () {
       if (!this._map || !this._bounds) return;
-      // On desktop web, dragging uses native hardware-accelerated CSS translation without redrawing canvas paths
-      if (!isMobileOrTablet()) return;
+
       // Never expand or re-render canvas during zoom gestures/animations to prevent canvas displacement
       if (
         this._isZooming ||
@@ -410,8 +410,8 @@ function ExperiencesToggleControl({
 export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode = "countries" }: Props) {
   const canvasRenderer = useMemo(() => {
     if (typeof window === "undefined") return undefined;
-    const isMobile = isMobileOrTablet();
-    return isMobile ? L.canvas({ padding: 3.5 }) : L.canvas({ padding: 0.5 });
+
+    return L.canvas({ padding: 3.5 });
   }, []);
   const router = useRouter();
   const { session } = useAuth();
@@ -941,7 +941,9 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             center={isPeaks ? [40.4168, -3.7038] : [20, 0]}
             zoom={isPeaks ? 5 : 2}
             renderer={canvasRenderer}
-            scrollWheelZoom={true}
+            scrollWheelZoom={isMobileOrTablet() ? true : false}
+            {...(!isMobileOrTablet() ? { smoothWheelZoom: true, smoothSensitivity: 1, zoomSnap: 0 } : { zoomSnap: 1 })}
+            zoomDelta={1}
             minZoom={isPeaks ? 4 : 1}
             maxZoom={isPeaks ? 10 : 12}
             maxBounds={isPeaks ? [[24, -22], [46, 8]] : [[-85, -180], [85, 180]]}
@@ -953,10 +955,9 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              keepBuffer={isMobileOrTablet() ? 32 : 4}
-              updateWhenIdle={isMobileOrTablet() ? false : true}
-              updateWhenZooming={isMobileOrTablet() ? undefined : false}
-              updateInterval={isMobileOrTablet() ? 50 : 150}
+              keepBuffer={32}
+              updateWhenIdle={false}
+              updateInterval={50}
               maxNativeZoom={19}
             />
             {isPeaks && spainGeo && (

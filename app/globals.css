@@ -4514,13 +4514,7 @@ textarea:focus {
     font-size: 34px !important;
   }
   .hero .app-mode-switch {
-    min-width: 180px !important;
-    padding: 2.5px !important;
-    margin-top: 6px !important;
-  }
-  .hero .app-mode-switch .app-mode-btn {
-    padding: 4px 12px !important;
-    font-size: 12px !important;
+    display: none !important;
   }
 }
 
@@ -4602,20 +4596,7 @@ textarea:focus {
     margin: 5px auto 0 !important;
   }
   .hero .app-mode-switch {
-    min-width: 170px !important;
-    padding: 2px !important;
-    margin-top: 6px !important;
-  }
-  .hero .app-mode-switch .app-mode-switch__indicator {
-    top: 2px !important;
-    bottom: 2px !important;
-    left: 2px !important;
-    width: calc(50% - 2px) !important;
-  }
-  .hero .app-mode-switch .app-mode-btn {
-    padding: 3.5px 10px !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
+    display: none !important;
   }
 }
 
@@ -4656,13 +4637,7 @@ textarea:focus {
     line-height: 1.1 !important;
   }
   .hero .app-mode-switch {
-    min-width: 148px !important;
-    padding: 2px !important;
-    margin-top: 4px !important;
-  }
-  .hero .app-mode-switch .app-mode-btn {
-    padding: 2.5px 7px !important;
-    font-size: 10px !important;
+    display: none !important;
   }
 }
 
@@ -5946,6 +5921,11 @@ main.mode-experiences {
   margin: 0;
 }
 
+/* Redundant mode switcher in hero is strictly hidden across all screen sizes (always in topbar) */
+.hero .app-mode-switch {
+  display: none !important;
+}
+
 /* ── Map Legend Centering & Spacing ── */
 .diff-toggle-wrap:empty {
   display: none;
@@ -6459,7 +6439,7 @@ main.mode-experiences {
   .topbar nav:has(> .button) .topbar-install-btn,
   .topbar nav:has(> .button--outline) .topbar-install-btn {
     padding: 4px 3px !important;
-    margin-right: 0 !important;
+    margin-right: 6px !important;
   }
 
   /* Mobile-only Stats button (a la izquierda de la foto de perfil) - Sin círculo */
@@ -6527,6 +6507,7 @@ main.mode-experiences {
     cursor: pointer !important;
     transition: opacity var(--transition), transform var(--transition) !important;
     margin: 0 !important;
+    margin-right: 6px !important;
     padding: 4px 3px !important;
     flex-shrink: 0 !important;
     -webkit-tap-highlight-color: transparent !important;

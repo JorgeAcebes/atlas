@@ -91,32 +91,38 @@ describe("Desktop Map Rendering Optimization & Spain Map 0,0 Zero-Island Prevent
     });
   });
 
-  describe("Desktop Web Reduced Pre-load & Adaptive Buffers", () => {
-    it("spain-map.tsx uses 0.5 padding on web desktop and 2.0 on mobile/tablet", () => {
+  describe("Desktop Web Continuous Tile Streaming & Google Maps Smooth Zoom", () => {
+    it("spain-map.tsx streams tiles continuously during drag, enables smoothWheelZoom on desktop, and protects mobile", () => {
       const spainMapContent = fs.readFileSync(path.join(rootDir, "components/spain-map.tsx"), "utf-8");
-      expect(spainMapContent).toContain("isMobile ? L.canvas({ padding: 2.0 }) : L.canvas({ padding: 0.5 })");
-      expect(spainMapContent).toContain("keepBuffer={isMobileOrTablet() ? 16 : 4}");
-      expect(spainMapContent).toContain("updateInterval={isMobileOrTablet() ? 100 : 150}");
-      expect(spainMapContent).toContain("updateWhenIdle={isMobileOrTablet() ? false : true}");
-      expect(spainMapContent).toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
-      expect(spainMapContent).toContain("if (!isMobileOrTablet()) return;");
+      expect(spainMapContent).toContain("L.canvas({ padding: 2.0 })");
+      expect(spainMapContent).toContain("keepBuffer={16}");
+      expect(spainMapContent).toContain("updateInterval={100}");
+      expect(spainMapContent).toContain("updateWhenIdle={false}");
+      expect(spainMapContent).toContain("smoothWheelZoom");
+      expect(spainMapContent).toContain("scrollWheelZoom={isMobileOrTablet() ? true : false}");
+      expect(spainMapContent).not.toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
+      expect(spainMapContent).not.toContain("if (!isMobileOrTablet()) return;");
     });
 
-    it("world-map.tsx uses 0.5 padding on web desktop and 3.5 on mobile/tablet", () => {
+    it("world-map.tsx streams tiles continuously during drag, enables smoothWheelZoom on desktop, and protects mobile", () => {
       const worldMapContent = fs.readFileSync(path.join(rootDir, "components/world-map.tsx"), "utf-8");
-      expect(worldMapContent).toContain("isMobile ? L.canvas({ padding: 3.5 }) : L.canvas({ padding: 0.5 })");
-      expect(worldMapContent).toContain("keepBuffer={isMobileOrTablet() ? 32 : 4}");
-      expect(worldMapContent).toContain("updateInterval={isMobileOrTablet() ? 50 : 150}");
-      expect(worldMapContent).toContain("updateWhenIdle={isMobileOrTablet() ? false : true}");
-      expect(worldMapContent).toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
-      expect(worldMapContent).toContain("if (!isMobileOrTablet()) return;");
+      expect(worldMapContent).toContain("L.canvas({ padding: 3.5 })");
+      expect(worldMapContent).toContain("keepBuffer={32}");
+      expect(worldMapContent).toContain("updateInterval={50}");
+      expect(worldMapContent).toContain("updateWhenIdle={false}");
+      expect(worldMapContent).toContain("smoothWheelZoom");
+      expect(worldMapContent).toContain("scrollWheelZoom={isMobileOrTablet() ? true : false}");
+      expect(worldMapContent).not.toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
+      expect(worldMapContent).not.toContain("if (!isMobileOrTablet()) return;");
     });
 
-    it("collective-map.tsx uses 0.5 padding on web desktop and 3.5 on mobile/tablet", () => {
+    it("collective-map.tsx streams tiles continuously during drag and enables smoothWheelZoom on desktop", () => {
       const collectiveMapContent = fs.readFileSync(path.join(rootDir, "components/collective-map.tsx"), "utf-8");
-      expect(collectiveMapContent).toContain("isMobile ? L.canvas({ padding: 3.5 }) : L.canvas({ padding: 0.5 })");
-      expect(collectiveMapContent).toContain("keepBuffer={isMobileOrTablet() ? 32 : 4}");
-      expect(collectiveMapContent).toContain("updateInterval={isMobileOrTablet() ? 50 : 150}");
+      expect(collectiveMapContent).toContain("L.canvas({ padding: 3.5 })");
+      expect(collectiveMapContent).toContain("keepBuffer={32}");
+      expect(collectiveMapContent).toContain("updateInterval={50}");
+      expect(collectiveMapContent).toContain("updateWhenIdle={false}");
+      expect(collectiveMapContent).toContain("smoothWheelZoom");
     });
   });
 });

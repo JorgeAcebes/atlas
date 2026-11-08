@@ -20,6 +20,7 @@ import { isMobileOrTablet } from "@/lib/device-utils";
 import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
 import { X } from "lucide-react";
+import "@/lib/leaflet-smooth-wheel-zoom";
 
 // Override Leaflet's default canvas padding to preload vector shapes far outside the viewport
 L.Canvas.prototype.options.padding = 2.5;
@@ -68,8 +69,7 @@ if (typeof window !== "undefined" && L && L.Canvas) {
     };
     proto._onCanvasMove = function () {
       if (!this._map || !this._bounds) return;
-      // On desktop web, dragging uses native hardware-accelerated CSS translation without redrawing canvas paths
-      if (!isMobileOrTablet()) return;
+
       // Never expand or re-render canvas during zoom gestures/animations to prevent canvas displacement
       if (
         this._isZooming ||
@@ -591,8 +591,8 @@ import { getIconComponent } from "./icons";
 export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, experiencesMode, experienceRecords, selectingLocation, onMapClick, onCancelSelectingLocation, onExperienceClick, onAddExperience, panelOpen, hasCompareButton, isActive = true }: Props) {
   const canvasRenderer = useMemo(() => {
     if (typeof window === "undefined") return undefined;
-    const isMobile = isMobileOrTablet();
-    return isMobile ? L.canvas({ padding: 3.5 }) : L.canvas({ padding: 0.5 });
+
+    return L.canvas({ padding: 3.5 });
   }, []);
   const [geo, setGeo] = useState<FeatureCollection | null>(_worldGeoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
@@ -931,7 +931,9 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         zoom={2}
         renderer={canvasRenderer}
         preferCanvas={true}
-        scrollWheelZoom={true}
+        scrollWheelZoom={isMobileOrTablet() ? true : false}
+        {...(!isMobileOrTablet() ? { smoothWheelZoom: true, smoothSensitivity: 1, zoomSnap: 0 } : { zoomSnap: 1 })}
+        zoomDelta={1}
         minZoom={1}
         maxZoom={12}
         maxBounds={[
@@ -1070,10 +1072,9 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         minZoom={1}
-        keepBuffer={isMobileOrTablet() ? 32 : 4}
-        updateWhenIdle={isMobileOrTablet() ? false : true}
-        updateWhenZooming={isMobileOrTablet() ? undefined : false}
-        updateInterval={isMobileOrTablet() ? 50 : 150}
+        keepBuffer={32}
+        updateWhenIdle={false}
+        updateInterval={50}
         maxNativeZoom={19}
       />
       {geo && (
