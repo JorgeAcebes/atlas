@@ -340,8 +340,9 @@ function FeedItemCard({
     if (safeDateRangeStr) {
       shareText += ` (${safeDateRangeStr})`;
     }
-    if (item.notes) {
-      shareText += `\n"${sanitizeTextForShare(item.notes)}"`;
+    const cleanNotes = sanitizeTextForShare(item.notes);
+    if (cleanNotes) {
+      shareText += `\n"${cleanNotes}"`;
     }
     shareText += `\n\n${shareUrl}`;
 

@@ -31,6 +31,7 @@ import { getInstallPrompt, clearInstallPrompt } from "./install-prompt";
 import { ConfirmModal } from "./confirm-modal";
 import { StatsModal } from "./stats-modal";
 import { getLocationInfo } from "@/lib/stats-utils";
+import { preloadSocialConnections } from "@/lib/social-cache";
 import PhotoEditor from "./photo-editor";
 import { PhotoLightbox } from "./photo-lightbox";
 import { getIconComponent, IconLogo } from "./icons";
@@ -1287,6 +1288,7 @@ export function SummitTracker({
       if (newStatus === "accepted") {
         setJustFollowed(true);
       }
+      preloadSocialConnections(session.user.id, true);
     }
   }
 
@@ -1303,6 +1305,7 @@ export function SummitTracker({
       setTargetConnStatus(null);
       setJustFollowed(false);
       setTouchUnfollowActive(false);
+      preloadSocialConnections(session.user.id, true);
     }
   }
 
@@ -1666,23 +1669,6 @@ export function SummitTracker({
       : "países visitados";
   const modeUnitSingular = isPeaks ? "cima" : isExp ? "experiencia" : "país";
 
-  const modeListEyebrow = isPeaks
-    ? "52 Territorios - 47 Picos"
-    : isExp
-      ? `${totalCount} Experiencias`
-      : "196 Países del mundo";
-  const modeListTitle = isPeaks
-    ? "Todas las cumbres"
-    : isExp
-      ? isReadOnly
-        ? "Todas sus experiencias"
-        : "Todas tus experiencias"
-      : "Todos los países";
-  const modeListSubtitle = isPeaks
-    ? "Ordenadas por altitud, de mayor a menor."
-    : isExp
-      ? "Agrupadas por categoría."
-      : "Ordenados alfabéticamente.";
 
   // IDs válidos para este modo (para filtrar ascents de Supabase)
   const validIds = useMemo(() => {
@@ -2238,6 +2224,12 @@ export function SummitTracker({
     return () => clearTimeout(timer);
   }, [photos]);
 
+  // Precarga en segundo plano del número de seguidores y siguiendo del usuario
+  useEffect(() => {
+    if (typeof window === "undefined" || !session?.user?.id) return;
+    preloadSocialConnections(session.user.id);
+  }, [session?.user?.id]);
+
   /* ── Derived state ────────────────────── */
   // Completed set for SpainMap (province codes)
   const completedPeakCodes = useMemo(
@@ -2723,18 +2715,9 @@ export function SummitTracker({
       shareText = `Mi visita a ${item.title}${dateSuffix}`;
     }
 
-    if (ascent.notes) {
-      shareText += `\n"${sanitizeTextForShare(ascent.notes)}"`;
-    }
-
-    if (ascent.link) {
-      const linkLabel = (ascent as any).link_name ? `${(ascent as any).link_name}: ` : "";
-      shareText += `\n${linkLabel}${ascent.link}`;
-    }
-
-    if ((ascent as any).link_2) {
-      const linkLabel2 = (ascent as any).link_name_2 ? `${(ascent as any).link_name_2}: ` : "";
-      shareText += `\n${linkLabel2}${(ascent as any).link_2}`;
+    const cleanNotes = sanitizeTextForShare(ascent.notes);
+    if (cleanNotes) {
+      shareText += `\n"${cleanNotes}"`;
     }
 
     shareText += `\n\n${profileUrl}`;
@@ -5568,32 +5551,10 @@ export function SummitTracker({
 
       {/* ── Item list ───────────────────── */}
       <section className="peak-list-section">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">{modeListEyebrow}</span>
-            <h2>{modeListTitle}</h2>
-            <p>{modeListSubtitle}</p>
-          </div>
-          <div className="search-input-container">
-            <IconSearch className="search-icon" />
-            <input
-              type="search"
-              placeholder={
-                isPeaks
-                  ? "Buscar pico o provincia..."
-                  : isExp
-                    ? "Buscar experiencia o categoría..."
-                    : "Buscar país o capital..."
-              }
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* ── Filter pills ──────────────── */}
-        <div
-          className="list-filters"
+        <div className="peak-list-controls">
+          {/* ── Filter pills ──────────────── */}
+          <div
+            className="list-filters"
           style={{ overflowX: "auto", whiteSpace: "nowrap", display: "flex" }}
         >
           <button
@@ -5816,8 +5777,24 @@ export function SummitTracker({
               </button>
             </>
           )}
-        </div>
+          </div>
 
+          <div className="search-input-container">
+            <IconSearch className="search-icon" />
+            <input
+              type="search"
+              placeholder={
+                isPeaks
+                  ? "Buscar pico o provincia..."
+                  : isExp
+                    ? "Buscar experiencia o categoría..."
+                    : "Buscar país o capital..."
+              }
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
 
         <div className="peak-list-grid">
           {sortedItems

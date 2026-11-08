@@ -9,12 +9,12 @@ import { resolveRecordMetadata } from "@/lib/record-metadata";
 
 describe("Share Utilities & WhatsApp Anti-Linkification", () => {
   describe("sanitizeDateForShare", () => {
-    it("should insert ZWNJ into 4-digit years (e.g. 2026 -> 20‌26) to prevent WhatsApp green links", () => {
+    it("should insert ZWNJ into 4-digit years (e.g. 2026 -> 2‌0‌2‌6) to prevent WhatsApp green links", () => {
       const input = "10 oct 2026";
       const sanitized = sanitizeDateForShare(input);
 
       // Must break 4-digit year recognition
-      expect(sanitized).toContain(`20${ZWNJ}26`);
+      expect(sanitized).toContain(`2${ZWNJ}0${ZWNJ}2${ZWNJ}6`);
       expect(/\b\d{4}\b/.test(sanitized)).toBe(false);
       expect(/\b(19|20)\d{2}\b/.test(sanitized)).toBe(false);
 
@@ -26,7 +26,7 @@ describe("Share Utilities & WhatsApp Anti-Linkification", () => {
       const range = "25 sep 2026 - 28 sep 2026";
       const sanitized = sanitizeDateForShare(range);
 
-      expect(sanitized).toBe(`25 s${ZWNJ}ep 20${ZWNJ}26 - 28 s${ZWNJ}ep 20${ZWNJ}26`);
+      expect(sanitized).toBe(`2${ZWNJ}5 s${ZWNJ}e${ZWNJ}p 2${ZWNJ}0${ZWNJ}2${ZWNJ}6 ${ZWNJ}-${ZWNJ} 2${ZWNJ}8 s${ZWNJ}e${ZWNJ}p 2${ZWNJ}0${ZWNJ}2${ZWNJ}6`);
       expect(/\b(19|20)\d{2}\b/.test(sanitized)).toBe(false);
       expect(sanitized.replace(new RegExp(ZWNJ, "g"), "")).toBe(range);
     });
@@ -36,8 +36,28 @@ describe("Share Utilities & WhatsApp Anti-Linkification", () => {
       const sanitized = sanitizeDateForShare(input);
 
       expect(sanitized).toContain(ZWNJ);
-      expect(sanitized).toBe(`15 o${ZWNJ}ct 20${ZWNJ}24`);
+      expect(sanitized).toBe(`1${ZWNJ}5 o${ZWNJ}c${ZWNJ}t 2${ZWNJ}0${ZWNJ}2${ZWNJ}4`);
       expect(sanitized.replace(new RegExp(ZWNJ, "g"), "")).toBe("15 oct 2024");
+    });
+
+    it("should prevent 26 - 17 or any sub-range from becoming a hyperlink in date ranges like '2026 - 17 sept'", () => {
+      const input = "2026 - 17 sept";
+      const sanitized = sanitizeDateForShare(input);
+
+      // Must not contain plain "26 - 17" or valid digit range
+      expect(sanitized).not.toContain("26 - 17");
+      expect(/\b\d+\s*-\s*\d+\b/.test(sanitized)).toBe(false);
+      expect(sanitized.replace(new RegExp(ZWNJ, "g"), "")).toBe("2026 - 17 sept");
+    });
+
+    it("should sanitize 'sept' (September) and prevent number-dash-number hyperlinks in full ranges", () => {
+      const input = "10 sept 2026 - 17 sept 2026";
+      const sanitized = sanitizeDateForShare(input);
+
+      expect(sanitized).not.toContain("26 - 17");
+      expect(sanitized).not.toContain("10 - 17");
+      expect(/\b\d+\s*-\s*\d+\b/.test(sanitized)).toBe(false);
+      expect(sanitized.replace(new RegExp(ZWNJ, "g"), "")).toBe(input);
     });
 
     it("should break Spanish date recognition across all 12 months", () => {
@@ -92,9 +112,33 @@ describe("Share Utilities & WhatsApp Anti-Linkification", () => {
       const notes = "Viaje a los Alpes en 2026 con amigos.";
       const sanitized = sanitizeTextForShare(notes);
 
-      expect(sanitized).toContain(`20${ZWNJ}26`);
+      expect(sanitized).toContain(`2${ZWNJ}0${ZWNJ}2${ZWNJ}6`);
       expect(/\b\d{4}\b/.test(sanitized)).toBe(false);
       expect(sanitized.replace(new RegExp(ZWNJ, "g"), "")).toBe(notes);
+    });
+
+    it("should strip http and https URLs from notes so WhatsApp link preview is not hijacked", () => {
+      const notes = "Subida preciosa https://es.wikiloc.com/rutas-senderismo/mulhacen-12345 volveremos!";
+      const sanitized = sanitizeTextForShare(notes);
+
+      expect(sanitized).not.toContain("https://");
+      expect(sanitized).not.toContain("wikiloc");
+      expect(sanitized).toBe("Subida preciosa volveremos!");
+    });
+
+    it("should strip www URLs from notes", () => {
+      const notes = "Más información en www.strava.com/activities/999 y disfrutando";
+      const sanitized = sanitizeTextForShare(notes);
+
+      expect(sanitized).not.toContain("www.strava.com");
+      expect(sanitized).toBe("Más información en y disfrutando");
+    });
+
+    it("should return empty string if notes only contain a URL", () => {
+      const notes = "https://es.wikiloc.com/12345";
+      const sanitized = sanitizeTextForShare(notes);
+
+      expect(sanitized).toBe("");
     });
   });
 

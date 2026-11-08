@@ -102,6 +102,20 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(content).toContain("const displayTitle = finalLocationName;");
       expect(content).not.toMatch(/displayTitle\s*=\s*dateRangeStr/);
     });
+
+    it("Invariant 1.9: Sharing publications must NOT include user-entered external links (link, link_2) to preserve Open Graph photo banners", () => {
+      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
+      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+
+      // Extract handleShareRecord function implementation
+      const shareRecordMatch = trackerContent.match(/async function handleShareRecord[\s\S]*?await executeShare/);
+      expect(shareRecordMatch).not.toBeNull();
+      const shareRecordBody = shareRecordMatch![0];
+
+      // Must not append ascent.link or link_2 to shareText
+      expect(shareRecordBody).not.toMatch(/shareText\s*\+=\s*.*ascent\.link/);
+      expect(shareRecordBody).not.toMatch(/shareText\s*\+=\s*.*ascent.*link_2/);
+    });
   });
 
   describe("Counters & Proportions Invariants", () => {

@@ -16,10 +16,14 @@
  */
 
 const SPANISH_MONTHS = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
-  "ene", "feb", "mar", "abr", "may", "jun",
-  "jul", "ago", "sep", "oct", "nov", "dic",
+  // Nombres completos
+  "septiembre", "setiembre", "noviembre", "diciembre",
+  "febrero", "octubre", "enero", "marzo", "abril",
+  "junio", "julio", "agosto", "mayo",
+  // Abreviaturas (incluyendo sept y set)
+  "sept", "set", "ene", "feb", "mar", "abr",
+  "may", "jun", "jul", "ago", "sep", "oct",
+  "nov", "dic",
 ];
 
 // Carácter invisible Unicode Zero-Width Non-Joiner
@@ -35,21 +39,39 @@ export function sanitizeDateForShare(dateStr: string | null | undefined): string
 
   let result = dateStr;
 
-  // 1. Romper años de 4 dígitos (ej: 2026 -> 20‌26) para que Android/WhatsApp no los subraye en verde
-  result = result.replace(/\b(19\d{2}|20\d{2})\b/g, (year) => {
-    return year.slice(0, 2) + ZWNJ + year.slice(2);
+  // 1. Romper números en rangos separados por guion (ej: 2026 - 17, 10 - 17)
+  // para que WhatsApp no interprete '26 - 17' ni ningún rango como fecha o teléfono
+  result = result.replace(/(\d{1,4})\s*([-–—])\s*(\d{1,4})/g, (_m, p1, dash, p2) => {
+    return `${p1.split("").join(ZWNJ)} ${ZWNJ}${dash.trim()}${ZWNJ} ${p2.split("").join(ZWNJ)}`;
   });
 
-  // 2. Romper nombres y abreviaturas de meses en español (ej: "15 oct" -> "15 o‌ct")
+  // 2. Romper guiones de rango con espacios (ej: 'sep - oct')
+  result = result.replace(/(\s+[-–—]\s+)/g, (_m, match) => {
+    return ` ${ZWNJ}${match.trim()}${ZWNJ} `;
+  });
+
+  // 3. Romper años de 4 dígitos restantes entre cada dígito (ej: 2026 -> 2‌0‌2‌6)
+  // para que no quede un sufijo de 2 dígitos como '26' que forme hipervínculos
+  result = result.replace(/\b(19\d{2}|20\d{2})\b/g, (year) => {
+    return year.split("").join(ZWNJ);
+  });
+
+  // 4. Romper días de 1 o 2 dígitos antes de un mes (ej: '17 sept' -> '1‌7 s‌e‌p‌t')
+  const dayBeforeMonth = new RegExp(
+    `\\b(\\d{1,2})\\b(?=\\s*(?:de\\s+)?(?:${SPANISH_MONTHS.join("|")})\\b)`,
+    "gi"
+  );
+  result = result.replace(dayBeforeMonth, (day) => day.split("").join(ZWNJ));
+
+  // 5. Romper nombres y abreviaturas de meses en español (ej: 'sept' -> 's‌e‌p‌t', 'oct' -> 'o‌c‌t')
   for (const month of SPANISH_MONTHS) {
     const regex = new RegExp(`\\b(${month})\\b`, "gi");
     result = result.replace(regex, (match) => {
-      if (match.length <= 1) return match;
-      return match[0] + ZWNJ + match.slice(1);
+      return match.split("").join(ZWNJ);
     });
   }
 
-  // 3. Romper fechas numéricas si las hubiera (ej: 15/10/2026 -> 15‌/‌10‌/‌20‌26)
+  // 6. Romper fechas numéricas si las hubiera (ej: 15/10/2026 -> 15‌/‌10‌/‌20‌26)
   result = result.replace(/(\d{1,4})([/.-])(\d{1,2})([/.-])(\d{2,4})/g, (_m, p1, s1, p2, s2, p3) => {
     return `${p1}${ZWNJ}${s1}${ZWNJ}${p2}${ZWNJ}${s2}${ZWNJ}${p3}`;
   });
@@ -63,7 +85,21 @@ export function sanitizeDateForShare(dateStr: string | null | undefined): string
  */
 export function sanitizeTextForShare(text: string | null | undefined): string {
   if (!text) return "";
-  return sanitizeDateForShare(text);
+
+  // 1. Eliminar URLs (http://, https://, www.) para que no desplacen el banner de Atlas
+  let cleanText = text
+    .replace(/https?:\/\/[^\s"'<>\]]+/gi, "")
+    .replace(/\bwww\.[^\s"'<>\]]+/gi, "");
+
+  // 2. Normalizar espacios múltiples y saltos de línea sobrantes
+  cleanText = cleanText
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n\s*\n+/g, "\n\n")
+    .trim();
+
+  if (!cleanText) return "";
+
+  return sanitizeDateForShare(cleanText);
 }
 
 /**

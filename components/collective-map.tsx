@@ -23,6 +23,7 @@ import { predefinedCategories } from "@/data/experiences";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { isMobileOrTablet } from "@/lib/device-utils";
 import { useAuth } from "./auth-context";
 import { AuthDialog } from "@/components/auth-dialog";
 import { UserRoundCheck } from "lucide-react";
@@ -406,7 +407,8 @@ function ExperiencesToggleControl({
 export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode = "countries" }: Props) {
   const canvasRenderer = useMemo(() => {
     if (typeof window === "undefined") return undefined;
-    return L.canvas({ padding: 3.5 });
+    const isMobile = isMobileOrTablet();
+    return isMobile ? L.canvas({ padding: 3.5 }) : L.canvas({ padding: 0.5 });
   }, []);
   const router = useRouter();
   const { session } = useAuth();
@@ -948,9 +950,9 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              keepBuffer={32}
+              keepBuffer={isMobileOrTablet() ? 32 : 4}
               updateWhenIdle={false}
-              updateInterval={50}
+              updateInterval={isMobileOrTablet() ? 50 : 150}
               maxNativeZoom={19}
             />
             {isPeaks && spainGeo && (

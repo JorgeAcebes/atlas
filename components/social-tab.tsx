@@ -20,26 +20,17 @@ import { UserRoundCheck, ChartNoAxesColumn, Share2, QrCode, Download } from "luc
 import { StatsModal } from "./stats-modal";
 import { QrModal } from "./qr-modal";
 import { usePendingRequests, notifyPendingChanged } from "./use-pending-requests";
+// Exclude is_test profiles from social queries: .neq('is_test', true)
 import { getLocationInfo } from "@/lib/stats-utils";
 import { InstallPrompt, isStandalone, getInstallPrompt, clearInstallPrompt } from "./install-prompt";
-
-type Profile = {
-  id: string;
-  username: string;
-  avatar_url: string | null;
-  is_public: boolean;
-};
-
-type ConnectionStatus = 'pending' | 'accepted' | null;
-
-let cachedConnections: Record<string, ConnectionStatus> = {};
-let cachedFollowerStatuses: Record<string, ConnectionStatus> = {};
-let cachedFollowers: Profile[] = [];
-let cachedFollowing: Profile[] = [];
-let cachedDataUserId: string | null = null;
-let cachedConnectionsLastFetched = 0;
-let isFetchingSocial = false;
-const SOCIAL_CACHE_TTL = 60 * 1000;
+import {
+  getInitialSocialData,
+  preloadSocialConnections,
+  updateSocialCache,
+  type SocialProfile as Profile,
+  type ConnectionStatus,
+  type SocialData,
+} from "@/lib/social-cache";
 
 let cachedUserAscents: any[] = [];
 let cachedUserExpRecords: any[] = [];
@@ -437,14 +428,43 @@ export function SocialTab({
   }, [currentMode]);
 
   const userId = session?.user.id || myProfile?.id;
-  const isCurrentCache = Boolean(userId && cachedDataUserId === userId);
+  const initialSocial = useMemo(() => getInitialSocialData(userId), [userId]);
 
-  const [followers, setFollowers] = useState<Profile[]>(() => isCurrentCache ? cachedFollowers : []);
-  const [following, setFollowing] = useState<Profile[]>(() => isCurrentCache ? cachedFollowing : []);
+  const [followers, setFollowers] = useState<Profile[]>(() => initialSocial.followers);
+  const [following, setFollowing] = useState<Profile[]>(() => initialSocial.following);
   
   // A mapping of profile id to connection status
-  const [connections, setConnections] = useState<Record<string, ConnectionStatus>>(() => isCurrentCache ? cachedConnections : {});
-  const [followerStatuses, setFollowerStatuses] = useState<Record<string, ConnectionStatus>>(() => isCurrentCache ? cachedFollowerStatuses : {});
+  const [connections, setConnections] = useState<Record<string, ConnectionStatus>>(() => initialSocial.connections);
+  const [followerStatuses, setFollowerStatuses] = useState<Record<string, ConnectionStatus>>(() => initialSocial.followerStatuses);
+
+  // Sincronizar estado cuando userId este disponible o cargue la cache inicial
+  useEffect(() => {
+    if (!userId) return;
+    const initial = getInitialSocialData(userId);
+    if (initial.lastFetched > 0 || initial.followers.length > 0 || initial.following.length > 0) {
+      setFollowers(initial.followers);
+      setFollowing(initial.following);
+      setConnections(initial.connections);
+      setFollowerStatuses(initial.followerStatuses);
+    }
+  }, [userId]);
+
+  // Escuchar eventos de conexiones precargadas en segundo plano
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePreload = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && (!userId || detail.userId === userId) && detail.socialData) {
+        const d = detail.socialData as SocialData;
+        setFollowers(d.followers);
+        setFollowing(d.following);
+        setConnections(d.connections);
+        setFollowerStatuses(d.followerStatuses);
+      }
+    };
+    window.addEventListener("atlas:social-preloaded", handlePreload);
+    return () => window.removeEventListener("atlas:social-preloaded", handlePreload);
+  }, [userId]);
 
   const followingUserIds = useMemo(() => {
     const ids = new Set<string>();
@@ -694,101 +714,40 @@ export function SocialTab({
     };
   }, [connectionsModal]);
 
-    useEffect(() => {
-    if (!session || !supabase) return;
-    
-    const now = Date.now();
-    const isFresh = cachedDataUserId === session.user.id && (now - cachedConnectionsLastFetched < SOCIAL_CACHE_TTL);
-    if (isFresh || isFetchingSocial) return;
-    
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const uid = session.user.id;
     let ignore = false;
     let timer: NodeJS.Timeout | null = null;
-    isFetchingSocial = true;
+
     async function fetchConnections() {
-      // Fetch who I am following
-      const { data: followingConns } = await supabase!
-        .from('connections')
-        .select('following_id, status')
-        .eq('follower_id', session!.user.id);
-        
-      if (followingConns) {
-        const connMap: Record<string, ConnectionStatus> = {};
-        for (const conn of followingConns) {
-          connMap[conn.following_id] = conn.status;
-        }
-        setConnections(connMap);
-        cachedConnections = connMap;
-        
-        // Fetch profiles for following
-        const followingIds = followingConns.map(c => c.following_id);
-        if (followingIds.length > 0) {
-          const { data: followingProfiles } = await supabase!
-            .from('profiles')
-            .select('*')
-            .in('id', followingIds)
-            .neq('is_test', true);
-          if (followingProfiles) {
-            setFollowing(followingProfiles);
-            cachedFollowing = followingProfiles;
-          }
-        }
+      const data = await preloadSocialConnections(uid, Boolean(hookPending));
+      if (!ignore && data) {
+        setFollowers(data.followers);
+        setFollowing(data.following);
+        setConnections(data.connections);
+        setFollowerStatuses(data.followerStatuses);
       }
-
-      // Fetch my followers
-      const { data: followerConns } = await supabase!
-        .from('connections')
-        .select('follower_id, status')
-        .eq('following_id', session!.user.id);
-        
-      if (followerConns) {
-        const followerIds = followerConns.map(c => c.follower_id);
-        
-        const fStatusMap: Record<string, ConnectionStatus> = {};
-        for (const conn of followerConns) {
-          fStatusMap[conn.follower_id] = conn.status;
-        }
-        setFollowerStatuses(fStatusMap);
-        cachedFollowerStatuses = fStatusMap;
-
-        if (followerIds.length > 0) {
-          const { data: followerProfiles } = await supabase!
-            .from('profiles')
-            .select('*')
-            .in('id', followerIds)
-            .neq('is_test', true);
-          if (followerProfiles) {
-            setFollowers(followerProfiles);
-            cachedFollowers = followerProfiles;
-          }
-        } else {
-          setFollowers([]);
-          cachedFollowers = [];
-        }
-      }
-
-      cachedDataUserId = session!.user.id;
-      cachedConnectionsLastFetched = Date.now();
-      isFetchingSocial = false;
     }
-    
+
     if (isActive) {
       fetchConnections();
     } else {
       timer = setTimeout(() => {
         if (!ignore) fetchConnections();
-      }, 1000);
+      }, 500);
     }
 
     return () => {
       ignore = true;
       if (timer) clearTimeout(timer);
     };
-  }, [session, isActive, hookPending]);
+  }, [session?.user?.id, isActive, hookPending]);
 
   async function connect(profileId: string, isPublic: boolean) {
     if (!session || !supabase) return;
     
-    const newStatus = isPublic ? 'accepted' : 'pending';
+    const newStatus: ConnectionStatus = isPublic ? 'accepted' : 'pending';
     const { error } = await supabase
       .from('connections')
       .insert({
@@ -803,6 +762,18 @@ export function SocialTab({
       if (profileToAdd && !following.find(p => p.id === profileId)) {
         setFollowing(prev => [...prev, profileToAdd]);
       }
+      updateSocialCache(session.user.id, (prev) => {
+        const nextConn = { ...prev.connections, [profileId]: newStatus };
+        let nextFollowing = prev.following;
+        if (profileToAdd && !prev.following.some(p => p.id === profileId)) {
+          nextFollowing = [...prev.following, profileToAdd];
+        }
+        return {
+          ...prev,
+          connections: nextConn,
+          following: nextFollowing,
+        };
+      });
     }
   }
 
@@ -829,6 +800,15 @@ export function SocialTab({
         return next;
       });
       setFollowing(prev => prev.filter(p => p.id !== profileId));
+      updateSocialCache(session.user.id, (prev) => {
+        const nextConn = { ...prev.connections };
+        delete nextConn[profileId];
+        return {
+          ...prev,
+          connections: nextConn,
+          following: prev.following.filter(p => p.id !== profileId),
+        };
+      });
     }
   }
 
@@ -843,9 +823,12 @@ export function SocialTab({
     if (!error) {
       setFollowerStatuses(prev => {
         const next = { ...prev, [profileId]: 'accepted' as ConnectionStatus };
-        cachedFollowerStatuses = next;
         return next;
       });
+      updateSocialCache(session.user.id, (prev) => ({
+        ...prev,
+        followerStatuses: { ...prev.followerStatuses, [profileId]: 'accepted' },
+      }));
       notifyPendingChanged();
     }
   }
@@ -862,13 +845,20 @@ export function SocialTab({
       setFollowerStatuses(prev => {
         const next = { ...prev };
         delete next[profileId];
-        cachedFollowerStatuses = next;
         return next;
       });
       setFollowers(prev => {
         const next = prev.filter(p => p.id !== profileId);
-        cachedFollowers = next;
         return next;
+      });
+      updateSocialCache(session.user.id, (prev) => {
+        const nextStatus = { ...prev.followerStatuses };
+        delete nextStatus[profileId];
+        return {
+          ...prev,
+          followerStatuses: nextStatus,
+          followers: prev.followers.filter(p => p.id !== profileId),
+        };
       });
       notifyPendingChanged();
     }
@@ -897,6 +887,15 @@ export function SocialTab({
         return next;
       });
       setFollowers(prev => prev.filter(p => p.id !== profileId));
+      updateSocialCache(session.user.id, (prev) => {
+        const nextStatus = { ...prev.followerStatuses };
+        delete nextStatus[profileId];
+        return {
+          ...prev,
+          followerStatuses: nextStatus,
+          followers: prev.followers.filter(p => p.id !== profileId),
+        };
+      });
     }
   }
 
@@ -1714,23 +1713,37 @@ export function SocialTab({
         onFollowAccepted={(followerId) => {
           setFollowerStatuses((prev) => {
             const next = { ...prev, [followerId]: "accepted" as ConnectionStatus };
-            cachedFollowerStatuses = next;
             return next;
           });
+          if (session?.user?.id) {
+            updateSocialCache(session.user.id, (prev) => ({
+              ...prev,
+              followerStatuses: { ...prev.followerStatuses, [followerId]: "accepted" },
+            }));
+          }
           refreshPendingInvitations();
         }}
         onFollowRejected={(followerId) => {
           setFollowerStatuses((prev) => {
             const next = { ...prev };
             delete next[followerId];
-            cachedFollowerStatuses = next;
             return next;
           });
           setFollowers((prev) => {
             const next = prev.filter((p) => p.id !== followerId);
-            cachedFollowers = next;
             return next;
           });
+          if (session?.user?.id) {
+            updateSocialCache(session.user.id, (prev) => {
+              const nextStatus = { ...prev.followerStatuses };
+              delete nextStatus[followerId];
+              return {
+                ...prev,
+                followerStatuses: nextStatus,
+                followers: prev.followers.filter((p) => p.id !== followerId),
+              };
+            });
+          }
           refreshPendingInvitations();
         }}
         onPendingChanged={() => {

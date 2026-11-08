@@ -14,6 +14,7 @@ import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { peakByCode, type Peak } from "@/data/peaks";
+import { isMobileOrTablet } from "@/lib/device-utils";
 import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
 
@@ -179,36 +180,59 @@ function FitSpain({ isActive }: { isActive?: boolean }) {
 
   useEffect(() => {
     if (isActive === false) return;
-    const container = map.getContainer();
-    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
     if (hasFittedRef.current) return;
-    hasFittedRef.current = true;
 
-    if (window.location.hash.startsWith("#panel=")) {
-      const saved = sessionStorage.getItem("mapState_spain");
-      if (saved) {
-        try {
-          const { zoom, center } = JSON.parse(saved);
-          if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
-            map.setView(center, zoom, { animate: false });
-            return;
+    let rafId: number | null = null;
+    let attempts = 0;
+
+    const tryFit = () => {
+      const container = map.getContainer();
+      if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+        hasFittedRef.current = true;
+        map.invalidateSize({ animate: false, pan: false });
+
+        if (window.location.hash.startsWith("#panel=")) {
+          const saved = sessionStorage.getItem("mapState_spain");
+          if (saved) {
+            try {
+              const { zoom, center } = JSON.parse(saved);
+              if (
+                Number.isFinite(zoom) &&
+                Number.isFinite(center?.lat) &&
+                Number.isFinite(center?.lng) &&
+                center.lat >= 26 &&
+                center.lat <= 45 &&
+                center.lng >= -20 &&
+                center.lng <= 6
+              ) {
+                map.setView(center, zoom, { animate: false });
+                return;
+              }
+            } catch (e) {}
           }
-        } catch (e) {}
+        }
+        map.fitBounds(
+          [
+            [27.55, -18.65],
+            [43.95, 4.95],
+          ],
+          { padding: [12, 12], animate: false },
+        );
+      } else if (attempts < 20) {
+        attempts++;
+        rafId = requestAnimationFrame(tryFit);
       }
-    }
-    map.fitBounds(
-      [
-        [27.55, -18.65],
-        [43.95, 4.95],
-      ],
-      { padding: [12, 12], animate: false },
-    );
+    };
+
+    tryFit();
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, [map, isActive]);
   return null;
 }
 
-// Calls invalidateSize() repeatedly during the CSS panel transition (300ms)
-// so Leaflet always knows the real container dimensions.
 function safeCloseTooltip(layer: any) {
   try {
     if (layer && layer._tooltip && typeof layer.closeTooltip === 'function') {
@@ -280,7 +304,30 @@ function MapActiveSynchronizer({ isActive }: { isActive?: boolean }) {
       const rafId = requestAnimationFrame(() => {
         const container = map.getContainer();
         if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+          const prevCenter = map.getCenter();
+          const prevZoom = map.getZoom();
           map.invalidateSize({ animate: false, pan: false });
+
+          // Safeguard: verify center is within valid Spain bounds, preventing 0,0 jumps
+          const isValidSpainCenter =
+            Number.isFinite(prevCenter?.lat) &&
+            Number.isFinite(prevCenter?.lng) &&
+            prevCenter.lat >= 26 &&
+            prevCenter.lat <= 45 &&
+            prevCenter.lng >= -20 &&
+            prevCenter.lng <= 6;
+
+          if (isValidSpainCenter && Number.isFinite(prevZoom) && prevZoom >= 4) {
+            map.setView(prevCenter, prevZoom, { animate: false });
+          } else {
+            map.fitBounds(
+              [
+                [27.55, -18.65],
+                [43.95, 4.95],
+              ],
+              { padding: [12, 12], animate: false },
+            );
+          }
         }
       });
       return () => cancelAnimationFrame(rafId);
@@ -318,7 +365,9 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
       const zoom = map.getZoom();
       const center = map.getCenter();
       if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+        if (Number.isFinite(center?.lat) && Number.isFinite(center?.lng) && center.lat >= 26 && center.lat <= 45 && center.lng >= -20 && center.lng <= 6) {
         sessionStorage.setItem("mapState_spain", JSON.stringify({ zoom, center }));
+      }
       }
       const rounded = Math.round(zoom).toString();
       if (container.getAttribute("data-zoom") !== rounded) {
@@ -332,7 +381,9 @@ function MapZoomListener({ isActive }: { isActive?: boolean }) {
       const zoom = map.getZoom();
       const center = map.getCenter();
       if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+        if (Number.isFinite(center?.lat) && Number.isFinite(center?.lng) && center.lat >= 26 && center.lat <= 45 && center.lng >= -20 && center.lng <= 6) {
         sessionStorage.setItem("mapState_spain", JSON.stringify({ zoom, center }));
+      }
       }
     },
   });
@@ -430,7 +481,8 @@ const PeakMarker = memo(function PeakMarker({ peak, icon, onClick }: PeakMarkerP
 export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, panelOpen, hasCompareButton, isActive = true }: Props) {
   const canvasRenderer = useMemo(() => {
     if (typeof window === "undefined") return undefined;
-    return L.canvas({ padding: 2.0 });
+    const isMobile = isMobileOrTablet();
+    return isMobile ? L.canvas({ padding: 2.0 }) : L.canvas({ padding: 0.5 });
   }, []);
   const [geo, setGeo] = useState<FeatureCollection | null>(_geoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
@@ -724,9 +776,9 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        keepBuffer={16}
+        keepBuffer={isMobileOrTablet() ? 16 : 4}
         updateWhenIdle={false}
-        updateInterval={100}
+        updateInterval={isMobileOrTablet() ? 100 : 150}
         maxNativeZoom={19}
       />
       {geo && (

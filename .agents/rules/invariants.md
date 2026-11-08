@@ -22,7 +22,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
    - Picos: `?challenge=peaks#panel=peakId`
    - Países: `?challenge=countries#panel=countryId`
    - Experiencias: `?challenge=experiences#panel=experienceId` (o `${expId}::${subItemId}`)
-5. **Botón Compartir en Publicaciones (`feed-share-btn`)**: Cada tarjeta del feed debe incluir un botón de compartir (`feed-share-btn`) con deep-link a `#panel=${recordId}`, soportando Web Share API (`navigator.share`) y fallback al portapapeles con feedback "¡Copiado!".
+5. **Botón Compartir en Publicaciones (`feed-share-btn`)**: Cada tarjeta del feed y panel de actividad debe incluir un botón de compartir (`feed-share-btn`) con deep-link a `#panel=${recordId}`, soportando Web Share API (`navigator.share`) y fallback al portapapeles con feedback "¡Copiado!". **Exclusión de enlaces externos del usuario**: al compartir, no se incluyen enlaces introducidos por el usuario (campos `link`, `link_2` o URLs en notas) para que la URL de Atlas sea el único enlace y WhatsApp/redes muestren siempre el banner con las fotos.
 6. **Sin Botones de Reacciones**: Las tarjetas del feed no incluyen botones ni contadores de like, dislike o comentarios.
 
 ---
@@ -185,6 +185,10 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
    - Reducción del padding vertical del hero a 24px (desktop) y 18-20px (tablet/móvil), y `margin: 0` en `h1`.
 6. **Eliminación de Banda Intermedia**:
    - Eliminación de la sección `.challenge-summary` ("Un país por descubrir, una cima cada vez" / "Un mundo por explorar...").
+7. **Eliminación de Cabeceras de Listado y Centrado de Búsqueda a la Derecha en Web**:
+   - En el listado principal (`components/summit-tracker.tsx`), se eliminan por completo los lemas y títulos de cabecera en todas las modalidades: *"196 Países del mundo"* / *"Todos los países"* / *"Ordenados alfabéticamente."*, *"52 Territorios - 47 Picos"* / *"Todas las cumbres"* / *"Ordenadas por altitud, de mayor a menor."*, y *"X Experiencias"* / *"Todas tus experiencias"* / *"Agrupadas por categoría."*.
+   - Los controles del listado (`.peak-list-controls`) agrupan en una única fila flexible las píldoras de filtro (`.list-filters`) a la izquierda y el cajón de búsqueda (`.search-input-container`) a la derecha.
+   - En web/escritorio (`> 768px`), el cajón de búsqueda se alinea y centra verticalmente a la derecha de las píldoras de filtro (`align-items: center`, `margin-top: 0`, `margin-left: auto`). En móvil (`<= 768px`), los controles se apilan fluidamente con el cajón de búsqueda a ancho completo arriba (`order: -1`).
 
 ---
 
@@ -359,6 +363,9 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
      - **1500ms**: Las primeras 30 fotos de ascensiones y visitas del propio usuario en `SummitTracker`.
 3. **Cero Percepción de Carga al Navegar**:
    - El cambio entre pestañas (Mapa ↔ Social ↔ Ranking) debe ser inmediato, sin requerir spinners ni recargas perceptibles ("cero sensación de cutrez").
+4. **Precarga y Persistencia de Conexiones Sociales (Seguidores y Siguiendo)**:
+   - Al igual que las fotos y el progreso de ascensiones se precargan y se persisten en `localStorage` (`app_social_data_${userId}`), las conexiones de seguidores y siguiendo se precargan inmediatamente en segundo plano a través de `lib/social-cache.ts` (`preloadSocialConnections`) en `AuthContext`, `SummitTracker` y `SocialTab`.
+   - Al montar `SocialTab`, los contadores de seguidores (`acceptedFollowers.length`) y siguiendo (`following.length`) se inicializan de forma síncrona mediante `getInitialSocialData(userId)` desde `localStorage` o caché en memoria, erradicando cualquier destello inicial de "0 seguidores • 0 siguiendo".
 
 
 

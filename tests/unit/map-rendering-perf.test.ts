@@ -16,9 +16,9 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("handleMarkerClick");
 
     // Continuous tile streaming and large buffer for fast panning
-    expect(content).toContain("keepBuffer={16}");
+    expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?16/);
     expect(content).toContain("updateWhenIdle={false}");
-    expect(content).toContain("updateInterval={100}");
+    expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?100/);
     expect(content).toContain("maxNativeZoom={19}");
     expect(content).not.toContain("updateWhenZooming={false}");
 
@@ -53,9 +53,9 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toMatch(/CountryMarkersLayer[\s\S]*?useMapEvents\(\{\s*zoomend:/);
 
     // Continuous tile streaming and large buffer for unseen areas
-    expect(content).toContain("keepBuffer={32}");
+    expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?32/);
     expect(content).toContain("updateWhenIdle={false}");
-    expect(content).toContain("updateInterval={50}");
+    expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?50/);
     expect(content).toContain("maxNativeZoom={19}");
     expect(content).not.toContain("updateWhenZooming={false}");
 
@@ -80,9 +80,9 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     const collectivePath = path.join(rootDir, "components/collective-map.tsx");
     const content = fs.readFileSync(collectivePath, "utf-8");
 
-    expect(content).toContain("keepBuffer={32}");
+    expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?32/);
     expect(content).toContain("updateWhenIdle={false}");
-    expect(content).toContain("updateInterval={50}");
+    expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?50/);
     expect(content).toContain("maxNativeZoom={19}");
 
     // Polyline smoothFactor on collective map

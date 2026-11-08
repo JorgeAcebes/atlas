@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { preloadSocialConnections } from "@/lib/social-cache";
 
 export type UserProfile = {
   id: string;
@@ -216,6 +217,7 @@ export function AuthProvider({
         globalSession = initSession;
         setSession(initSession);
         persistSessionSnapshot(initSession);
+        preloadSocialConnections(initSession.user.id);
         if (!globalProfile || globalProfile.id !== initSession.user.id) {
           refreshProfile(initSession);
         } else {
@@ -253,6 +255,7 @@ export function AuthProvider({
         globalSession = nextSession;
         setSession(nextSession);
         persistSessionSnapshot(nextSession);
+        preloadSocialConnections(nextSession.user.id);
         if (!globalProfile || globalProfile.id !== nextSession.user.id) {
           refreshProfile(nextSession);
         } else {

@@ -16,6 +16,7 @@ import * as ReactDOMServer from "react-dom/server";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { countries, resolveCountryFromFeature, type Country } from "@/data/countries";
+import { isMobileOrTablet } from "@/lib/device-utils";
 import { MapSearchControl, type SearchItem } from "./map-search";
 import { SweepOverlay } from "./sweep-overlay";
 import { X } from "lucide-react";
@@ -203,48 +204,63 @@ function FitWorld({ isActive }: { isActive?: boolean }) {
 
   useEffect(() => {
     if (isActive === false) return;
-    const container = map.getContainer();
-    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
     if (hasFittedRef.current) return;
-    hasFittedRef.current = true;
 
-    if (window.location.hash.startsWith("#panel=")) {
-      const saved = sessionStorage.getItem("mapState_world");
-      if (saved) {
-        try {
-          const { zoom, center } = JSON.parse(saved);
-          if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
-            map.setView(center, zoom, { animate: false });
-            return;
+    let rafId: number | null = null;
+    let attempts = 0;
+
+    const tryFit = () => {
+      const container = map.getContainer();
+      if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+        hasFittedRef.current = true;
+        map.invalidateSize({ animate: false, pan: false });
+
+        if (window.location.hash.startsWith("#panel=")) {
+          const saved = sessionStorage.getItem("mapState_world");
+          if (saved) {
+            try {
+              const { zoom, center } = JSON.parse(saved);
+              if (Number.isFinite(zoom) && Number.isFinite(center?.lat) && Number.isFinite(center?.lng)) {
+                map.setView(center, zoom, { animate: false });
+                return;
+              }
+            } catch (e) {}
           }
-        } catch (e) {}
-      }
-    }
+        }
 
-    const aspectRatio = window.innerWidth / window.innerHeight;
-    if (aspectRatio > 1) {
-      // Desktop: Shift center north to crop Antarctica but keep South America
-      const visibleHeight = 360 / Math.max(aspectRatio, 1);
-      // Put the bottom edge around -58 (Cape Horn)
-      const centerLat = Math.min(-58 + visibleHeight / 2, 50);
-      
-      map.fitBounds([
-        [centerLat - 0.1, -180],
-        [centerLat + 0.1, 180]
-      ], { padding: [0, 0], animate: false });
-    } else {
-      // Mobile: standard vertical bounds
-      map.fitBounds([
-        [-60, -180],
-        [80, 180]
-      ], { padding: [0, 0], animate: false });
-    }
+        const aspectRatio = window.innerWidth / window.innerHeight;
+        if (aspectRatio > 1) {
+          // Desktop: Shift center north to crop Antarctica but keep South America
+          const visibleHeight = 360 / Math.max(aspectRatio, 1);
+          // Put the bottom edge around -58 (Cape Horn)
+          const centerLat = Math.min(-58 + visibleHeight / 2, 50);
+
+          map.fitBounds([
+            [centerLat - 0.1, -180],
+            [centerLat + 0.1, 180]
+          ], { padding: [0, 0], animate: false });
+        } else {
+          // Mobile: standard vertical bounds
+          map.fitBounds([
+            [-60, -180],
+            [80, 180]
+          ], { padding: [0, 0], animate: false });
+        }
+      } else if (attempts < 20) {
+        attempts++;
+        rafId = requestAnimationFrame(tryFit);
+      }
+    };
+
+    tryFit();
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, [map, isActive]);
   return null;
 }
 
-// Calls invalidateSize() repeatedly during the CSS panel transition (300ms)
-// so Leaflet always knows the real container dimensions.
 function safeCloseTooltip(layer: any) {
   try {
     if (layer && layer._tooltip && typeof layer.closeTooltip === 'function') {
@@ -316,7 +332,12 @@ function MapActiveSynchronizer({ isActive }: { isActive?: boolean }) {
       const rafId = requestAnimationFrame(() => {
         const container = map.getContainer();
         if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+          const prevCenter = map.getCenter();
+          const prevZoom = map.getZoom();
           map.invalidateSize({ animate: false, pan: false });
+          if (Number.isFinite(prevCenter?.lat) && Number.isFinite(prevCenter?.lng) && Number.isFinite(prevZoom)) {
+            map.setView(prevCenter, prevZoom, { animate: false });
+          }
         }
       });
       return () => cancelAnimationFrame(rafId);
@@ -568,7 +589,8 @@ import { getIconComponent } from "./icons";
 export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformation, onComplete, diffMode, diffOnlyViewer, diffOnlyTarget, diffBoth, activeId, experiencesMode, experienceRecords, selectingLocation, onMapClick, onCancelSelectingLocation, onExperienceClick, onAddExperience, panelOpen, hasCompareButton, isActive = true }: Props) {
   const canvasRenderer = useMemo(() => {
     if (typeof window === "undefined") return undefined;
-    return L.canvas({ padding: 3.5 });
+    const isMobile = isMobileOrTablet();
+    return isMobile ? L.canvas({ padding: 3.5 }) : L.canvas({ padding: 0.5 });
   }, []);
   const [geo, setGeo] = useState<FeatureCollection | null>(_worldGeoCache);
   const [searchedId, setSearchedId] = useState<string | null>(null);
@@ -1045,9 +1067,9 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         minZoom={1}
-        keepBuffer={32}
+        keepBuffer={isMobileOrTablet() ? 32 : 4}
         updateWhenIdle={false}
-        updateInterval={50}
+        updateInterval={isMobileOrTablet() ? 50 : 150}
         maxNativeZoom={19}
       />
       {geo && (
