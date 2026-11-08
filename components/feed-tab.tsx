@@ -385,7 +385,7 @@ function FeedItemCard({
         <Link href={`/perfil/${item.profiles?.username}?challenge=${recordChallenge}&from=social`} style={{ textDecoration: 'none' }}>
           <div className="feed-card-avatar" style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--pine)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'white' }}>
             {item.profiles?.avatar_url ? (
-              <img src={item.profiles.avatar_url} alt={item.profiles.username} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              <img src={getPhotoDisplayUrl(item.profiles.avatar_url)} alt={item.profiles.username} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
             ) : (
               item.profiles?.username?.charAt(0).toUpperCase()
             )}
@@ -519,7 +519,7 @@ function FeedItemCard({
                   >
                     {comp.avatar_url ? (
                       <img
-                        src={comp.avatar_url}
+                        src={getPhotoDisplayUrl(comp.avatar_url)}
                         alt={comp.username}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />

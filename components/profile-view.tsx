@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { supabase } from "@/lib/supabase";
 import { SummitTracker } from "./summit-tracker";
 import Link from "next/link";
@@ -74,7 +75,7 @@ export function ProfileView({
       }
 
       // Show avatar immediately while waiting for connection status
-      setLoadingAvatarUrl(profileData.avatar_url ?? null);
+      setLoadingAvatarUrl(profileData.avatar_url ? getPhotoDisplayUrl(profileData.avatar_url) : null);
 
       // 2. Fetch connection status before revealing SummitTracker so follow state is instantaneous
       let connStatus: "pending" | "accepted" | null = null;
@@ -148,7 +149,7 @@ export function ProfileView({
           >
             {loadingAvatarUrl ? (
               <img
-                src={loadingAvatarUrl}
+                src={getPhotoDisplayUrl(loadingAvatarUrl)}
                 alt={username}
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />

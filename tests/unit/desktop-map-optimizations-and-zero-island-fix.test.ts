@@ -97,6 +97,9 @@ describe("Desktop Map Rendering Optimization & Spain Map 0,0 Zero-Island Prevent
       expect(spainMapContent).toContain("isMobile ? L.canvas({ padding: 2.0 }) : L.canvas({ padding: 0.5 })");
       expect(spainMapContent).toContain("keepBuffer={isMobileOrTablet() ? 16 : 4}");
       expect(spainMapContent).toContain("updateInterval={isMobileOrTablet() ? 100 : 150}");
+      expect(spainMapContent).toContain("updateWhenIdle={isMobileOrTablet() ? false : true}");
+      expect(spainMapContent).toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
+      expect(spainMapContent).toContain("if (!isMobileOrTablet()) return;");
     });
 
     it("world-map.tsx uses 0.5 padding on web desktop and 3.5 on mobile/tablet", () => {
@@ -104,6 +107,9 @@ describe("Desktop Map Rendering Optimization & Spain Map 0,0 Zero-Island Prevent
       expect(worldMapContent).toContain("isMobile ? L.canvas({ padding: 3.5 }) : L.canvas({ padding: 0.5 })");
       expect(worldMapContent).toContain("keepBuffer={isMobileOrTablet() ? 32 : 4}");
       expect(worldMapContent).toContain("updateInterval={isMobileOrTablet() ? 50 : 150}");
+      expect(worldMapContent).toContain("updateWhenIdle={isMobileOrTablet() ? false : true}");
+      expect(worldMapContent).toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
+      expect(worldMapContent).toContain("if (!isMobileOrTablet()) return;");
     });
 
     it("collective-map.tsx uses 0.5 padding on web desktop and 3.5 on mobile/tablet", () => {

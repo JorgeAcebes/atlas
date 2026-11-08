@@ -68,6 +68,8 @@ if (typeof window !== "undefined" && L && L.Canvas) {
     };
     proto._onCanvasMove = function () {
       if (!this._map || !this._bounds) return;
+      // On desktop web, dragging uses native hardware-accelerated CSS translation without redrawing canvas paths
+      if (!isMobileOrTablet()) return;
       // Never expand or re-render canvas during zoom gestures/animations to prevent canvas displacement
       if (
         this._isZooming ||
@@ -928,6 +930,7 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         center={[20, 0]}
         zoom={2}
         renderer={canvasRenderer}
+        preferCanvas={true}
         scrollWheelZoom={true}
         minZoom={1}
         maxZoom={12}
@@ -1068,7 +1071,8 @@ export const WorldMap = memo(function WorldMap({ completed, wishlist, onInformat
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         minZoom={1}
         keepBuffer={isMobileOrTablet() ? 32 : 4}
-        updateWhenIdle={false}
+        updateWhenIdle={isMobileOrTablet() ? false : true}
+        updateWhenZooming={isMobileOrTablet() ? undefined : false}
         updateInterval={isMobileOrTablet() ? 50 : 150}
         maxNativeZoom={19}
       />

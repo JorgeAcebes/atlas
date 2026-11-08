@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import dynamic from "next/dynamic";
@@ -664,7 +665,7 @@ export function RankingTab({
             >
               {myProfile?.avatar_url ? (
                 <img
-                  src={myProfile.avatar_url}
+                  src={getPhotoDisplayUrl(myProfile.avatar_url)}
                   alt="Mi Perfil"
                   className="account-avatar"
                   style={{ objectFit: "cover" }}
@@ -868,7 +869,7 @@ export function RankingTab({
                       <div className="ranking-who">
                         <div className="ranking-avatar">
                           {entry.avatar_url ? (
-                            <img src={entry.avatar_url} alt={entry.username} />
+                            <img src={getPhotoDisplayUrl(entry.avatar_url)} alt={entry.username} />
                           ) : (
                             initial
                           )}

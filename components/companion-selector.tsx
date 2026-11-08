@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { createPortal } from "react-dom";
 import { useAuth } from "./auth-context";
 import { CompanionProfile, getMutualFollowers } from "@/lib/companions";
@@ -195,7 +196,7 @@ export function CompanionSelector({
                 >
                   {comp.avatar_url ? (
                     <img
-                      src={comp.avatar_url}
+                      src={getPhotoDisplayUrl(comp.avatar_url)}
                       alt={comp.username}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
@@ -542,7 +543,7 @@ export function CompanionSelector({
                       >
                         {follower.avatar_url ? (
                           <img
-                            src={follower.avatar_url}
+                            src={getPhotoDisplayUrl(follower.avatar_url)}
                             alt={follower.username}
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />

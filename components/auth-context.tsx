@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { preloadSocialConnections } from "@/lib/social-cache";
 
 export type UserProfile = {
@@ -43,7 +44,13 @@ function getStoredProfile(): UserProfile | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem("app_user_profile");
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.avatar_url) {
+        parsed.avatar_url = getPhotoDisplayUrl(parsed.avatar_url);
+      }
+      return parsed;
+    }
   } catch {
     // ignore
   }
@@ -105,7 +112,7 @@ export function persistProfileCookie(p: UserProfile | null) {
       const data = {
         id: p.id,
         username: p.username,
-        avatar_url: p.avatar_url,
+        avatar_url: p.avatar_url ? getPhotoDisplayUrl(p.avatar_url) : null,
         enable_experiences: p.enable_experiences,
         enable_peaks: p.enable_peaks,
         enable_countries: p.enable_countries,
@@ -160,11 +167,15 @@ export function AuthProvider({
         .single();
 
       if (data && !error) {
-        setProfile(data);
-        globalProfile = data;
-        persistProfileCookie(data);
+        const normalizedData = {
+          ...data,
+          avatar_url: data.avatar_url ? getPhotoDisplayUrl(data.avatar_url) : null,
+        };
+        setProfile(normalizedData);
+        globalProfile = normalizedData;
+        persistProfileCookie(normalizedData);
         if (typeof window !== "undefined") {
-          localStorage.setItem("app_user_profile", JSON.stringify(data));
+          localStorage.setItem("app_user_profile", JSON.stringify(normalizedData));
         }
       }
     } catch (err) {

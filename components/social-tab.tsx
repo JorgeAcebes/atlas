@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -950,7 +951,7 @@ export function SocialTab({
           >
             {profile.avatar_url ? (
               <img
-                src={profile.avatar_url}
+                src={getPhotoDisplayUrl(profile.avatar_url)}
                 alt={profile.username}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
@@ -1166,7 +1167,7 @@ export function SocialTab({
             >
               {myProfile?.avatar_url ? (
                 <img
-                  src={myProfile.avatar_url}
+                  src={getPhotoDisplayUrl(myProfile.avatar_url)}
                   alt="Mi Perfil"
                   className="account-avatar"
                   style={{ objectFit: "cover" }}
@@ -1209,7 +1210,7 @@ export function SocialTab({
                     style={{ cursor: 'pointer' }}
                   >
                     {myProfile.avatar_url ? (
-                      <img src={myProfile.avatar_url} alt={myProfile.username} />
+                      <img src={getPhotoDisplayUrl(myProfile.avatar_url)} alt={myProfile.username} />
                     ) : (
                       myProfile.username.charAt(0).toUpperCase()
                     )}

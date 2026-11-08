@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 import { compressImage } from "@/lib/image-utils";
-import { uploadPhotoBlob } from "@/lib/photo-client";
+import { uploadPhotoBlob, deleteStoragePhotos, getPhotoDisplayUrl } from "@/lib/photo-client";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { DeleteAccountModal } from "./delete-account-modal";
 
@@ -63,7 +63,7 @@ export function ProfileSettings({
         setEnableExperiences(data.enable_experiences ?? false);
         setSharePhotos(data.share_photos ?? true);
         setShareNotes(data.share_notes ?? true);
-        if (data.avatar_url) setAvatarPreview(data.avatar_url);
+        if (data.avatar_url) setAvatarPreview(getPhotoDisplayUrl(data.avatar_url));
       }
       setLoading(false);
     }
@@ -122,6 +122,9 @@ export function ProfileSettings({
     }
 
     let avatarUrl = profile?.avatar_url || null;
+    if (avatarUrl) {
+      avatarUrl = getPhotoDisplayUrl(avatarUrl);
+    }
 
     if (avatarFile) {
       if (!avatarFile.type.startsWith("image/")) {
@@ -140,7 +143,21 @@ export function ProfileSettings({
           session,
           supabase,
         });
-        avatarUrl = uploadResult.publicUrl;
+        const newAvatarUrl = getPhotoDisplayUrl(uploadResult.publicUrl, uploadResult.storagePath);
+
+        // Limpiar avatar anterior si existía para no dejar huérfanos
+        if (profile?.avatar_url) {
+          const oldUrl = profile.avatar_url;
+          const oldMatch = oldUrl.match(/(?:(?:pub-[^/]+\.r2\.dev|\/api\/photos\/view)\/)(.+)$/);
+          const oldStoragePath = oldMatch ? oldMatch[1] : (oldUrl.startsWith(`${session.user.id}/`) ? oldUrl : null);
+          if (oldStoragePath && oldStoragePath !== uploadResult.storagePath) {
+            deleteStoragePhotos({ paths: [oldStoragePath], session, supabase }).catch((e) =>
+              console.warn("Fallo no crítico al limpiar avatar previo:", e)
+            );
+          }
+        }
+
+        avatarUrl = newAvatarUrl;
       } catch (uploadErr: any) {
         setError(uploadErr.message || "Error al subir la foto de perfil.");
         setSaving(false);
@@ -255,7 +272,7 @@ export function ProfileSettings({
                 >
                   {avatarPreview ? (
                     <img
-                      src={avatarPreview}
+                      src={getPhotoDisplayUrl(avatarPreview)}
                       alt="Avatar"
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />

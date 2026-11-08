@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./auth-context";
@@ -591,7 +592,7 @@ export function InboxModal({
                       >
                         {follower?.avatar_url ? (
                           <img
-                            src={follower.avatar_url}
+                            src={getPhotoDisplayUrl(follower.avatar_url)}
                             alt={follower.username}
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />
@@ -716,7 +717,7 @@ export function InboxModal({
                     >
                       {inviter?.avatar_url ? (
                         <img
-                          src={inviter.avatar_url}
+                          src={getPhotoDisplayUrl(inviter.avatar_url)}
                           alt={inviter.username}
                           style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         />

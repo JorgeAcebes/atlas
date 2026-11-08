@@ -21,6 +21,7 @@ import * as ReactDOMServer from "react-dom/server";
 import { getIconComponent } from "./icons";
 import { predefinedCategories } from "@/data/experiences";
 import { supabase } from "@/lib/supabase";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isMobileOrTablet } from "@/lib/device-utils";
@@ -77,6 +78,8 @@ if (typeof window !== "undefined" && L && L.Canvas) {
     };
     proto._onCanvasMove = function () {
       if (!this._map || !this._bounds) return;
+      // On desktop web, dragging uses native hardware-accelerated CSS translation without redrawing canvas paths
+      if (!isMobileOrTablet()) return;
       // Never expand or re-render canvas during zoom gestures/animations to prevent canvas displacement
       if (
         this._isZooming ||
@@ -951,7 +954,8 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               keepBuffer={isMobileOrTablet() ? 32 : 4}
-              updateWhenIdle={false}
+              updateWhenIdle={isMobileOrTablet() ? false : true}
+              updateWhenZooming={isMobileOrTablet() ? undefined : false}
               updateInterval={isMobileOrTablet() ? 50 : 150}
               maxNativeZoom={19}
             />
@@ -1141,7 +1145,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
                         >
                           <div className="collective-visitor-avatar">
                             {v.avatar ? (
-                              <img src={v.avatar} alt={v.username} />
+                              <img src={getPhotoDisplayUrl(v.avatar)} alt={v.username} />
                             ) : (
                               v.username.charAt(0).toUpperCase()
                             )}

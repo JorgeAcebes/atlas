@@ -179,6 +179,61 @@ async function run() {
     }
   }
 
+
+  // 2. Comprobar y migrar avatares de perfiles
+  console.log("\n📸 Comprobando avatares de perfil en la base de datos...");
+  const { data: profiles, error: profError } = await supabase
+    .from("profiles")
+    .select("id, username, avatar_url")
+    .not("avatar_url", "is", null);
+
+  if (profError) {
+    console.warn("  ⚠️ No se pudieron consultar los avatares:", profError.message);
+  } else if (profiles && profiles.length > 0) {
+    for (const p of profiles) {
+      if (!p.avatar_url) continue;
+      if (p.avatar_url.startsWith("/api/photos/view/")) {
+        console.log(`  ✓ Avatar de @${p.username} ya usa el proxy R2.`);
+        continue;
+      }
+
+      let avatarStoragePath = null;
+      const r2Match = p.avatar_url.match(/https?:\/\/[^/]+\.r2\.dev\/(.+)$/);
+      const sbMatch = p.avatar_url.match(/supabase\.co\/storage\/v1\/object\/public\/summit-photos\/(.+)$/);
+      if (r2Match) {
+        avatarStoragePath = r2Match[1];
+      } else if (sbMatch) {
+        avatarStoragePath = sbMatch[1];
+      } else if (!p.avatar_url.startsWith("http")) {
+        avatarStoragePath = p.avatar_url.replace(/^\//, "");
+      }
+
+      if (!avatarStoragePath) continue;
+
+      if (sbMatch) {
+        try {
+          const { data: fileBlob } = await supabase.storage.from("summit-photos").download(avatarStoragePath);
+          if (fileBlob) {
+            const arrayBuf = await fileBlob.arrayBuffer();
+            const buffer = Buffer.from(arrayBuf);
+            await s3.send(new PutObjectCommand({
+              Bucket: bucketName,
+              Key: avatarStoragePath,
+              Body: buffer,
+              ContentType: fileBlob.type || "image/jpeg"
+            }));
+          }
+        } catch (e) {
+          console.warn(`  ⚠️ No se pudo transferir avatar de @${p.username} a R2:`, e.message);
+        }
+      }
+
+      const proxyUrl = `/api/photos/view/${avatarStoragePath}`;
+      await supabase.from("profiles").update({ avatar_url: proxyUrl }).eq("id", p.id);
+      console.log(`  ✓ Avatar de @${p.username} actualizado a proxy R2: ${proxyUrl}`);
+    }
+  }
+
   const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
   const totalGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(3);
 

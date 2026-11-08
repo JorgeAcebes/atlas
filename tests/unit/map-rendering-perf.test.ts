@@ -17,7 +17,7 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
 
     // Continuous tile streaming and large buffer for fast panning
     expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?16/);
-    expect(content).toContain("updateWhenIdle={false}");
+    expect(content).toMatch(/updateWhenIdle=\{(isMobileOrTablet\(\)\s*\?\s*)?false/);
     expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?100/);
     expect(content).toContain("maxNativeZoom={19}");
     expect(content).not.toContain("updateWhenZooming={false}");
@@ -54,7 +54,7 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
 
     // Continuous tile streaming and large buffer for unseen areas
     expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?32/);
-    expect(content).toContain("updateWhenIdle={false}");
+    expect(content).toMatch(/updateWhenIdle=\{(isMobileOrTablet\(\)\s*\?\s*)?false/);
     expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?50/);
     expect(content).toContain("maxNativeZoom={19}");
     expect(content).not.toContain("updateWhenZooming={false}");
@@ -81,7 +81,7 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     const content = fs.readFileSync(collectivePath, "utf-8");
 
     expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?32/);
-    expect(content).toContain("updateWhenIdle={false}");
+    expect(content).toMatch(/updateWhenIdle=\{(isMobileOrTablet\(\)\s*\?\s*)?false/);
     expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?50/);
     expect(content).toContain("maxNativeZoom={19}");
 

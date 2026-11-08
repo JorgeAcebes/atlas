@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getSupabaseServerClient } from "./supabase-server";
+import { getPhotoDisplayUrl } from "./photo-client";
 import { peaks } from "@/data/peaks";
 import { countries } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
@@ -133,10 +134,14 @@ export async function resolveRecordMetadata(
     if (!cleanId) {
       const profileTitle = `@${profile.username} en Atlas`;
       const profileDesc = `Explora los ascensos a cumbres, países del mundo y aventuras registradas por @${profile.username} en Atlas.`;
-      const profileImages = profile.avatar_url
+      const avatarDisplay = profile.avatar_url ? getPhotoDisplayUrl(profile.avatar_url) : "";
+      const fullAvatarUrl = avatarDisplay
+        ? (avatarDisplay.startsWith("http") ? avatarDisplay : `${appUrl}${avatarDisplay.startsWith("/") ? "" : "/"}${avatarDisplay}`)
+        : defaultImage;
+      const profileImages = avatarDisplay
         ? [
             {
-              url: profile.avatar_url,
+              url: fullAvatarUrl,
               width: 400,
               height: 400,
               alt: `@${profile.username}`,
@@ -310,7 +315,10 @@ export async function resolveRecordMetadata(
         : profile.avatar_url
         ? [
             {
-              url: profile.avatar_url,
+              url: (() => {
+                const disp = getPhotoDisplayUrl(profile.avatar_url);
+                return disp.startsWith("http") ? disp : `${appUrl}${disp.startsWith("/") ? "" : "/"}${disp}`;
+              })(),
               width: 400,
               height: 400,
               alt: `@${profile.username}`,

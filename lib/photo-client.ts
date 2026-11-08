@@ -11,9 +11,9 @@ export interface UploadPhotoResult {
 }
 
 /**
- * Resuelve la URL óptima de visualización de una foto.
+ * Resuelve la URL óptima de visualización de una foto o avatar.
  * Si la foto apunta a un subdominio r2.dev (bloqueado por operadores en España),
- * o si se dispone del storagePath, la enruta de forma transparente a través
+ * a Supabase Storage o si se dispone del storagePath, la enruta de forma transparente a través
  * del endpoint /api/photos/view/<path> con CDN Edge caching en Vercel.
  */
 export function getPhotoDisplayUrl(
@@ -23,7 +23,12 @@ export function getPhotoDisplayUrl(
   if (!url && !storagePath) return "";
 
   if (storagePath) {
-    if (!url || url.includes(".r2.dev") || (!url.startsWith("http") && !url.startsWith("/"))) {
+    if (
+      !url ||
+      url.includes(".r2.dev") ||
+      url.includes("supabase.co/storage/") ||
+      (!url.startsWith("http") && !url.startsWith("/"))
+    ) {
       return `/api/photos/view/${storagePath}`;
     }
   }
@@ -31,6 +36,12 @@ export function getPhotoDisplayUrl(
   if (url) {
     if (url.includes(".r2.dev/")) {
       const match = url.match(/https?:\/\/[^/]+\.r2\.dev\/(.+)$/);
+      if (match && match[1]) {
+        return `/api/photos/view/${match[1]}`;
+      }
+    }
+    if (url.includes("supabase.co/storage/v1/object/public/summit-photos/")) {
+      const match = url.match(/supabase\.co\/storage\/v1\/object\/public\/summit-photos\/(.+)$/);
       if (match && match[1]) {
         return `/api/photos/view/${match[1]}`;
       }
@@ -76,7 +87,7 @@ export async function uploadPhotoBlob(options: {
 
   if (res.ok && data.publicUrl && data.storagePath) {
     return {
-      publicUrl: data.publicUrl,
+      publicUrl: getPhotoDisplayUrl(data.publicUrl, data.storagePath),
       storagePath: data.storagePath,
       fileSize: data.fileSize || blob.size,
     };

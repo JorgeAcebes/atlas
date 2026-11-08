@@ -51,9 +51,25 @@ export async function POST(request: Request) {
         .select("storage_path")
         .eq("user_id", user.id);
 
-      if (userPhotos && userPhotos.length > 0) {
+      const r2Paths = (userPhotos || []).map((p: any) => p.storage_path).filter(Boolean);
+
+      // Clean up avatar from profiles if present
+      const { data: userProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (userProfile?.avatar_url) {
+        const match = userProfile.avatar_url.match(/(?:(?:pub-[^/]+\.r2\.dev|\/api\/photos\/view)\/)(.+)$/);
+        const avatarPath = match ? match[1] : (userProfile.avatar_url.startsWith(`${user.id}/`) ? userProfile.avatar_url : null);
+        if (avatarPath && !r2Paths.includes(avatarPath)) {
+          r2Paths.push(avatarPath);
+        }
+      }
+
+      if (r2Paths.length > 0) {
         const { deleteR2Objects } = await import("@/lib/r2-storage");
-        const r2Paths = userPhotos.map((p) => p.storage_path).filter(Boolean);
         await deleteR2Objects(r2Paths);
       }
     } catch (r2Err) {

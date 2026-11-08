@@ -2,11 +2,23 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { getSanitizedR2Credentials } from "@/lib/r2-storage";
 
-describe("getPhotoDisplayUrl - Resilient Photo URL Resolution", () => {
+describe("getPhotoDisplayUrl - Resilient Photo and Avatar URL Resolution", () => {
   it("should convert r2.dev URLs to application proxy URLs to bypass ISP blocks in Spain", () => {
     const r2DevUrl = "https://pub-a4abf786bc324d97a33777bd178cb9c6.r2.dev/user-123/salamanca/photo.jpg";
     const resolved = getPhotoDisplayUrl(r2DevUrl);
     expect(resolved).toBe("/api/photos/view/user-123/salamanca/photo.jpg");
+  });
+
+  it("should convert avatar r2.dev URLs to application proxy URLs", () => {
+    const avatarR2Url = "https://pub-a4abf786bc324d97a33777bd178cb9c6.r2.dev/952a91e9-c387-45b8-b153-5b348337fcd6/avatar_1785613160837.jfif";
+    const resolved = getPhotoDisplayUrl(avatarR2Url);
+    expect(resolved).toBe("/api/photos/view/952a91e9-c387-45b8-b153-5b348337fcd6/avatar_1785613160837.jfif");
+  });
+
+  it("should convert legacy Supabase Storage avatar URLs to application proxy URLs", () => {
+    const legacySbUrl = "https://jgwyrnvmeuxhivferaht.supabase.co/storage/v1/object/public/summit-photos/user-123/avatar_12345.jpg";
+    const resolved = getPhotoDisplayUrl(legacySbUrl);
+    expect(resolved).toBe("/api/photos/view/user-123/avatar_12345.jpg");
   });
 
   it("should use storage_path when r2.dev URL is supplied", () => {

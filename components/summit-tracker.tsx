@@ -4822,7 +4822,7 @@ export function SummitTracker({
                       }}
                     >
                       {comp.avatar_url ? (
-                        <img src={comp.avatar_url} alt={comp.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src={getPhotoDisplayUrl(comp.avatar_url)} alt={comp.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         comp.username.charAt(0).toUpperCase()
                       )}
@@ -5160,7 +5160,7 @@ export function SummitTracker({
             >
               {myProfile?.avatar_url ? (
                 <img
-                  src={myProfile.avatar_url}
+                  src={getPhotoDisplayUrl(myProfile.avatar_url)}
                   alt="Mi Perfil"
                   className="account-avatar"
                   style={{ objectFit: "cover" }}
@@ -6967,7 +6967,7 @@ export function SummitTracker({
                                       }}
                                     >
                                       {comp.avatar_url ? (
-                                        <img src={comp.avatar_url} alt={comp.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                        <img src={getPhotoDisplayUrl(comp.avatar_url)} alt={comp.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                                       ) : (
                                         comp.username.charAt(0).toUpperCase()
                                       )}

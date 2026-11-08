@@ -65,6 +65,8 @@ if (typeof window !== "undefined" && L && L.Canvas) {
     };
     proto._onCanvasMove = function () {
       if (!this._map || !this._bounds) return;
+      // On desktop web, dragging uses native hardware-accelerated CSS translation without redrawing canvas paths
+      if (!isMobileOrTablet()) return;
       // Never expand or re-render canvas during zoom gestures/animations to prevent canvas displacement
       if (
         this._isZooming ||
@@ -753,6 +755,7 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
         center={[40.4168, -3.7038]}
         zoom={5}
         renderer={canvasRenderer}
+        preferCanvas={true}
         scrollWheelZoom={true}
         minZoom={4}
         maxZoom={10}
@@ -777,7 +780,8 @@ export const SpainMap = memo(function SpainMap({ completed, wishlist, onInformat
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         keepBuffer={isMobileOrTablet() ? 16 : 4}
-        updateWhenIdle={false}
+        updateWhenIdle={isMobileOrTablet() ? false : true}
+        updateWhenZooming={isMobileOrTablet() ? undefined : false}
         updateInterval={isMobileOrTablet() ? 100 : 150}
         maxNativeZoom={19}
       />
