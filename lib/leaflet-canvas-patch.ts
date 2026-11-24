@@ -87,8 +87,8 @@ export function ensureLeafletCanvasPatched(): void {
     if (!size || size.x === 0 || size.y === 0) return;
     const vpMin = this._map.containerPointToLayerPoint([0, 0]);
     const vpMax = this._map.containerPointToLayerPoint(size);
-    const padX = Math.max(300, size.x * 0.8);
-    const padY = Math.max(300, size.y * 0.8);
+    const padX = Math.min(120, Math.max(48, Math.round(size.x * 0.18)));
+    const padY = Math.min(120, Math.max(48, Math.round(size.y * 0.18)));
 
     if (
       vpMin.x - padX < this._bounds.min.x ||

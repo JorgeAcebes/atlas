@@ -459,6 +459,7 @@ export function RankingTab({
         />
       )}
       <InstallPrompt
+        isActive={isActive}
         manualOpen={installPromptOpen}
         onManualClose={() => setInstallPromptOpen(false)}
       />

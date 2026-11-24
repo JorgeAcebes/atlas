@@ -131,6 +131,103 @@ export async function uploadPhotoBlob(options: {
   throw new Error(errorMsg);
 }
 
+const MAX_BATCH_PAYLOAD_BYTES = 3.5 * 1024 * 1024;
+const MAX_BATCH_FILES = 4;
+
+/**
+ * Uploads multiple already-compressed blobs using safe <= 3.5 MB batch requests
+ * (respecting Vercel's 4.5 MB body limit) to cut auth + storage-cap roundtrips.
+ */
+export async function uploadPhotoBlobsBatch(options: {
+  items: Array<{ blob: Blob; fileName: string }>;
+  summitId?: string;
+  session: any;
+}): Promise<UploadPhotoResult[]> {
+  const { items, summitId, session } = options;
+  if (!items || items.length === 0) return [];
+  if (!session?.access_token) {
+    throw new Error("Sesión no disponible para subir las fotos.");
+  }
+
+  // Partition into safe payload chunks (<= 3.5 MB and <= 4 files per HTTP request)
+  const chunks: Array<Array<{ blob: Blob; fileName: string }>> = [];
+  let currentChunk: Array<{ blob: Blob; fileName: string }> = [];
+  let currentBytes = 0;
+
+  for (const item of items) {
+    const size = item.blob?.size || 0;
+    const wouldExceedBytes = currentChunk.length > 0 && currentBytes + size > MAX_BATCH_PAYLOAD_BYTES;
+    const wouldExceedCount = currentChunk.length >= MAX_BATCH_FILES;
+
+    if (wouldExceedBytes || wouldExceedCount) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+      currentBytes = 0;
+    }
+    currentChunk.push(item);
+    currentBytes += size;
+  }
+  if (currentChunk.length > 0) chunks.push(currentChunk);
+
+  const chunkResults = await Promise.all(
+    chunks.map(async (chunk) => {
+      if (chunk.length === 1) {
+        const single = await uploadPhotoBlob({
+          blob: chunk[0].blob,
+          fileName: chunk[0].fileName,
+          summitId,
+          session,
+        });
+        return [single];
+      }
+
+      const formData = new FormData();
+      for (const entry of chunk) {
+        formData.append("files", entry.blob, entry.fileName);
+        formData.append("fileNames", entry.fileName);
+      }
+      if (summitId) formData.append("summitId", summitId);
+
+      const res = await fetch("/api/photos/upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      const rawBody = await res.text();
+      let data: any = null;
+      try {
+        data = rawBody ? JSON.parse(rawBody) : null;
+      } catch {
+        data = null;
+      }
+
+      if (res.ok && Array.isArray(data?.uploads)) {
+        return data.uploads.map((u: any, idx: number) => ({
+          publicUrl: getPhotoDisplayUrl(u.publicUrl, u.storagePath),
+          storagePath: u.storagePath,
+          fileSize: u.fileSize || chunk[idx]?.blob?.size || 0,
+        })) as UploadPhotoResult[];
+      }
+
+      if (res.status === 413) {
+        throw new Error("Las imágenes son demasiado grandes para subirlas en lote (máximo 15 MB por foto).");
+      }
+
+      const errorMsg =
+        data?.error ||
+        (data?.code === "STORAGE_LIMIT_EXCEEDED"
+          ? "Límite de almacenamiento alcanzado (9,5 GB). Se han bloqueado nuevas subidas para evitar costes."
+          : "Error al subir las imágenes a Cloudflare R2.");
+      throw new Error(errorMsg);
+    })
+  );
+
+  return chunkResults.flat();
+}
+
 /**
  * Deletes photos from Cloudflare R2 and cleans up legacy Supabase Storage references.
  */

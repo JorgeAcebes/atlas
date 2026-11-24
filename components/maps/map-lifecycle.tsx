@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type L from "leaflet";
+import type React from "react";
+import L from "leaflet";
 import { useMap, useMapEvents } from "react-leaflet";
 
 export function safeCloseTooltip(layer: any): void {
@@ -221,12 +222,32 @@ export function MapZoomListener({
   });
 
   useEffect(() => {
+    const container = map.getContainer();
+    if (!container) return;
+    let wheelTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handlePassiveWheel = () => {
+      (map as any)._isWheeling = true;
+      container.classList.add("is-wheeling");
+      if (wheelTimer) clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(() => {
+        wheelTimer = null;
+        (map as any)._isWheeling = false;
+        container.classList.remove("is-wheeling");
+      }, 150);
+    };
+
+    container.addEventListener("wheel", handlePassiveWheel, { passive: true });
     return () => {
+      container.removeEventListener("wheel", handlePassiveWheel);
+      if (wheelTimer) clearTimeout(wheelTimer);
+      (map as any)._isWheeling = false;
+      container.classList.remove("is-wheeling");
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, []);
+  }, [map]);
 
   useEffect(() => {
     if (isActive === false) return;
@@ -241,6 +262,34 @@ export function MapZoomListener({
       onViewportChangeRef.current(zoom, map.getBounds());
     }
   }, [map, isActive]);
+
+  return null;
+}
+
+export function HoverHighlightBridge({
+  highlightLayerRef,
+}: {
+  highlightLayerRef: React.MutableRefObject<L.GeoJSON | null>;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    const svgRenderer = L.svg({ padding: 0.25 });
+    const layer = L.geoJSON(undefined, {
+      interactive: false,
+      renderer: svgRenderer,
+    } as L.GeoJSONOptions).addTo(map);
+    highlightLayerRef.current = layer;
+
+    return () => {
+      highlightLayerRef.current = null;
+      try {
+        map.removeLayer(layer);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [map, highlightLayerRef]);
 
   return null;
 }

@@ -1,14 +1,17 @@
 "use client";
 
+export const ATLAS_PHOTOS_CACHE_NAME = "atlas-photos-v14";
+
 const preloadedImageUrls = new Set<string>();
 
 export interface PreloadImagesOptions {
   maxConcurrent?: number;
   maxCount?: number;
+  immediate?: boolean;
 }
 
 /**
- * Preloads a single image URL at most once per session without blocking rendering.
+ * Preloads and decodes a single image URL at most once per session without blocking rendering.
  */
 export function preloadImage(url: string): Promise<void> {
   if (typeof window === "undefined" || !url) return Promise.resolve();
@@ -18,10 +21,41 @@ export function preloadImage(url: string): Promise<void> {
   return new Promise<void>((resolve) => {
     const img = new window.Image();
     img.decoding = "async";
-    img.onload = () => resolve();
+    img.onload = () => {
+      if (typeof img.decode === "function") {
+        img.decode().catch(() => {}).finally(resolve);
+      } else {
+        resolve();
+      }
+    };
     img.onerror = () => resolve();
     img.src = url;
   });
+}
+
+/**
+ * Writes a newly uploaded Blob directly into the Service Worker photo cache
+ * so the client renders it instantaneously without re-downloading it from R2/Vercel.
+ */
+export async function seedPhotoServiceWorkerCache(url: string, blob: Blob): Promise<void> {
+  if (typeof window === "undefined" || !url || !blob) return;
+  preloadedImageUrls.add(url);
+  if (typeof caches === "undefined") return;
+  try {
+    const cache = await caches.open(ATLAS_PHOTOS_CACHE_NAME);
+    const absoluteUrl = new URL(url, window.location.origin).toString();
+    const response = new Response(blob, {
+      status: 200,
+      statusText: "OK",
+      headers: {
+        "Content-Type": blob.type || "image/webp",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
+    await cache.put(absoluteUrl, response);
+  } catch {
+    /* ignore CacheStorage failures (private browsing / quota) */
+  }
 }
 
 /**
@@ -59,6 +93,11 @@ export function preloadImages(
       runNext();
     }
   };
+
+  if (options.immediate) {
+    startQueue();
+    return;
+  }
 
   if (typeof window.requestIdleCallback === "function") {
     window.requestIdleCallback(startQueue, { timeout: 1200 });

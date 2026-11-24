@@ -5,8 +5,9 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { datesOverlap, syncMutualTripInvitations } from "@/lib/companions";
 import { formatDate } from "@/lib/date-utils";
-import { compressImage, sortFilesByCaptureTime, sortPhotosByTime } from "@/lib/image-utils";
+import { sortFilesByCaptureTime, sortPhotosByTime } from "@/lib/image-utils";
 import { deleteStoragePhotos, getPhotoDisplayUrl, uploadPhotoBlob } from "@/lib/photo-client";
+import { useUploadQueue, type QueuedPhotoItem } from "@/components/upload-queue-context";
 import {
   buildRecordShareUrl,
   executeShare,
@@ -81,6 +82,8 @@ export function useRecordMutations({
   editorPhoto,
   setEditorPhoto,
 }: UseRecordMutationsOptions) {
+  const { enqueuePhotoUpload } = useUploadQueue();
+
   async function saveWishlist() {
     if (!supabase || !session || !selected) {
       window.location.hash = "panel";
@@ -90,16 +93,18 @@ export function useRecordMutations({
     setNotice("");
 
     if (hasWishlist) {
+      const prevSnapshot = ascents;
+      setAscents((prev) => prev.filter((a) => !(a.summit_id === selected.id && a.is_wishlist)));
+      setNotice("Eliminado de tu lista de deseos.");
+
       const { error } = await supabase
         .from("ascents")
         .delete()
         .match({ user_id: session.user.id, summit_id: selected.id, is_wishlist: true });
       if (error) {
+        setAscents(prevSnapshot);
         setNotice(error.message);
-        return;
       }
-      setAscents((prev) => prev.filter((a) => !(a.summit_id === selected.id && a.is_wishlist)));
-      setNotice("Eliminado de tu lista de deseos.");
       return;
     }
 
@@ -109,6 +114,19 @@ export function useRecordMutations({
     }
 
     const finalDate = new Date().toISOString().slice(0, 10);
+    const prevSnapshot = ascents;
+    setAscents((prev) => [
+      {
+        summit_id: selected.id,
+        achieved_on: finalDate,
+        end_date: null,
+        notes: null,
+        is_wishlist: true,
+      },
+      ...prev.filter((a) => !(a.summit_id === selected.id && a.is_wishlist)),
+    ]);
+    setNotice("¡Añadido a tu lista de deseos!");
+
     const { error } = await supabase.from("ascents").upsert(
       {
         user_id: session.user.id,
@@ -121,38 +139,30 @@ export function useRecordMutations({
       { onConflict: "user_id,summit_id,achieved_on" }
     );
     if (error) {
+      setAscents(prevSnapshot);
       setNotice(error.message);
-      return;
     }
-    setAscents((prev) => [
-      {
-        summit_id: selected.id,
-        achieved_on: finalDate,
-        end_date: null,
-        notes: null,
-        is_wishlist: true,
-      },
-      ...prev.filter((a) => !(a.summit_id === selected.id && a.is_wishlist)),
-    ]);
-    setNotice("¡Añadido a tu lista de deseos!");
   }
 
   async function saveWishlistNote() {
     if (!supabase || !session || !selected || !wishlistEntry) return;
     const trimmed = wishlistNoteText.trim() || null;
-    const { error } = await supabase
-      .from("ascents")
-      .update({ notes: trimmed })
-      .match({ user_id: session.user.id, summit_id: selected.id, is_wishlist: true });
-    if (error) {
-      setNotice(error.message);
-      return;
-    }
+    const prevSnapshot = ascents;
     setAscents((prev) =>
       prev.map((a) => (a.summit_id === selected.id && a.is_wishlist ? { ...a, notes: trimmed } : a))
     );
     setShowWishlistNoteEditor(false);
     setNotice(trimmed ? "Nota guardada." : "Nota eliminada.");
+
+    const { error } = await supabase
+      .from("ascents")
+      .update({ notes: trimmed })
+      .match({ user_id: session.user.id, summit_id: selected.id, is_wishlist: true });
+    if (error) {
+      setAscents(prevSnapshot);
+      setShowWishlistNoteEditor(true);
+      setNotice(error.message);
+    }
   }
 
   async function handleShareRecord(
@@ -522,41 +532,6 @@ export function useRecordMutations({
     );
     const sortedFilesWithTime = await sortFilesByCaptureTime(payload.files, finalDate);
     const filesToUpload = sortedFilesWithTime.slice(0, availableSlots);
-    const uploaded: SummitPhoto[] = [];
-
-    const uploadTasks = filesToUpload.map(async ({ file, shotAt }) => {
-      if (!file.type.startsWith("image/")) return null;
-      try {
-        const compressedBlob = await compressImage(file);
-        const uploadResult = await uploadPhotoBlob({
-          blob: compressedBlob,
-          fileName: file.name,
-          summitId: selected.id,
-          session,
-          supabase: supabase!,
-        });
-        return {
-          user_id: session.user.id,
-          summit_id: expectedSummitId,
-          storage_path: uploadResult.storagePath,
-          public_url: uploadResult.publicUrl,
-          file_size: uploadResult.fileSize,
-          taken_on: finalDate,
-          shot_at: shotAt,
-        };
-      } catch (uploadErr: any) {
-        setNotice(`Registro guardado, pero una foto no pudo subirse: ${uploadErr.message}`);
-        return null;
-      }
-    });
-
-    const photoRecordsToInsert = (await Promise.all(uploadTasks)).filter(
-      (item): item is NonNullable<typeof item> => Boolean(item)
-    );
-    if (photoRecordsToInsert.length > 0) {
-      const photoResult = await supabase.from("summit_photos").insert(photoRecordsToInsert).select();
-      if (photoResult.data) uploaded.push(...(photoResult.data as SummitPhoto[]));
-    }
 
     if (isExperience) {
       const { data } = await supabase
@@ -593,7 +568,6 @@ export function useRecordMutations({
       });
     }
 
-    if (uploaded.length > 0) setPhotos((prev) => sortPhotosByTime([...prev, ...uploaded]));
     if (galleryPhotosToAdd.length > 0) {
       const galleryIds = galleryPhotosToAdd.map((p) => p.id);
       await supabase
@@ -611,6 +585,50 @@ export function useRecordMutations({
       setSelectedPhotosForEdit((prev) => prev.filter((id) => !galleryIds.includes(id)));
     }
 
+    const queuedImages = filesToUpload.filter(({ file }) => !file.type || file.type.startsWith("image/"));
+    if (queuedImages.length > 0 && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+      const queuedItems: QueuedPhotoItem[] = queuedImages.map(({ file, shotAt }) => ({
+        tempId: `uploading-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random()}`,
+        tempUrl: URL.createObjectURL(file),
+        file,
+        fileName: file.name,
+        shotAt,
+      }));
+
+      const optimisticNow = new Date().toISOString();
+      const optimisticPhotos: SummitPhoto[] = queuedItems.map((q) => ({
+        id: q.tempId,
+        summit_id: expectedSummitId,
+        storage_path: "",
+        public_url: q.tempUrl,
+        taken_on: finalDate,
+        shot_at: q.shotAt,
+        caption: null,
+        created_at: optimisticNow,
+      }));
+
+      setPhotos((prev) => sortPhotosByTime([...prev, ...optimisticPhotos]));
+
+      enqueuePhotoUpload({
+        items: queuedItems,
+        summitId: selected.id,
+        expectedSummitId,
+        takenOn: finalDate,
+        userId: session.user.id,
+        session,
+        onComplete: ({ inserted, replacedTempIds }) => {
+          const replacedSet = new Set(replacedTempIds);
+          setPhotos((prev) =>
+            sortPhotosByTime([...prev.filter((p) => !replacedSet.has(p.id)), ...inserted])
+          );
+        },
+        onDiscardFailed: (failedIds) => {
+          const failedSet = new Set(failedIds);
+          setPhotos((prev) => prev.filter((p) => !failedSet.has(p.id)));
+        },
+      });
+    }
+
     setSaving(false);
     setRecordOpen(false);
 
@@ -619,15 +637,18 @@ export function useRecordMutations({
       ? experienceRecords.some((r) => r.experience_id === selected.id)
       : ascents.some((a) => a.summit_id === selected.id && !a.is_wishlist);
 
-    const message = isEdit
-      ? "Cambios guardados."
-      : hasPrevious
-        ? "Nuevo registro añadido."
-        : isPeaks
-          ? "Registro guardado. ¡Un pico más en tu lista!"
-          : isExperience
-            ? "Registro guardado. ¡Una experiencia más en tu lista!"
-            : "Registro guardado. ¡Un país más en tu lista!";
+    const message =
+      queuedImages.length > 0
+        ? "Registro guardado. Subiendo fotos en segundo plano..."
+        : isEdit
+          ? "Cambios guardados."
+          : hasPrevious
+            ? "Nuevo registro añadido."
+            : isPeaks
+              ? "Registro guardado. ¡Un pico más en tu lista!"
+              : isExperience
+                ? "Registro guardado. ¡Una experiencia más en tu lista!"
+                : "Registro guardado. ¡Un país más en tu lista!";
     setNotice(message);
     return { saved: true, tripGroupId: tripGroupIdToSave };
   }
@@ -749,77 +770,104 @@ export function useRecordMutations({
 
     const remainingSlots = Math.max(0, 4 - existingPhotos.length);
     const sortedFilesWithTime = await sortFilesByCaptureTime(nextFiles, ascent.achieved_on);
-    const filesToUpload = sortedFilesWithTime.slice(0, remainingSlots);
+    const filesToUpload = sortedFilesWithTime
+      .slice(0, remainingSlots)
+      .filter(({ file }) => !file.type || file.type.startsWith("image/"));
 
-    setSaving(true);
-    setNotice("Subiendo fotos...");
-
-    const uploaded: SummitPhoto[] = [];
-    const uploadTasks = filesToUpload.map(async ({ file, shotAt }) => {
-      if (!file.type.startsWith("image/")) return null;
-      try {
-        const compressedBlob = await compressImage(file);
-        const uploadResult = await uploadPhotoBlob({
-          blob: compressedBlob,
-          fileName: file.name,
-          summitId: selected.id,
-          session,
-          supabase: supabase!,
-        });
-        return {
-          user_id: session.user.id,
-          summit_id: expectedSummitId,
-          storage_path: uploadResult.storagePath,
-          public_url: uploadResult.publicUrl,
-          file_size: uploadResult.fileSize,
-          taken_on: ascent.achieved_on,
-          shot_at: shotAt,
-        };
-      } catch (uploadErr: any) {
-        setNotice(uploadErr.message || `Error al subir ${file.name}`);
-        return null;
-      }
-    });
-
-    const recordsToInsert = (await Promise.all(uploadTasks)).filter(
-      (item): item is NonNullable<typeof item> => Boolean(item)
-    );
-    if (recordsToInsert.length > 0) {
-      const { data } = await supabase.from("summit_photos").insert(recordsToInsert).select();
-      if (data) uploaded.push(...(data as SummitPhoto[]));
+    event.target.value = "";
+    if (filesToUpload.length === 0) {
+      setNotice("No se seleccionaron imágenes válidas.");
+      return;
     }
 
-    if (uploaded.length > 0) setPhotos((prev) => sortPhotosByTime([...prev, ...uploaded]));
-    event.target.value = "";
-    setSaving(false);
-    setNotice(uploaded.length > 0 ? "Fotos subidas correctamente." : "No se subieron fotos.");
+    if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+      const queuedItems: QueuedPhotoItem[] = filesToUpload.map(({ file, shotAt }) => ({
+        tempId: `uploading-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random()}`,
+        tempUrl: URL.createObjectURL(file),
+        file,
+        fileName: file.name,
+        shotAt,
+      }));
+
+      const optimisticNow = new Date().toISOString();
+      const optimisticPhotos: SummitPhoto[] = queuedItems.map((q) => ({
+        id: q.tempId,
+        summit_id: expectedSummitId,
+        storage_path: "",
+        public_url: q.tempUrl,
+        taken_on: ascent.achieved_on,
+        shot_at: q.shotAt,
+        caption: null,
+        created_at: optimisticNow,
+      }));
+
+      setPhotos((prev) => sortPhotosByTime([...prev, ...optimisticPhotos]));
+      setNotice(
+        queuedItems.length === 1
+          ? "Foto añadida. Subiendo en segundo plano..."
+          : "Fotos añadidas. Subiendo en segundo plano..."
+      );
+
+      enqueuePhotoUpload({
+        items: queuedItems,
+        summitId: selected.id,
+        expectedSummitId,
+        takenOn: ascent.achieved_on,
+        userId: session.user.id,
+        session,
+        onComplete: ({ inserted, replacedTempIds }) => {
+          const replacedSet = new Set(replacedTempIds);
+          setPhotos((prev) =>
+            sortPhotosByTime([...prev.filter((p) => !replacedSet.has(p.id)), ...inserted])
+          );
+        },
+        onDiscardFailed: (failedIds) => {
+          const failedSet = new Set(failedIds);
+          setPhotos((prev) => prev.filter((p) => !failedSet.has(p.id)));
+        },
+      });
+    }
   }
 
   async function handleSaveCaption() {
     if (!session || !lightboxPhoto || !supabase) return;
-    setSaving(true);
+    if (lightboxPhoto.id.startsWith("uploading-")) {
+      setNotice("Espera un segundo a que termine de subirse la foto.");
+      return;
+    }
     const trimmedCaption = lightboxNewCaption.trim();
+    const prevCaption = lightboxPhoto.caption || null;
+    const nextCaption = trimmedCaption || null;
+
+    // Optimistic caption update
+    setPhotos((prev) =>
+      prev.map((p) => (p.id === lightboxPhoto.id ? { ...p, caption: nextCaption } : p))
+    );
+    setLightboxPhoto((prev) => (prev ? { ...prev, caption: nextCaption } : null));
+    setLightboxCaptionModalOpen(false);
+    setNotice("Descripción guardada correctamente.");
+
     const { error } = await supabase
       .from("summit_photos")
-      .update({ caption: trimmedCaption || null })
+      .update({ caption: nextCaption })
       .eq("id", lightboxPhoto.id)
       .eq("user_id", session.user.id);
 
     if (error) {
-      setNotice(`Error: ${error.message}`);
-    } else {
       setPhotos((prev) =>
-        prev.map((p) => (p.id === lightboxPhoto.id ? { ...p, caption: trimmedCaption || null } : p))
+        prev.map((p) => (p.id === lightboxPhoto.id ? { ...p, caption: prevCaption } : p))
       );
-      setLightboxPhoto((prev) => (prev ? { ...prev, caption: trimmedCaption || null } : null));
-      setLightboxCaptionModalOpen(false);
-      setNotice("Descripción guardada correctamente.");
+      setLightboxPhoto((prev) => (prev ? { ...prev, caption: prevCaption } : null));
+      setNotice(`Error: ${error.message}`);
     }
-    setSaving(false);
   }
 
   function deletePhoto(photo: SummitPhoto) {
     if (!supabase || !session) return;
+    if (photo.id.startsWith("uploading-")) {
+      setNotice("Espera a que termine de subirse la foto antes de eliminarla.");
+      return;
+    }
     setConfirmConfig({
       isOpen: true,
       message: "¿Seguro que quieres eliminar esta foto?",

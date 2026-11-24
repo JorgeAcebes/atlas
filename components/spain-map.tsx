@@ -18,6 +18,7 @@ import { fetchSpainGeo, getCachedSpainGeo } from "@/lib/geo-loader";
 import { FitSpain } from "@/lib/leaflet-bounds";
 import { getPeakMarkerIcons } from "@/lib/leaflet-icons";
 import {
+  HoverHighlightBridge,
   MapActiveSynchronizer,
   MapInvalidator,
   MapZoomListener,
@@ -213,6 +214,7 @@ export const SpainMap = memo(function SpainMap({
 
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentHoveredCodeRef = useRef<string | null>(null);
+  const hoverHighlightRef = useRef<L.GeoJSON | null>(null);
 
   const activeCode = useMemo(() => {
     if (!activeId) return null;
@@ -262,18 +264,16 @@ export const SpainMap = memo(function SpainMap({
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
+    hoverHighlightRef.current?.clearLayers();
     if (currentHoveredCodeRef.current) {
       const prevCode = currentHoveredCodeRef.current;
       currentHoveredCodeRef.current = null;
       const prevLayer = layerRefs.current.get(prevCode);
       if (prevLayer) {
-        if (prevCode !== activeCodeRef.current) {
-          restoreLayerStyle(prevCode, prevLayer);
-        }
         safeCloseTooltip(prevLayer);
       }
     }
-  }, [restoreLayerStyle]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -350,6 +350,7 @@ export const SpainMap = memo(function SpainMap({
           clearTimeout(hoverTimeoutRef.current);
           hoverTimeoutRef.current = null;
         }
+        hoverHighlightRef.current?.clearLayers();
         safeCloseTooltip(pathLayer);
         onInformationRef.current(peak);
       });
@@ -368,11 +369,9 @@ export const SpainMap = memo(function SpainMap({
         if (currentHoveredCodeRef.current && currentHoveredCodeRef.current !== peak.code) {
           const prevCode = currentHoveredCodeRef.current;
           currentHoveredCodeRef.current = null;
+          hoverHighlightRef.current?.clearLayers();
           const prevLayer = layerRefs.current.get(prevCode);
           if (prevLayer) {
-            if (prevCode !== activeCodeRef.current) {
-              restoreLayerStyle(prevCode, prevLayer);
-            }
             safeCloseTooltip(prevLayer);
           }
         }
@@ -390,14 +389,25 @@ export const SpainMap = memo(function SpainMap({
           }
 
           currentHoveredCodeRef.current = peak.code;
+          let highlightStyle: L.PathOptions;
           if (diffModeRef.current) {
-            pathLayer.setStyle({ weight: 2.5, fillOpacity: 0.9 });
+            const ds = getDiffStyleRef(peak.code);
+            highlightStyle = { ...ds, weight: 2.5, fillOpacity: 0.9 };
           } else {
+            const isDone = completedRef.current.has(peak.code);
             const isWishlist = wishlistRef.current.has(peak.code);
-            pathLayer.setStyle({
+            highlightStyle = {
+              color: isDone ? "#245f52" : isWishlist ? "#d2a54b" : "#8bb8ae",
               weight: 2.5,
-              fillOpacity: completedRef.current.has(peak.code) ? 0.9 : isWishlist ? 0.9 : 0.85,
-            });
+              fillColor: isDone ? "#5c9b7d" : isWishlist ? "#ecd9a5" : "#e7f1ea",
+              fillOpacity: isDone ? 0.9 : isWishlist ? 0.9 : 0.85,
+            };
+          }
+          const hl = hoverHighlightRef.current;
+          if (hl) {
+            hl.clearLayers();
+            hl.addData(feature);
+            hl.setStyle(highlightStyle);
           }
           if (latlng && typeof pathLayer.openTooltip === "function") {
             pathLayer.openTooltip(latlng);
@@ -413,14 +423,12 @@ export const SpainMap = memo(function SpainMap({
 
         if (peak.code === currentHoveredCodeRef.current) {
           currentHoveredCodeRef.current = null;
-          if (peak.code !== activeCodeRef.current) {
-            restoreLayerStyle(peak.code, pathLayer);
-          }
+          hoverHighlightRef.current?.clearLayers();
           safeCloseTooltip(pathLayer);
         }
       });
     },
-    [restoreLayerStyle]
+    [getDiffStyleRef]
   );
 
   useEffect(() => {
@@ -500,7 +508,9 @@ export const SpainMap = memo(function SpainMap({
       zoomSnap={1}
       zoomDelta={1}
       wheelPxPerZoomLevel={60}
-      wheelDebounceTime={40}
+      wheelDebounceTime={25}
+      inertiaDeceleration={2200}
+      easeLinearity={0.2}
       minZoom={4}
       maxZoom={10}
       maxBounds={[
@@ -517,6 +527,7 @@ export const SpainMap = memo(function SpainMap({
         storageKey="mapState_spain"
         onInteractionStart={clearHoverState}
       />
+      <HoverHighlightBridge highlightLayerRef={hoverHighlightRef} />
       <SweepOverlay searchedId={searchedId} layerRefs={layerRefs} />
       <MapSearchControl
         items={searchItems}
@@ -526,7 +537,7 @@ export const SpainMap = memo(function SpainMap({
       />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         keepBuffer={keepBuffer}
         updateWhenIdle={false}
         updateInterval={100}

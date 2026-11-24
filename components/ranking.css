@@ -705,3 +705,37 @@ h1.ranking-hero-title em {
 .mode-countries .ranking-me-badge {
   color: #5b3a8c;
 }
+
+/* Ranking Skeletons */
+.ranking-skeleton-row {
+  pointer-events: none;
+}
+
+.ranking-skeleton-num {
+  width: 24px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.ranking-skeleton-avatar {
+  border-color: transparent !important;
+}
+
+.ranking-skeleton-name {
+  width: 120px;
+  max-width: 45vw;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.ranking-skeleton-stat {
+  width: 78px;
+  height: 12px;
+  border-radius: 6px;
+}
+
+.ranking-skeleton-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+}

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { preloadImages } from "@/lib/image-preloader";
+import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { supabase } from "@/lib/supabase";
 
 export type RankingEntry = {
@@ -25,6 +27,51 @@ const cachedRankingCount: Record<ModeFilter, number | null> = {
   peaks: null,
 };
 const RANKING_CACHE_TTL = 60 * 1000;
+
+/**
+ * Warms global ranking cache and top-20 explorer avatars during idle time before opening Ranking.
+ */
+export async function prefetchRankingInBackground(
+  mode: ModeFilter,
+  userId?: string | null
+): Promise<void> {
+  if (typeof window === "undefined" || !supabase) return;
+  const cacheKey = `${mode}-all-${userId || "anon"}`;
+  const sharedAllKey = `${mode}-all-anon`;
+  const now = Date.now();
+  const cached = globalRankingCache[cacheKey] || globalRankingCache[sharedAllKey];
+  const cachedAt =
+    globalRankingLastFetched[cacheKey] || globalRankingLastFetched[sharedAllKey] || 0;
+  if (cached && now - cachedAt < RANKING_CACHE_TTL) {
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("get_user_ranking", {
+      p_summit_ids: null,
+      p_following_only: false,
+      p_follower: null,
+      p_mode: mode,
+    });
+    if (error || !data) return;
+    const result = ((data as RankingEntry[]) || []).filter((e) => e.ascents_count > 0);
+    globalRankingCache[cacheKey] = result;
+    globalRankingCache[sharedAllKey] = result;
+    globalRankingLastFetched[cacheKey] = Date.now();
+    globalRankingLastFetched[sharedAllKey] = globalRankingLastFetched[cacheKey];
+    cachedRankingCount[mode] = result.length;
+
+    const avatarUrls = result
+      .slice(0, 20)
+      .map((e) => (e.avatar_url ? getPhotoDisplayUrl(e.avatar_url) : ""))
+      .filter(Boolean);
+    if (avatarUrls.length > 0) {
+      preloadImages(avatarUrls, { maxConcurrent: 3, maxCount: 20 });
+    }
+  } catch {
+    /* ignore idle prefetch failures */
+  }
+}
 
 export function useRankingData({
   mode,
@@ -51,13 +98,17 @@ export function useRankingData({
     async function fetchRanking(isBackground = false) {
       if (!supabase) return;
       const cacheKey = `${mode}-${scope}-${session?.user?.id || "anon"}`;
+      const sharedAllKey = scope === "all" ? `${mode}-all-anon` : cacheKey;
+      const effectiveCached = globalRankingCache[cacheKey] || globalRankingCache[sharedAllKey];
+      const effectiveLastFetched =
+        globalRankingLastFetched[cacheKey] || globalRankingLastFetched[sharedAllKey] || 0;
       const now = Date.now();
       const isFresh =
-        Boolean(globalRankingCache[cacheKey]) &&
-        now - (globalRankingLastFetched[cacheKey] || 0) < RANKING_CACHE_TTL;
+        Boolean(effectiveCached) && now - effectiveLastFetched < RANKING_CACHE_TTL;
 
-      if (globalRankingCache[cacheKey]) {
-        setEntries(globalRankingCache[cacheKey]);
+      if (effectiveCached) {
+        globalRankingCache[cacheKey] = effectiveCached;
+        setEntries(effectiveCached);
         setLoading(false);
       } else if (!isBackground) {
         setLoading(true);
@@ -67,7 +118,8 @@ export function useRankingData({
         const otherMode: ModeFilter = mode === "countries" ? "peaks" : "countries";
         const canPrefetchOther = otherMode === "peaks" ? enablePeaks : enableCountries;
         const otherKey = `${otherMode}-${scope}-${session?.user?.id || "anon"}`;
-        if (!canPrefetchOther || globalRankingCache[otherKey] || !supabase) return;
+        const otherSharedKey = scope === "all" ? `${otherMode}-all-anon` : otherKey;
+        if (!canPrefetchOther || globalRankingCache[otherKey] || globalRankingCache[otherSharedKey] || !supabase) return;
 
         Promise.resolve(
           supabase.rpc("get_user_ranking", {
@@ -83,7 +135,11 @@ export function useRankingData({
               const res = ((data as RankingEntry[]) || []).filter((e) => e.ascents_count > 0);
               globalRankingCache[otherKey] = res;
               globalRankingLastFetched[otherKey] = Date.now();
-              if (scope === "all") cachedRankingCount[otherMode] = res.length;
+              if (scope === "all") {
+                globalRankingCache[otherSharedKey] = res;
+                globalRankingLastFetched[otherSharedKey] = globalRankingLastFetched[otherKey];
+                cachedRankingCount[otherMode] = res.length;
+              }
             }
           })
           .catch(() => {});
@@ -112,7 +168,18 @@ export function useRankingData({
           globalRankingCache[cacheKey] = result;
           globalRankingLastFetched[cacheKey] = Date.now();
           setEntries(result);
-          if (scope === "all") cachedRankingCount[mode] = result.length;
+          if (scope === "all") {
+            globalRankingCache[sharedAllKey] = result;
+            globalRankingLastFetched[sharedAllKey] = globalRankingLastFetched[cacheKey];
+            cachedRankingCount[mode] = result.length;
+          }
+          const avatarUrls = result
+            .slice(0, 20)
+            .map((e) => (e.avatar_url ? getPhotoDisplayUrl(e.avatar_url) : ""))
+            .filter(Boolean);
+          if (avatarUrls.length > 0) {
+            preloadImages(avatarUrls, { maxConcurrent: 3, maxCount: 20 });
+          }
         }
 
         prefetchOtherMode();

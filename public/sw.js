@@ -1,10 +1,10 @@
-const CACHE_VERSION = "v13";
-const CACHE_NAME = "atlas-cache-v13";
+const CACHE_VERSION = "v14";
+const CACHE_NAME = "atlas-cache-v14";
 const PHOTOS_CACHE = `atlas-photos-${CACHE_VERSION}`;
 const TILES_CACHE = `atlas-tiles-${CACHE_VERSION}`;
 
-const MAX_PHOTO_CACHE_ENTRIES = 150;
-const MAX_TILE_CACHE_ENTRIES = 250;
+const MAX_PHOTO_CACHE_ENTRIES = 250;
+const MAX_TILE_CACHE_ENTRIES = 600;
 
 const STATIC_ASSETS = [
   '/manifest.json',

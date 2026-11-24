@@ -6,6 +6,7 @@ import { getIconComponent } from "@/components/icons";
 import { LocationSearch } from "@/components/location-search";
 import { CompanionSelector } from "@/components/companion-selector";
 import { getLinkPlaceholders } from "@/lib/link-utils";
+import { precompressPhotoFile } from "@/lib/image-utils";
 import type { CompanionProfile } from "@/lib/companions";
 import { IconCamera, IconClose } from "./tracker-icons";
 import type { SelectedItem, SummitPhoto } from "./types";
@@ -221,6 +222,11 @@ export function RecordFormModal({
 
     const remainingSlots = Math.max(0, 4 - currentTotal);
     const filesToAdd = nextFiles.slice(0, remainingSlots);
+    filesToAdd.forEach((f) => {
+      if (f.type.startsWith("image/")) {
+        void precompressPhotoFile(f);
+      }
+    });
     setFiles((prev) => [...prev, ...filesToAdd]);
     if (!isDateUnknown && !isDateModified && filesToAdd[0]?.lastModified) {
       setClimbDate(new Date(filesToAdd[0].lastModified));

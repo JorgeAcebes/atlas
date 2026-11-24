@@ -33,14 +33,15 @@ export function SelectablePhotoGrid({
       {photos.map((photo) => {
         const publicUrl = getPhotoDisplayUrl(photo.public_url, photo.storage_path);
         if (!publicUrl) return null;
-        const isSelected = selectedPhotoIds.includes(photo.id);
+        const isUploading = Boolean(photo.id && photo.id.startsWith("uploading-"));
+        const isSelected = !isUploading && selectedPhotoIds.includes(photo.id);
         return (
           <figure
             key={photo.id}
             className={isSelected ? "selected" : ""}
             onClick={() => onPhotoClick(photo)}
           >
-            {!isReadOnly && (
+            {!isReadOnly && !isUploading && (
               <button
                 type="button"
                 className={`photo-select-circle ${isSelected ? "active" : ""}`}
@@ -54,6 +55,7 @@ export function SelectablePhotoGrid({
               </button>
             )}
             <img src={publicUrl} alt={altText} loading="lazy" decoding="async" />
+            {isUploading && <span className="photo-uploading-badge">Subiendo...</span>}
             {photo.caption && <figcaption>{photo.caption}</figcaption>}
           </figure>
         );

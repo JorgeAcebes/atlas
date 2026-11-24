@@ -86,7 +86,7 @@ export function PhotoModals({
             }}
             onClose={() => window.history.back()}
             title={activeSelected?.title || ""}
-            canEdit={!isReadOnly}
+            canEdit={!isReadOnly && !lightboxPhoto.id?.startsWith("uploading-")}
             onEditPhoto={(photo) => {
               onOpenEditor(photo as any);
               window.history.pushState(null, "", "#editor");

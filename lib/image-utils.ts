@@ -1,3 +1,22 @@
+const precompressedFileCache = new WeakMap<Blob, Promise<Blob>>();
+
+/**
+ * Pre-compresses an image immediately upon selection so saving a record reuses
+ * the already compressed 1200px WebP Blob without blocking submission.
+ */
+export function precompressPhotoFile(
+  file: File | Blob,
+  maxWidthPx = 1200,
+  quality = 0.75,
+  targetFormat: "image/webp" | "image/jpeg" = "image/webp"
+): Promise<Blob> {
+  const existing = precompressedFileCache.get(file);
+  if (existing) return existing;
+  const promise = compressImage(file, maxWidthPx, quality, targetFormat);
+  precompressedFileCache.set(file, promise);
+  return promise;
+}
+
 export async function compressImage(
   file: File | Blob,
   maxWidthPx = 1200,

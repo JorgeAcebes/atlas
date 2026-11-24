@@ -1202,3 +1202,8 @@
     flex-shrink: 0 !important;
   }
 }
+
+/* Smooth CSS zoom glide aligned with Leaflet wheelDebounce */
+.leaflet-zoom-anim .leaflet-zoom-animated {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}

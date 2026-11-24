@@ -702,3 +702,64 @@
     padding-bottom: calc(75px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
+
+
+/* ── Shimmer & Editorial Feed Skeletons ────────────────── */
+.photo-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(229, 224, 211, 0.35) 25%,
+    rgba(250, 248, 241, 0.72) 50%,
+    rgba(229, 224, 211, 0.35) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+.mode-experiences .photo-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(49, 50, 68, 0.45) 25%,
+    rgba(69, 71, 90, 0.65) 50%,
+    rgba(49, 50, 68, 0.45) 75%
+  );
+  background-size: 800px 100%;
+}
+
+.feed-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.feed-skeleton-card {
+  margin-bottom: 0;
+  pointer-events: none;
+}
+
+.feed-skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.feed-skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+}
+
+.feed-skeleton-line--title {
+  width: 58%;
+  height: 14px;
+}
+
+.feed-skeleton-line--sub {
+  width: 34%;
+  height: 10px;
+}
+
+.feed-skeleton-media {
+  width: 100%;
+  height: 240px;
+}

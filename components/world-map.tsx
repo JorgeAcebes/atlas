@@ -18,6 +18,7 @@ import { fetchWorldGeo, getCachedWorldGeo, getLargestPolygonBounds } from "@/lib
 import { FitWorld } from "@/lib/leaflet-bounds";
 import { getExperienceIcon, getWorldMarkerIcons } from "@/lib/leaflet-icons";
 import {
+  HoverHighlightBridge,
   MapActiveSynchronizer,
   MapInvalidator,
   MapZoomListener,
@@ -184,7 +185,11 @@ function CountryMarkersLayer({
 
   const syncViewport = useCallback(() => {
     try {
-      setViewport({ zoom: map.getZoom() || 0, bounds: map.getBounds() });
+      const nextZoom = map.getZoom() || 0;
+      setViewport((prev) => {
+        if (prev.zoom < 6 && nextZoom < 6) return prev;
+        return { zoom: nextZoom, bounds: map.getBounds() };
+      });
     } catch {
       /* ignore */
     }
@@ -341,6 +346,7 @@ export const WorldMap = memo(function WorldMap({
   const onInformationRef = useRef(onInformation);
   const selectingLocationRef = useRef(selectingLocation);
   const layerRefs = useRef(new Map<string, L.Path>());
+  const hoverHighlightRef = useRef<L.GeoJSON | null>(null);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentHoveredIdRef = useRef<string | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -452,18 +458,16 @@ export const WorldMap = memo(function WorldMap({
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
+    hoverHighlightRef.current?.clearLayers();
     if (currentHoveredIdRef.current) {
       const prevId = currentHoveredIdRef.current;
       currentHoveredIdRef.current = null;
       const prevLayer = layerRefs.current.get(prevId);
       if (prevLayer) {
-        if (prevId !== activeIdRef.current) {
-          restoreLayerStyle(prevId, prevLayer);
-        }
         safeCloseTooltip(prevLayer);
       }
     }
-  }, [restoreLayerStyle]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -549,6 +553,7 @@ export const WorldMap = memo(function WorldMap({
           clearTimeout(hoverTimeoutRef.current);
           hoverTimeoutRef.current = null;
         }
+        hoverHighlightRef.current?.clearLayers();
         if (selectingLocationRef.current) return;
         safeCloseTooltip(pathLayer);
         onInformationRef.current(country);
@@ -568,11 +573,9 @@ export const WorldMap = memo(function WorldMap({
         if (currentHoveredIdRef.current && currentHoveredIdRef.current !== country.id) {
           const prevId = currentHoveredIdRef.current;
           currentHoveredIdRef.current = null;
+          hoverHighlightRef.current?.clearLayers();
           const prevLayer = layerRefs.current.get(prevId);
           if (prevLayer) {
-            if (prevId !== activeIdRef.current) {
-              restoreLayerStyle(prevId, prevLayer);
-            }
             safeCloseTooltip(prevLayer);
           }
         }
@@ -590,14 +593,25 @@ export const WorldMap = memo(function WorldMap({
           }
 
           currentHoveredIdRef.current = country.id;
+          let highlightStyle: L.PathOptions;
           if (diffModeRef.current) {
-            pathLayer.setStyle({ weight: 2.5, fillOpacity: 0.9 });
+            const ds = getDiffGeoStyleRef(country.id);
+            highlightStyle = { ...ds, weight: 2.5, fillOpacity: 0.9 };
           } else {
+            const isDone = completedRef.current.has(country.id);
             const isWishlist = wishlistRef.current.has(country.id);
-            pathLayer.setStyle({
+            highlightStyle = {
+              color: isDone ? "#4a2878" : isWishlist ? "#d2a54b" : "#9b8ab8",
               weight: 2.5,
-              fillOpacity: completedRef.current.has(country.id) ? 0.9 : isWishlist ? 0.9 : 0.75,
-            });
+              fillColor: isDone ? "#7b52ab" : isWishlist ? "#ecd9a5" : "#ece5f3",
+              fillOpacity: isDone ? 0.9 : isWishlist ? 0.9 : 0.75,
+            };
+          }
+          const hl = hoverHighlightRef.current;
+          if (hl) {
+            hl.clearLayers();
+            hl.addData(f);
+            hl.setStyle(highlightStyle);
           }
           if (latlng && typeof pathLayer.openTooltip === "function") {
             pathLayer.openTooltip(latlng);
@@ -613,14 +627,12 @@ export const WorldMap = memo(function WorldMap({
 
         if (country.id === currentHoveredIdRef.current) {
           currentHoveredIdRef.current = null;
-          if (country.id !== activeIdRef.current) {
-            restoreLayerStyle(country.id, pathLayer);
-          }
+          hoverHighlightRef.current?.clearLayers();
           safeCloseTooltip(pathLayer);
         }
       });
     },
-    [restoreLayerStyle]
+    [getDiffGeoStyleRef]
   );
 
   return (
@@ -634,12 +646,14 @@ export const WorldMap = memo(function WorldMap({
       zoomSnap={1}
       zoomDelta={1}
       wheelPxPerZoomLevel={60}
-      wheelDebounceTime={40}
+      wheelDebounceTime={25}
+      inertiaDeceleration={2200}
+      easeLinearity={0.2}
       minZoom={1}
       maxZoom={12}
       maxBounds={[
-        [-85, -180],
-        [85, 180],
+        [-60, -180],
+        [83, 180],
       ]}
       maxBoundsViscosity={0.5}
     >
@@ -651,6 +665,7 @@ export const WorldMap = memo(function WorldMap({
         storageKey="mapState_world"
         onInteractionStart={clearHoverState}
       />
+      <HoverHighlightBridge highlightLayerRef={hoverHighlightRef} />
       <ExperienceMapClickListener onMapClick={onMapClick} selectingLocation={selectingLocation} />
       <SweepOverlay searchedId={searchedId} layerRefs={layerRefs} />
 
@@ -807,7 +822,7 @@ export const WorldMap = memo(function WorldMap({
 
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         minZoom={1}
         maxZoom={12}
         keepBuffer={keepBuffer}

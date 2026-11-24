@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,6 +18,58 @@ import {
   sanitizeTextForShare,
 } from "@/lib/share-utils";
 import { RecordLinkBadge } from "@/components/shared/record-link-badge";
+
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+function ProgressiveFeedImg({
+  src,
+  alt,
+  className,
+  loading,
+  fetchPriority,
+  style,
+  onClick,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  loading: "eager" | "lazy";
+  fetchPriority?: "high" | "low" | "auto";
+  style?: React.CSSProperties;
+  onClick?: () => void;
+}) {
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useIsomorphicLayoutEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) {
+      setLoaded(true);
+    } else {
+      setLoaded(false);
+    }
+  }, [src]);
+
+  return (
+    <img
+      ref={imgRef}
+      src={src}
+      alt={alt}
+      className={className}
+      loading={loading}
+      decoding="async"
+      {...(fetchPriority ? { fetchPriority } : {})}
+      onClick={onClick}
+      onLoad={() => setLoaded(true)}
+      onError={() => setLoaded(true)}
+      style={{
+        ...style,
+        opacity: loaded ? 1 : 0,
+        transition: loaded ? "opacity 160ms ease-out" : "none",
+      }}
+    />
+  );
+}
 
 const PhotoLightbox = dynamic(
   () => import("@/components/photo-lightbox").then((m) => m.PhotoLightbox),
@@ -79,9 +131,9 @@ function FeedItemCardInner({
   const hasPhotos = photos.length > 0;
   const isLightboxOpen = lightboxIndex !== null;
 
-  const isEager = index !== undefined && index < 2;
+  const isEager = index !== undefined && index < 5;
   const imgLoading = isEager ? ("eager" as const) : ("lazy" as const);
-  const imgPriority = isEager ? ("high" as const) : undefined;
+  const imgPriority = index !== undefined && index < 2 ? ("high" as const) : undefined;
 
   const openLightbox = (idx: number) => {
     setLightboxIndex(idx);
@@ -228,6 +280,7 @@ function FeedItemCardInner({
 
   return (
     <div
+      data-feed-index={index}
       className={`feed-item-wrapper ${isConnectedToNext ? "feed-item-wrapper--connected-next" : ""}`}
       style={{ position: "relative", marginBottom: "24px" }}
     >
@@ -441,6 +494,7 @@ function FeedItemCardInner({
 
         {photos.length > 0 && (
           <div
+            className="photo-shimmer"
             style={{
               position: "relative",
               width: "100%",
@@ -451,14 +505,13 @@ function FeedItemCardInner({
             }}
           >
             {photos.length === 1 ? (
-              <img
+              <ProgressiveFeedImg
                 src={photos[0].public_url}
                 onClick={() => openLightbox(0)}
                 alt="Activity media"
                 className="feed-card-media"
                 loading={imgLoading}
-                decoding="async"
-                {...(imgPriority ? { fetchPriority: imgPriority } : {})}
+                fetchPriority={imgPriority}
                 style={{ width: "100%", height: "300px", objectFit: "cover", cursor: "pointer", display: "block" }}
               />
             ) : photos.length === 3 ? (
@@ -474,6 +527,7 @@ function FeedItemCardInner({
                 }}
               >
                 <div
+                  className="photo-shimmer"
                   style={{
                     gridRow: "1 / span 2",
                     gridColumn: "1",
@@ -486,17 +540,17 @@ function FeedItemCardInner({
                     backgroundColor: "rgba(92, 155, 125, 0.05)",
                   }}
                 >
-                  <img
+                  <ProgressiveFeedImg
                     src={photos[0].public_url}
                     onClick={() => openLightbox(0)}
                     alt=""
                     loading={imgLoading}
-                    decoding="async"
-                    {...(imgPriority ? { fetchPriority: imgPriority } : {})}
+                    fetchPriority={imgPriority}
                     style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", cursor: "pointer", display: "block" }}
                   />
                 </div>
                 <div
+                  className="photo-shimmer"
                   style={{
                     gridRow: "1",
                     gridColumn: "2",
@@ -509,17 +563,17 @@ function FeedItemCardInner({
                     backgroundColor: "rgba(92, 155, 125, 0.05)",
                   }}
                 >
-                  <img
+                  <ProgressiveFeedImg
                     src={photos[1].public_url}
                     onClick={() => openLightbox(1)}
                     alt=""
                     loading={imgLoading}
-                    decoding="async"
-                    {...(imgPriority ? { fetchPriority: imgPriority } : {})}
+                    fetchPriority={imgPriority}
                     style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", cursor: "pointer", display: "block" }}
                   />
                 </div>
                 <div
+                  className="photo-shimmer"
                   style={{
                     gridRow: "2",
                     gridColumn: "2",
@@ -532,13 +586,12 @@ function FeedItemCardInner({
                     backgroundColor: "rgba(92, 155, 125, 0.05)",
                   }}
                 >
-                  <img
+                  <ProgressiveFeedImg
                     src={photos[2].public_url}
                     onClick={() => openLightbox(2)}
                     alt=""
                     loading={imgLoading}
-                    decoding="async"
-                    {...(imgPriority ? { fetchPriority: imgPriority } : {})}
+                    fetchPriority={imgPriority}
                     style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", cursor: "pointer", display: "block" }}
                   />
                 </div>
@@ -551,6 +604,7 @@ function FeedItemCardInner({
                   return (
                     <div
                       key={photo.id || pIndex}
+                      className="photo-shimmer"
                       style={{
                         position: "relative",
                         aspectRatio: "1",
@@ -561,13 +615,12 @@ function FeedItemCardInner({
                         backgroundColor: "rgba(92, 155, 125, 0.05)",
                       }}
                     >
-                      <img
+                      <ProgressiveFeedImg
                         src={photo.public_url}
                         onClick={() => openLightbox(pIndex)}
                         alt=""
                         loading={imgLoading}
-                        decoding="async"
-                        {...(imgPriority ? { fetchPriority: imgPriority } : {})}
+                        fetchPriority={imgPriority}
                         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", cursor: "pointer", display: "block" }}
                       />
                       {isLast && hasMore && (

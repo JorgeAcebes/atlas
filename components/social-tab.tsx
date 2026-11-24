@@ -608,6 +608,7 @@ export function SocialTab({
       )}
       {qrModalOpen && <QrModal isOpen={qrModalOpen} onClose={() => setQrModalOpen(false)} />}
       <InstallPrompt
+        isActive={isActive}
         manualOpen={installPromptOpen}
         onManualClose={() => setInstallPromptOpen(false)}
       />

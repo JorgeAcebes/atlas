@@ -73,9 +73,10 @@ if (typeof window !== "undefined") {
 export interface InstallPromptProps {
   manualOpen?: boolean;
   onManualClose?: () => void;
+  isActive?: boolean;
 }
 
-export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps = {}) {
+export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: InstallPromptProps = {}) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isManual, setIsManual] = useState(false);
@@ -90,6 +91,12 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
   }, [onManualClose]);
 
   useScrollLock(showPrompt);
+
+  useEffect(() => {
+    if (!isActive && showPrompt) {
+      setShowPrompt(false);
+    }
+  }, [isActive, showPrompt]);
 
   useEffect(() => {
     if (typeof localStorage !== "undefined" && localStorage.getItem("pwa_install_dismissed")) {
@@ -114,7 +121,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
         (window as any).__atlasInstallPrompt = pEvent;
       }
       setDeferredPrompt(pEvent);
-      if (!manualOpen && !isDismissed() && !isStandalone()) {
+      if (isActive && !manualOpen && !isDismissed() && !isStandalone()) {
         setShowPrompt(true);
       }
     };
@@ -124,7 +131,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       if (p) {
         setDeferredPrompt(p);
         setShowManualAndroidSteps(false);
-        if (!manualOpen && !isDismissed() && !isStandalone()) {
+        if (isActive && !manualOpen && !isDismissed() && !isStandalone()) {
           setShowPrompt(true);
         }
       }
@@ -146,12 +153,20 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       setDeferredPrompt(existingPrompt);
     }
 
-    if (manualOpen) {
+    if (manualOpen && isActive) {
       setIsManual(true);
       if (isIOS()) {
         setIsApple(true);
       }
       setShowPrompt(true);
+      return () => {
+        window.removeEventListener("beforeinstallprompt", handler);
+        window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
+        window.removeEventListener("atlas-app-installed", handleAppInstalled);
+      };
+    }
+
+    if (!isActive) {
       return () => {
         window.removeEventListener("beforeinstallprompt", handler);
         window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
@@ -195,7 +210,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       window.removeEventListener("atlas-app-installed", handleAppInstalled);
       clearTimeout(timer);
     };
-  }, [manualOpen]);
+  }, [manualOpen, isActive]);
 
   const handleInstall = useCallback(async () => {
     let promptEvent = deferredPrompt || getInstallPrompt();

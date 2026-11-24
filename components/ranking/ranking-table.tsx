@@ -39,7 +39,21 @@ export function RankingTable({
         {scope === "following" && !session ? (
           <div className="ranking-empty-msg">Inicia sesión para ver a quién sigues.</div>
         ) : loading ? (
-          <div className="ranking-empty-msg">Cargando clasificación...</div>
+          <div aria-busy="true" aria-label="Cargando clasificación">
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => (
+              <div key={idx} className="ranking-row ranking-skeleton-row">
+                <div className="ranking-skeleton-num photo-shimmer" />
+                <div className="ranking-who">
+                  <div className="ranking-avatar ranking-skeleton-avatar photo-shimmer" />
+                  <div className="ranking-skeleton-name photo-shimmer" />
+                </div>
+                <div className="ranking-stats-col" style={{ alignItems: "flex-end", gap: 6 }}>
+                  <div className="ranking-skeleton-stat photo-shimmer" />
+                  <div className="ranking-skeleton-bar photo-shimmer" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : entries.length === 0 ? (
           <div className="ranking-empty-msg">
             {searchQuery

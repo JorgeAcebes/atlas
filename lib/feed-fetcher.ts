@@ -225,14 +225,21 @@ export async function fetchCombinedFeed(limit = 200): Promise<FetchFeedResult> {
     return enriched;
   });
 
-  // Collect limited initial thumbnails for throttled idle warmup
+  // Collect initial grid thumbnails + author avatars for throttled idle warmup
   const preloadSet = new Set<string>();
-  for (const feedItem of combined.slice(0, 12)) {
-    if (!Array.isArray(feedItem.photos) || feedItem.photos.length === 0) continue;
-    const first = feedItem.photos[0];
-    const url = getPhotoDisplayUrl(first?.public_url, first?.storage_path);
-    if (url) preloadSet.add(url);
-    if (preloadSet.size >= 9) break;
+  for (const feedItem of combined.slice(0, 15)) {
+    const avatarUrl = feedItem.profiles?.avatar_url
+      ? getPhotoDisplayUrl(feedItem.profiles.avatar_url)
+      : "";
+    if (avatarUrl) preloadSet.add(avatarUrl);
+    if (Array.isArray(feedItem.photos)) {
+      for (const photo of feedItem.photos.slice(0, 4)) {
+        const url = getPhotoDisplayUrl(photo?.public_url, photo?.storage_path);
+        if (url) preloadSet.add(url);
+        if (preloadSet.size >= 18) break;
+      }
+    }
+    if (preloadSet.size >= 18) break;
   }
 
   return {

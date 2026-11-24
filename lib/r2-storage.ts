@@ -203,10 +203,12 @@ export async function uploadR2Object(options: {
     CacheControl: "public, max-age=31536000, immutable",
   });
 
+  const hasCustomEndpoint = Boolean(process.env.CLOUDFLARE_R2_ENDPOINT?.trim());
   let lastErr: any = null;
-  for (const ep of endpointsToTry) {
+  for (let i = 0; i < endpointsToTry.length; i++) {
+    const ep = endpointsToTry[i];
     try {
-      const client = createR2Client(ep);
+      const client = i === 0 && !hasCustomEndpoint ? getR2Client() : createR2Client(ep);
       await client.send(command);
       return {
         publicUrl: `${publicBase}/${key}`,

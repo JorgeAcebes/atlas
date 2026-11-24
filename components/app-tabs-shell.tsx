@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { SummitTracker } from "@/components/summit-tracker";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { isStandalone } from "@/components/install-prompt";
+import { resetScrollLock } from "@/lib/scroll-lock";
 
 const SocialTab = dynamic(
   () => import("@/components/social-tab").then((mod) => mod.SocialTab),
@@ -83,6 +84,8 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
   const [visitedTabs, setVisitedTabs] = useState<Set<MainTab>>(() => new Set([initialTab]));
   const [sharedMode, setSharedMode] = useState<ChallengeMode>(() => (pathname === "/picos" ? "peaks" : "countries"));
   const [sharedExperiencesMode, setSharedExperiencesMode] = useState<boolean>(false);
+  const sharedModeRef = React.useRef<ChallengeMode>(sharedMode);
+  sharedModeRef.current = sharedMode;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -106,14 +109,22 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
     });
   }, [activeTab]);
 
-  // Pre-warm lazy tab JS bundles on idle without mounting components or triggering fetches
+  // Pre-warm lazy tab JS bundles & background caches on idle without mounting hidden component trees
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
     const warmChunks = () => {
       if (cancelled) return;
-      if (initialTab !== "social") void import("@/components/social-tab");
-      if (initialTab !== "ranking") void import("@/components/ranking-tab");
+      if (initialTab !== "social") {
+        void import("@/components/social-tab");
+        void import("@/components/feed-tab").then((m) => m.prefetchFeedInBackground?.());
+      }
+      if (initialTab !== "ranking") {
+        void import("@/components/ranking-tab");
+        void import("@/hooks/use-ranking-data").then((m) =>
+          m.prefetchRankingInBackground?.(sharedModeRef.current)
+        );
+      }
     };
     if (typeof window.requestIdleCallback === "function") {
       const id = window.requestIdleCallback(warmChunks, { timeout: 2500 });
@@ -151,12 +162,16 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
     if (window.location.hash && window.location.hash !== "#") {
       return;
     }
-    const behavior: ScrollBehavior = smooth ? "smooth" : "instant";
-    window.scrollTo({ top: 0, left: 0, behavior });
     if (!smooth) {
-      if (document.documentElement) document.documentElement.scrollTop = 0;
-      if (document.body) document.body.scrollTop = 0;
+      if (window.scrollY === 0) return;
+      const root = document.documentElement;
+      const prevBehavior = root ? root.style.scrollBehavior : "";
+      if (root) root.style.scrollBehavior = "auto";
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      if (root) root.style.scrollBehavior = prevBehavior;
+      return;
     }
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   }, []);
 
   useEffect(() => {
@@ -237,6 +252,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       isPopStateRef.current = true;
       const currentPath = window.location.pathname;
       const currentKey = currentPath + window.location.search;
+      resetScrollLock();
       const tab = getTabFromPath(currentPath);
       if (tab) {
         setActiveTab(tab);
@@ -274,9 +290,11 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       const savedY = historyScrollPositions.current.get(currentKey) ?? 0;
       requestAnimationFrame(() => {
         if (!window.location.hash || window.location.hash === "#") {
+          const root = document.documentElement;
+          const prevBehavior = root ? root.style.scrollBehavior : "";
+          if (root) root.style.scrollBehavior = "auto";
           window.scrollTo({ top: savedY, left: 0, behavior: "instant" });
-          if (document.documentElement) document.documentElement.scrollTop = savedY;
-          if (document.body) document.body.scrollTop = savedY;
+          if (root) root.style.scrollBehavior = prevBehavior;
         }
         isPopStateRef.current = false;
       });
@@ -331,6 +349,10 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
             const cleanUrl = window.location.pathname + window.location.search;
             window.history.replaceState(null, "", cleanUrl);
           }
+        }
+
+        if (tab !== prevTab) {
+          resetScrollLock();
         }
 
         setActiveTab(tab);
@@ -390,7 +412,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           router.push(finalPath);
         } else {
           window.history.pushState(null, "", finalPath);
-          lastPathRef.current = finalPath;
+          lastPathRef.current = finalPath.split("?")[0].split("#")[0];
 
           if (finalPath.includes("#")) {
             window.dispatchEvent(new Event("hashchange"));
@@ -452,7 +474,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       <div
         id="tab-view-map"
         style={{
-          display: isMainRoute && activeTab === "map" ? "contents" : "none",
+          display: isMainRoute && activeTab === "map" ? "block" : "none",
         }}
       >
         {(visitedTabs.has("map") || (isMainRoute && activeTab === "map")) && (
@@ -471,7 +493,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       <div
         id="tab-view-social"
         style={{
-          display: isMainRoute && activeTab === "social" ? "contents" : "none",
+          display: isMainRoute && activeTab === "social" ? "block" : "none",
         }}
       >
         {(visitedTabs.has("social") || (isMainRoute && activeTab === "social")) && (
@@ -490,7 +512,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       <div
         id="tab-view-ranking"
         style={{
-          display: isMainRoute && activeTab === "ranking" ? "contents" : "none",
+          display: isMainRoute && activeTab === "ranking" ? "block" : "none",
         }}
       >
         {(visitedTabs.has("ranking") || (isMainRoute && activeTab === "ranking")) && (

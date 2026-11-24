@@ -531,7 +531,7 @@ export function SummitTracker({
     Boolean(confirmConfig?.isOpen) ||
     Boolean(selectingLocationForExp);
 
-  useScrollLock(isScrollLocked);
+  useScrollLock(isActive && isScrollLocked);
 
   useEffect(() => {
     if (!selectingLocationForExp) return;
@@ -1666,6 +1666,7 @@ export function SummitTracker({
       )}
 
       <InstallPrompt
+        isActive={isActive}
         manualOpen={installPromptOpen}
         onManualClose={() => setInstallPromptOpen(false)}
       />
