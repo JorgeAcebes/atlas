@@ -1,0 +1,779 @@
+/* Atlas Topbar, Mode Switcher, Account & Mobile Bottom Navigation */
+
+.mode-experiences .topbar {
+  background: rgba(17, 17, 27, 0.97);
+}
+
+.brand-icon .logo-mountain-2 {
+  mix-blend-mode: multiply;
+}
+
+.mode-experiences .brand-icon .logo-mountain-2 {
+  mix-blend-mode: screen;
+}
+
+.mode-experiences .brand-icon {
+  color: var(--pine);
+}
+
+.mode-experiences .mode-tab {
+  color: #a6adc8;
+}
+
+.mode-experiences .mode-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mode-experiences .mode-tab--active {
+  background: #313244;
+  color: #f0f0f0;
+}
+
+/* ── Topbar ─────────────────────────────── */
+.topbar {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding: 0 clamp(22px, 6vw, 92px);
+  background: rgba(250, 248, 241, 0.97);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-right: 10px;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.topbar-back-btn:hover {
+  background: var(--sand);
+  color: var(--pine);
+  border-color: var(--pine);
+}
+
+@media (max-width: 700px) {
+  .topbar-back-btn {
+    width: 30px;
+    height: 30px;
+    margin-right: 6px;
+  }
+}
+
+.brand {
+  color: var(--ink);
+  text-decoration: none;
+  display: flex;
+  gap: 8px;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  align-items: center;
+  transition: opacity var(--transition);
+}
+
+.brand:hover {
+  opacity: 0.75;
+}
+
+.brand b {
+  font-weight: 700;
+}
+
+.brand-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--sage);
+  flex-shrink: 0;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  margin-right: 34px;
+}
+
+/* ── Mode selector ─────────────────────── */
+.mode-selector {
+  display: inline-flex;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+  padding: 4px;
+  margin-bottom: 24px;
+}
+
+.mode-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 4px;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.mode-tab:hover {
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.mode-tab--active {
+  background: white;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.mode-tab-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  position: relative;
+  transition: color var(--transition);
+}
+
+.topbar-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.topbar-nav-link--social {
+  position: relative;
+}
+
+.topbar-nav-link--active,
+nav a.topbar-nav-link--active {
+  color: var(--ink);
+}
+
+.topbar-nav-link--active::after,
+nav a.topbar-nav-link--active::after {
+  width: 100%;
+}
+
+.topbar nav .account-button,
+.topbar nav > .button {
+  margin-left: 6px;
+}
+
+nav a::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 1.5px;
+  background: var(--pine);
+  transition: width var(--transition);
+}
+
+nav a:hover {
+  color: var(--pine);
+}
+
+nav a:hover::after {
+  width: 100%;
+}
+
+/* ── Account button ─────────────────────── */
+.account-button {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: opacity var(--transition);
+}
+
+.account-button:hover {
+  opacity: 0.7;
+}
+
+.account-button small {
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.account-avatar {
+  width: 29px;
+  height: 29px;
+  background: #6B7280;
+  color: white;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  transition: transform var(--transition);
+}
+
+.account-button:hover .account-avatar {
+  transform: scale(1.08);
+}
+
+@media (min-width: 1000px) {
+  main .topbar {
+    transition: margin-right 0.3s ease;
+    margin-right: 0;
+  }
+
+  main.panel-open .topbar {
+    margin-right: -420px;
+  }
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    min-height: 56px;
+    padding: 0 16px;
+  }
+
+  .topbar nav {
+    gap: 10px;
+    margin-right: 0;
+  }
+
+  .topbar nav a[href="#reto"] {
+    display: none;
+  }
+
+  .topbar nav a {
+    font-size: 13px;
+  }
+
+  .brand {
+    font-size: 15px;
+    gap: 6px;
+  }
+
+  .brand-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .account-button span:not(.account-avatar),
+  .account-button small {
+    display: none;
+  }
+
+  .mode-selector {
+    display: flex;
+    width: 100%;
+  }
+
+  .mode-tab {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   Countries mode — Purple overrides
+   ───────────────────────────────────────────── */
+.mode-countries .topbar {
+  background: rgba(250, 248, 252, 0.97);
+}
+
+.mode-countries .brand-icon {
+  color: var(--sage);
+}
+
+.mode-countries nav a:hover {
+  color: #5b3a8c;
+}
+
+.mode-countries nav a::after {
+  background: #5b3a8c;
+}
+
+.mode-countries .account-avatar {
+  background: #5b3a8c;
+}
+
+.hero-install-btn {
+  display: none;
+}
+
+.topbar-install-btn {
+  display: none;
+}
+
+.mode-experiences .account-avatar {
+  background: #cba6f7 !important;
+  color: #11111b !important;
+  font-weight: 800 !important;
+}
+
+/* ── Universal App Mode Switch with Smooth Sliding Indicator ── */
+.app-mode-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 3px;
+  border-radius: 100px;
+  user-select: none;
+  isolation: isolate;
+  min-width: 220px;
+}
+
+.mode-experiences .app-mode-switch {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.app-mode-switch__indicator {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  background: #ffffff;
+  border-radius: 100px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: transform 0.28s cubic-bezier(0.34, 1.3, 0.64, 1);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.app-mode-switch--peaks .app-mode-switch__indicator {
+  transform: translateX(0);
+}
+
+.app-mode-switch--countries .app-mode-switch__indicator {
+  transform: translateX(100%);
+}
+
+.mode-experiences .app-mode-switch__indicator {
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.app-mode-btn {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  background: transparent !important;
+  border: none !important;
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.22s ease;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.app-mode-btn.active {
+  color: var(--ink) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.mode-experiences .app-mode-btn {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mode-experiences .app-mode-btn.active {
+  color: #ffffff !important;
+}
+
+.topbar {
+  position: sticky;
+}
+
+.topbar .app-mode-switch {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+}
+
+/* ── Mobile Bottom Navigation Bar (Tab Bar) ── */
+.mobile-bottom-nav {
+  display: none;
+}
+
+/* Hidden by default on desktop: Mobile-only Stats button & Download button */
+.topbar-stats-btn {
+  display: none !important;
+}
+
+.is-pwa .topbar-stats-btn,
+.is-pwa .topbar nav .topbar-stats-btn {
+  display: inline-flex !important;
+}
+
+.topbar-install-btn,
+.hero-install-btn {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  /* Hide desktop text nav links in topbar on mobile to unclutter header */
+  .topbar nav .topbar-nav-link {
+    display: none !important;
+  }
+
+  /* Fixed Mobile Bottom Nav Bar */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    background: #faf8f1;
+    border-top: 1px solid var(--line);
+    z-index: 100;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -2px 12px rgba(24, 52, 45, 0.05);
+    user-select: none;
+    -webkit-user-select: none;
+    box-sizing: border-box;
+  }
+
+  .mobile-bottom-nav a::after {
+    display: none !important;
+  }
+
+  .mobile-bottom-nav-item {
+    flex: 1 1 0;
+    width: 33.333%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    text-decoration: none !important;
+    padding: 6px 0 !important;
+    margin: 0 !important;
+    position: relative;
+    transition: color 0.15s ease, transform 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-bottom-nav-item:active {
+    transform: scale(0.93);
+  }
+
+  .mobile-bottom-nav-icon-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 24px;
+  }
+
+  .mobile-bottom-nav-icon {
+    display: block;
+    transition: stroke 0.15s ease, transform 0.1s ease;
+  }
+
+  .mobile-bottom-nav-label {
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    font-weight: 500;
+    line-height: 1.2;
+    margin-top: 3px;
+    letter-spacing: 0.01em;
+    transition: font-weight 0.15s ease;
+  }
+
+  /* Active states per mode */
+  .mobile-bottom-nav.mode-peaks .mobile-bottom-nav-item--active,
+  .mode-peaks .mobile-bottom-nav-item--active {
+    color: var(--pine);
+  }
+
+  .mobile-bottom-nav.mode-countries .mobile-bottom-nav-item--active,
+  .mode-countries .mobile-bottom-nav-item--active {
+    color: var(--pine);
+  }
+
+  .mobile-bottom-nav-item--active .mobile-bottom-nav-label {
+    font-weight: 600;
+  }
+
+  /* Mode Peaks styling */
+  .mobile-bottom-nav.mode-peaks,
+  .mode-peaks .mobile-bottom-nav {
+    background: #faf8f1 !important;
+    border-top-color: var(--line);
+  }
+
+  /* Mode Countries styling */
+  .mobile-bottom-nav.mode-countries,
+  .mode-countries .mobile-bottom-nav {
+    background: #faf8fc !important;
+    border-top-color: var(--line);
+    box-shadow: 0 -2px 12px rgba(42, 31, 61, 0.05);
+  }
+
+  /* Mode Experiences (Dark) styling */
+  .mobile-bottom-nav.mode-experiences,
+  .mode-experiences .mobile-bottom-nav {
+    background: #13101c !important;
+    border-top-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .mobile-bottom-nav.mode-experiences .mobile-bottom-nav-item,
+  .mode-experiences .mobile-bottom-nav-item {
+    color: #827496;
+  }
+
+  .mobile-bottom-nav.mode-experiences .mobile-bottom-nav-item--active,
+  .mode-experiences .mobile-bottom-nav-item--active {
+    color: #c5b3da;
+  }
+
+  /* Badge indicator for pending requests */
+  .mobile-bottom-nav-badge {
+    position: absolute;
+    top: -1px;
+    right: -2px;
+    width: 7px;
+    height: 7px;
+    background-color: #ef4444;
+    border-radius: 50%;
+    border: 1.5px solid var(--paper);
+  }
+
+  .mobile-bottom-nav.mode-experiences .mobile-bottom-nav-badge,
+  .mode-experiences .mobile-bottom-nav-badge {
+    border-color: #13101c;
+  }
+
+  /* Balanced, refined mode switch in sticky topbar on mobile */
+  .topbar .app-mode-switch {
+    min-width: 168px !important;
+    max-width: 180px !important;
+    padding: 2.5px !important;
+  }
+
+  .topbar .app-mode-switch .app-mode-btn {
+    padding: 4.5px 10px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.1px !important;
+  }
+
+  .topbar .app-mode-switch .app-mode-switch__indicator {
+    top: 2.5px !important;
+    bottom: 2.5px !important;
+    left: 2.5px !important;
+    width: calc(50% - 2.5px) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .topbar nav {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-right: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .topbar nav .account-button {
+    margin-left: 0 !important;
+  }
+
+  /* Cuando no está iniciada sesión en web móvil, pegar el icono de descargar a "Entrar" para no solapar con el toggle */
+  .topbar:has(.topbar-nav--unauth),
+  .topbar:has(.topbar-install-btn) {
+    padding-left: 14px !important;
+    padding-right: 12px !important;
+  }
+
+  .topbar-nav--unauth,
+  .topbar nav:has(> .button),
+  .topbar nav:has(> .button--outline) {
+    gap: 6px !important;
+  }
+
+  .topbar-nav--unauth > .button,
+  .topbar-nav--unauth > .button--outline,
+  .topbar nav:has(> .button) > .button,
+  .topbar nav:has(> .button--outline) > .button--outline,
+  .topbar nav .topbar-install-btn + .button,
+  .topbar nav .topbar-install-btn + .button--outline {
+    margin-left: 0 !important;
+    padding: 6px 9px !important;
+    font-size: 12px !important;
+  }
+
+  .topbar-nav--unauth .topbar-install-btn,
+  .topbar nav:has(> .button) .topbar-install-btn,
+  .topbar nav:has(> .button--outline) .topbar-install-btn {
+    padding: 4px 3px !important;
+    margin-right: 6px !important;
+  }
+
+  /* Mobile-only Stats button (a la izquierda de la foto de perfil) - Sin círculo */
+  .topbar-stats-btn,
+  .topbar nav .topbar-stats-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--ink) !important;
+    cursor: pointer !important;
+    transition: opacity var(--transition), transform var(--transition) !important;
+    margin: 0 !important;
+    padding: 4px 3px !important;
+    flex-shrink: 0 !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .topbar-stats-btn:active {
+    transform: scale(0.9) !important;
+    opacity: 0.6 !important;
+    background: transparent !important;
+  }
+
+  .topbar-stats-btn svg {
+    display: block !important;
+    width: 20px !important;
+    height: 20px !important;
+    stroke: currentColor !important;
+  }
+
+  .mode-experiences .topbar-stats-btn,
+  .topbar.mode-experiences .topbar-stats-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #cba6f7 !important;
+  }
+
+  .mode-experiences .topbar-stats-btn:active,
+  .topbar.mode-experiences .topbar-stats-btn:active {
+    background: transparent !important;
+    opacity: 0.6 !important;
+  }
+
+  /* Mobile-only Download button for web mobile (in place of stats button) */
+  .topbar-install-btn,
+  .topbar nav .topbar-install-btn,
+  .hero-install-btn,
+  .topbar nav .hero-install-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--ink) !important;
+    cursor: pointer !important;
+    transition: opacity var(--transition), transform var(--transition) !important;
+    margin: 0 !important;
+    margin-right: 6px !important;
+    padding: 4px 3px !important;
+    flex-shrink: 0 !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .topbar-install-btn:active,
+  .hero-install-btn:active {
+    transform: scale(0.9) !important;
+    opacity: 0.6 !important;
+    background: transparent !important;
+  }
+
+  .topbar-install-btn svg,
+  .hero-install-btn svg {
+    display: block !important;
+    width: 20px !important;
+    height: 20px !important;
+    stroke: currentColor !important;
+  }
+
+  .mode-experiences .topbar-install-btn,
+  .topbar.mode-experiences .topbar-install-btn,
+  .mode-experiences .hero-install-btn,
+  .topbar.mode-experiences .hero-install-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #cba6f7 !important;
+  }
+
+  .mode-experiences .topbar-install-btn:active,
+  .topbar.mode-experiences .topbar-install-btn:active,
+  .mode-experiences .hero-install-btn:active,
+  .topbar.mode-experiences .hero-install-btn:active {
+    background: transparent !important;
+    opacity: 0.6 !important;
+  }
+
+  /* En PWA instalada, el botón de descarga está estrictamente oculto */
+  .is-pwa .topbar-install-btn,
+  .is-pwa .hero-install-btn {
+    display: none !important;
+  }
+}
+
+@media (max-height: 420px) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+}

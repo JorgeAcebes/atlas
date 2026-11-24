@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 import { peaks } from "@/data/peaks";
+import { readMapSources, readTrackerSources } from "@/tests/utils/source-reader";
 
 describe("Stress Testing & Edge Cases: Verified Remediations", () => {
   const rootDir = path.resolve(__dirname, "../../");
@@ -56,8 +57,7 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
       expect(migration22).toContain("check_end_date_after_start");
       expect(migration22).toContain("CHECK (end_date IS NULL OR end_date >= achieved_on)");
 
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      const trackerContent = readTrackerSources();
       expect(trackerContent).toContain("finalEndDate < finalDate");
     });
 
@@ -126,10 +126,9 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
     });
 
     it("2.5 [Data Integrity]: Wishlist prevents overwriting real completed ascents", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
-      expect(content).toContain("hasRealAscent");
+      expect(content).toMatch(/ascents\.some\(\(a\)\s*=>\s*a\.summit_id\s*===\s*selected\.id\s*&&\s*!a\.is_wishlist\)/);
       expect(content).toContain("Ya has completado esta cumbre o lugar");
     });
 
@@ -173,12 +172,11 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
     });
 
     it("3.4 [Cartography Resilience]: SpainMap uses local TopoJSON with GeoJSON remote fallback and catch reset", () => {
-      const spainMapPath = path.join(rootDir, "components/spain-map.tsx");
-      const content = fs.readFileSync(spainMapPath, "utf-8");
+      const content = readMapSources();
 
       expect(content).toContain("/provincias_spain.topo.json");
       expect(content).toContain("/provincias_spain.geojson");
-      expect(content).toContain("_geoPromise = null");
+      expect(content).toContain("_spainGeoPromise = null");
 
       const topoPath = path.join(rootDir, "public/provincias_spain.topo.json");
       expect(fs.existsSync(topoPath)).toBe(true);
@@ -188,8 +186,7 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
     });
 
     it("3.5 [Cartography Resilience]: WorldMap uses local TopoJSON with remote fallback and catch reset", () => {
-      const worldMapPath = path.join(rootDir, "components/world-map.tsx");
-      const content = fs.readFileSync(worldMapPath, "utf-8");
+      const content = readMapSources();
 
       expect(content).toContain("/world-countries.topo.json");
       expect(content).toContain("_worldGeoPromise = null");
@@ -204,8 +201,7 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
     });
 
     it("3.7 [Photo Limit Integrity]: Record modal accounts for existing photos and strictly caps uploads at 4", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).toContain("existingRecordPhotos");
       expect(content).toContain("galleryPhotosToAdd");
@@ -217,8 +213,7 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
     });
 
     it("3.8 [Photo Removal & Dropzone Reactivity]: Preview renders existing photos with deletion action", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).toContain("setDeletedRecordPhotoIds");
       expect(content).toContain("Quitar foto del registro");
@@ -231,8 +226,7 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
    * ───────────────────────────────────────────────────────────── */
   describe("4. UI State, Hash Navigation & Cross-Profile Leakage", () => {
     it("4.1 [Deep Link Navigation]: Switches mode bidirectionally on panel hash change", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).toContain("isExpId");
       expect(content).toContain("setExperiencesMode(true)");
@@ -241,8 +235,7 @@ describe("Stress Testing & Edge Cases: Verified Remediations", () => {
     });
 
     it("4.2 [Profile Isolation]: openRecord enforces isReadOnly guard", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).toMatch(/const openRecord[\s\S]*?if \(isReadOnly\) return;/);
     });

@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./auth-context";
-import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
+import { useScrollLock } from "@/lib/scroll-lock";
+import { formatRecordDateRange } from "@/lib/date-utils";
 import { notifyPendingChanged } from "./use-pending-requests";
 import {
   RecordCompanion,
@@ -13,8 +14,6 @@ import {
 import { peaks } from "@/data/peaks";
 import { countries } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import { X, Check, Inbox, Users, AlertCircle } from "lucide-react";
 
 export interface FollowRequest {
@@ -59,9 +58,29 @@ export function InboxModal({
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showTemporaryNotice = useCallback((message: string, durationMs = 3000) => {
+    if (noticeTimerRef.current) {
+      clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = null;
+    }
+    setNotice(message);
+    if (durationMs > 0) {
+      noticeTimerRef.current = setTimeout(() => {
+        setNotice(null);
+        noticeTimerRef.current = null;
+      }, durationMs);
+    }
+  }, []);
 
   useEffect(() => {
     setMounted(true);
+    return () => {
+      if (noticeTimerRef.current) {
+        clearTimeout(noticeTimerRef.current);
+      }
+    };
   }, []);
 
   const fetchInboxData = useCallback(
@@ -123,17 +142,18 @@ export function InboxModal({
     [session]
   );
 
+  useScrollLock(isOpen);
+
   useEffect(() => {
     if (isOpen) {
-      lockScroll();
       fetchInboxData();
     } else {
-      unlockScroll();
+      if (noticeTimerRef.current) {
+        clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = null;
+      }
       setNotice(null);
     }
-    return () => {
-      unlockScroll();
-    };
   }, [isOpen, fetchInboxData]);
 
   // Escape key closes inbox modal
@@ -172,11 +192,10 @@ export function InboxModal({
         setNotice("No se pudo aceptar la solicitud.");
       } else {
         const username = req.follower_profile?.username || "Usuario";
-        setNotice(`Has aceptado la solicitud de @${username}.`);
+        showTemporaryNotice(`Has aceptado la solicitud de @${username}.`, 3000);
         notifyPendingChanged();
         onFollowAccepted?.(req.follower_id);
         onPendingChanged?.();
-        setTimeout(() => setNotice(null), 3000);
       }
     } catch {
       setFollowRequests((prev) => [req, ...prev]);
@@ -205,11 +224,10 @@ export function InboxModal({
         setFollowRequests((prev) => [req, ...prev]);
         setNotice("No se pudo rechazar la solicitud.");
       } else {
-        setNotice("Solicitud rechazada.");
+        showTemporaryNotice("Solicitud rechazada.", 2500);
         notifyPendingChanged();
         onFollowRejected?.(req.follower_id);
         onPendingChanged?.();
-        setTimeout(() => setNotice(null), 2500);
       }
     } catch {
       setFollowRequests((prev) => [req, ...prev]);
@@ -233,15 +251,15 @@ export function InboxModal({
     setActionLoadingId(null);
 
     if (res.success) {
-      setNotice(
+      showTemporaryNotice(
         res.wasConvertedFromUnknown
           ? "¡Fecha actualizada y actividad completada con éxito!"
-          : "¡Actividad añadida a tu mapa y completada con éxito!"
+          : "¡Actividad añadida a tu mapa y completada con éxito!",
+        3500
       );
       notifyPendingChanged();
       onInvitationAccepted?.();
       onPendingChanged?.();
-      setTimeout(() => setNotice(null), 3500);
     } else {
       setTripInvitations((prev) => [inv, ...prev]);
       setNotice(res.error || "No se pudo aceptar la invitación.");
@@ -261,11 +279,10 @@ export function InboxModal({
     setActionLoadingId(null);
 
     if (res.success) {
-      setNotice("Invitación rechazada.");
+      showTemporaryNotice("Invitación rechazada.", 2500);
       notifyPendingChanged();
       onInvitationRejected?.();
       onPendingChanged?.();
-      setTimeout(() => setNotice(null), 2500);
     } else {
       setTripInvitations((prev) => [inv, ...prev]);
       setNotice(res.error || "No se pudo rechazar la invitación.");
@@ -311,18 +328,7 @@ export function InboxModal({
   }
 
   function formatDateRange(startDateStr: string, endDateStr?: string | null) {
-    try {
-      const d1 = new Date(startDateStr);
-      const s1 = format(d1, "d MMM yyyy", { locale: es });
-      if (endDateStr && endDateStr !== startDateStr) {
-        const d2 = new Date(endDateStr);
-        const s2 = format(d2, "d MMM yyyy", { locale: es });
-        return `${s1} - ${s2}`;
-      }
-      return s1;
-    } catch {
-      return startDateStr;
-    }
+    return formatRecordDateRange(startDateStr, endDateStr);
   }
 
   if (!isOpen || !mounted || typeof document === "undefined") return null;
@@ -350,6 +356,7 @@ export function InboxModal({
         className="inbox-modal-card"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="inbox-modal-title"
         onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: "var(--card-bg, #fff)",
@@ -395,6 +402,7 @@ export function InboxModal({
             </div>
             <div>
               <h2
+                id="inbox-modal-title"
                 style={{
                   margin: 0,
                   fontSize: "18px",
@@ -451,6 +459,8 @@ export function InboxModal({
 
         {/* Tabs */}
         <div
+          role="tablist"
+          aria-label="Secciones de bandeja de entrada"
           style={{
             display: "flex",
             borderBottom: "1px solid var(--border, #e5e7eb)",
@@ -459,6 +469,8 @@ export function InboxModal({
         >
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "requests"}
             onClick={() => setActiveTab("requests")}
             style={{
               flex: 1,
@@ -491,6 +503,8 @@ export function InboxModal({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "shared"}
             onClick={() => setActiveTab("shared")}
             style={{
               flex: 1,

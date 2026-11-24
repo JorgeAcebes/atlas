@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-10-01T17:17:40.197Z",
+  "timestamp": "2026-11-24T13:25:20.636Z",
   "totalTasks": 6,
   "passedTasks": 6,
   "failedTasks": 0,
   "averageScore": 100,
-  "totalDurationMs": 166972,
+  "totalDurationMs": 31875,
   "results": [
     {
       "taskId": "eval-01-peaks-integrity",
@@ -12,7 +12,7 @@
       "category": "geodata",
       "pass": true,
       "score": 100,
-      "durationMs": 1,
+      "durationMs": 0,
       "message": "All peak and shared summit validations passed",
       "details": {
         "totalPeaks": 52,
@@ -22,15 +22,14 @@
     },
     {
       "taskId": "eval-02-countries-and-regions",
-      "title": "World Countries (196) and Sub-national Regions",
+      "title": "World Countries (196) Integrity",
       "category": "geodata",
       "pass": true,
       "score": 100,
       "durationMs": 1,
-      "message": "Countries and regions evaluation passed",
+      "message": "Countries evaluation passed",
       "details": {
-        "totalCountries": 196,
-        "totalMappedRegionCountries": 240
+        "totalCountries": 196
       }
     },
     {
@@ -39,10 +38,10 @@
       "category": "database",
       "pass": true,
       "score": 100,
-      "durationMs": 10,
+      "durationMs": 8,
       "message": "All migrations sequence and RLS policies verified",
       "details": {
-        "totalMigrations": 21,
+        "totalMigrations": 34,
         "issues": []
       }
     },
@@ -52,7 +51,7 @@
       "category": "experiences",
       "pass": true,
       "score": 100,
-      "durationMs": 1,
+      "durationMs": 0,
       "message": "Experience categories schema verified",
       "details": {
         "categoriesCount": 4,
@@ -65,7 +64,7 @@
       "category": "database",
       "pass": true,
       "score": 100,
-      "durationMs": 4,
+      "durationMs": 2,
       "message": "Supabase mock client contracts fully verified",
       "details": {
         "issues": []
@@ -77,7 +76,7 @@
       "category": "quality",
       "pass": true,
       "score": 100,
-      "durationMs": 166950,
+      "durationMs": 31862,
       "message": "Typecheck, ESLint, and Vitest all passed",
       "details": {
         "issues": []

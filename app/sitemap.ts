@@ -53,6 +53,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .from("profiles")
         .select("username, updated_at")
         .eq("is_public", true)
+        .neq("is_test", true)
         .order("updated_at", { ascending: false })
         .limit(1000);
 
@@ -67,7 +68,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           }));
       }
     } catch {
-      // Ignorar fallos de conexión a Supabase durante el build
+      // Ignore connection issues during build
     }
   }
 

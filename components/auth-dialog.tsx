@@ -48,10 +48,21 @@ export function AuthDialog({ onClose, initialTab = "register" }: { onClose: () =
     lockScroll();
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isForgotPassword) {
+          setIsForgotPassword(false);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
       unlockScroll();
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [isForgotPassword, onClose]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -191,11 +202,20 @@ export function AuthDialog({ onClose, initialTab = "register" }: { onClose: () =
 
   if (isForgotPassword) {
     return (
-      <div className="modal-backdrop" onWheel={(e) => e.stopPropagation()} role="presentation">
+      <div
+        className="modal-backdrop"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setIsForgotPassword(false);
+        }}
+        onWheel={(e) => e.stopPropagation()}
+        role="presentation"
+      >
         <section
           className="auth-dialog"
           role="dialog"
           aria-modal="true"
+          aria-label="Recuperar contraseña"
+          onClick={(e) => e.stopPropagation()}
           style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
         >
           <button className="icon-button" aria-label="Cerrar" onClick={() => setIsForgotPassword(false)}>
@@ -210,6 +230,7 @@ export function AuthDialog({ onClose, initialTab = "register" }: { onClose: () =
               <input
                 type="email"
                 required
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="nombre@ejemplo.com"
@@ -235,12 +256,20 @@ export function AuthDialog({ onClose, initialTab = "register" }: { onClose: () =
   }
 
   return (
-    <div className="modal-backdrop" onWheel={(e) => e.stopPropagation()} role="presentation">
+    <div
+      className="modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      onWheel={(e) => e.stopPropagation()}
+      role="presentation"
+    >
       <section
         className="auth-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Acceso a Atlas"
+        onClick={(e) => e.stopPropagation()}
         style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
       >
         <button className="icon-button" aria-label="Cerrar" onClick={onClose}>
@@ -253,6 +282,7 @@ export function AuthDialog({ onClose, initialTab = "register" }: { onClose: () =
             <input
               type={isRegister ? "email" : "text"}
               required
+              autoComplete={isRegister ? "email" : "username"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={isRegister ? "nombre@ejemplo.com" : "nombre@ejemplo.com o @usuario"}
@@ -265,6 +295,7 @@ export function AuthDialog({ onClose, initialTab = "register" }: { onClose: () =
                 type={showPassword ? "text" : "password"}
                 required
                 minLength={6}
+                autoComplete={isRegister ? "new-password" : "current-password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Mínimo 6 caracteres"

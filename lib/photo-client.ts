@@ -1,7 +1,5 @@
 /**
- * Cliente unificado de subida y eliminación de fotos.
- * Gestiona la verificación del límite estricto de 9.5 GB en el backend,
- * y la subida directa y exclusiva a Cloudflare R2 (protegiendo íntegramente la cuota de Supabase).
+ * Unified client for photo URL resolution, upload, and deletion.
  */
 
 export interface UploadPhotoResult {
@@ -10,11 +8,18 @@ export interface UploadPhotoResult {
   fileSize: number;
 }
 
+function getPhotoBasePrefix(): string {
+  const customDomain = (process.env.NEXT_PUBLIC_R2_CUSTOM_DOMAIN || "")
+    .trim()
+    .replace(/\/+$/, "");
+  return customDomain || "/api/photos/view";
+}
+
 /**
- * Resuelve la URL óptima de visualización de una foto o avatar.
- * Si la foto apunta a un subdominio r2.dev (bloqueado por operadores en España),
- * a Supabase Storage o si se dispone del storagePath, la enruta de forma transparente a través
- * del endpoint /api/photos/view/<path> con CDN Edge caching en Vercel.
+ * Resolves the optimal display URL for a photo or avatar.
+ * - Preserves `blob:` and `data:` previews untouched.
+ * - Routes `.r2.dev` (blocked by some ISPs), Supabase Storage URLs, and raw `storagePath`
+ *   through `NEXT_PUBLIC_R2_CUSTOM_DOMAIN` (when set) or `/api/photos/view/<path>`.
  */
 export function getPhotoDisplayUrl(
   url?: string | null,
@@ -22,14 +27,25 @@ export function getPhotoDisplayUrl(
 ): string {
   if (!url && !storagePath) return "";
 
+  if (url && (url.startsWith("blob:") || url.startsWith("data:"))) {
+    return url;
+  }
+
+  const basePrefix = getPhotoBasePrefix();
+  const customDomain = (process.env.NEXT_PUBLIC_R2_CUSTOM_DOMAIN || "")
+    .trim()
+    .replace(/\/+$/, "");
+
   if (storagePath) {
+    const cleanPath = storagePath.replace(/^\/+/, "");
     if (
       !url ||
       url.includes(".r2.dev") ||
       url.includes("supabase.co/storage/") ||
+      url.startsWith("/api/photos/view/") ||
       (!url.startsWith("http") && !url.startsWith("/"))
     ) {
-      return `/api/photos/view/${storagePath}`;
+      return `${basePrefix}/${cleanPath}`;
     }
   }
 
@@ -37,17 +53,22 @@ export function getPhotoDisplayUrl(
     if (url.includes(".r2.dev/")) {
       const match = url.match(/https?:\/\/[^/]+\.r2\.dev\/(.+)$/);
       if (match && match[1]) {
-        return `/api/photos/view/${match[1]}`;
+        return `${basePrefix}/${match[1]}`;
       }
     }
     if (url.includes("supabase.co/storage/v1/object/public/summit-photos/")) {
-      const match = url.match(/supabase\.co\/storage\/v1\/object\/public\/summit-photos\/(.+)$/);
+      const match = url.match(
+        /supabase\.co\/storage\/v1\/object\/public\/summit-photos\/(.+)$/
+      );
       if (match && match[1]) {
-        return `/api/photos/view/${match[1]}`;
+        return `${basePrefix}/${match[1]}`;
       }
     }
+    if (customDomain && url.startsWith("/api/photos/view/")) {
+      return `${customDomain}/${url.slice("/api/photos/view/".length)}`;
+    }
     if (!url.startsWith("http") && !url.startsWith("/")) {
-      return `/api/photos/view/${url}`;
+      return `${basePrefix}/${url.replace(/^\/+/, "")}`;
     }
     return url;
   }
@@ -68,8 +89,6 @@ export async function uploadPhotoBlob(options: {
     throw new Error("Sesión no disponible para subir la foto.");
   }
 
-  // Subida exclusiva a Cloudflare R2 a través de /api/photos/upload
-  // (Petición same-origin en el servidor, sin problemas de preflight CORS de navegador)
   const formData = new FormData();
   formData.append("file", blob, fileName);
   formData.append("fileName", fileName);
@@ -83,9 +102,15 @@ export async function uploadPhotoBlob(options: {
     body: formData,
   });
 
-  const data = await res.json();
+  const rawBody = await res.text();
+  let data: any = null;
+  try {
+    data = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    data = null;
+  }
 
-  if (res.ok && data.publicUrl && data.storagePath) {
+  if (res.ok && data?.publicUrl && data?.storagePath) {
     return {
       publicUrl: getPhotoDisplayUrl(data.publicUrl, data.storagePath),
       storagePath: data.storagePath,
@@ -93,9 +118,13 @@ export async function uploadPhotoBlob(options: {
     };
   }
 
+  if (res.status === 413) {
+    throw new Error("La imagen es demasiado grande para subirla (máximo 15 MB).");
+  }
+
   const errorMsg =
-    data.error ||
-    (data.code === "STORAGE_LIMIT_EXCEEDED"
+    data?.error ||
+    (data?.code === "STORAGE_LIMIT_EXCEEDED"
       ? "Límite de almacenamiento alcanzado (9,5 GB). Se han bloqueado nuevas subidas para evitar costes."
       : "Error al subir la imagen a Cloudflare R2.");
 
@@ -103,7 +132,7 @@ export async function uploadPhotoBlob(options: {
 }
 
 /**
- * Elimina fotos de Cloudflare R2 (y limpia referencias históricas de Supabase Storage si existían)
+ * Deletes photos from Cloudflare R2 and cleans up legacy Supabase Storage references.
  */
 export async function deleteStoragePhotos(options: {
   paths: string[];
@@ -128,10 +157,9 @@ export async function deleteStoragePhotos(options: {
     }
   }
 
-  // Limpieza redundante de fotos antiguas que pudieran quedar en Supabase Storage
   try {
     await supabase.storage.from("summit-photos").remove(paths);
   } catch {
-    // Ignorar si ya no existía
+    // Ignore if not present in Supabase Storage
   }
 }

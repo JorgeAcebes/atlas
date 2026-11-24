@@ -1,0 +1,315 @@
+/* Atlas Photo Lightbox & Photo Editor Controls */
+
+/* ── Lightbox & Image Viewer ────────────────── */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.25s ease;
+  cursor: default;
+  overscroll-behavior: contain;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lightbox-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+  padding-top: 50px;
+  padding-bottom: 115px;
+  box-sizing: border-box;
+}
+
+.lightbox-img-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+}
+
+.lightbox-backdrop img.lightbox-image {
+  max-width: min(92vw, 1200px);
+  max-height: calc(100dvh - 210px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 2px;
+  box-shadow: 0 16px 70px rgba(0, 0, 0, 0.8);
+  animation: fadePhoto 0.25s ease-out;
+  cursor: inherit;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  margin: auto;
+}
+
+@keyframes fadePhoto {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+.lightbox-footer {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100010;
+  pointer-events: none;
+  padding: 0 16px;
+}
+
+.lightbox-top-controls {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 100010;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lightbox-close {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.72);
+  color: rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  z-index: 100010;
+  transition: background 0.2s, transform 0.15s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  transform: scale(1.06);
+}
+
+.lightbox-info-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.72);
+  color: rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  z-index: 10006;
+  transition: background 0.2s, transform 0.15s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  transform: translateY(-50%) scale(1.08);
+}
+
+.lightbox-nav--prev {
+  left: 28px;
+}
+
+.lightbox-nav--next {
+  right: 28px;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .lightbox-top-controls {
+    top: calc(14px + env(safe-area-inset-top, 0px));
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    gap: 8px;
+  }
+
+  .lightbox-nav {
+    display: none; /* En móvil se navega por deslizamiento táctil (swipe) */
+  }
+
+  .lightbox-stage {
+    padding-top: calc(40px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(105px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .lightbox-backdrop img.lightbox-image {
+    max-width: 94vw;
+    max-height: calc(100dvh - 175px);
+  }
+}
+
+/* -- Lightbox Kebab Menu ----------------- */
+.lightbox-menu-btn {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.72);
+  color: rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  z-index: 100010;
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  transform: scale(1.06);
+}
+
+.lightbox-dropdown {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100020;
+  overflow: hidden;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+}
+
+.lightbox-dropdown button {
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  transition: background 0.2s;
+}
+
+.lightbox-dropdown button:hover {
+  background: #f0f0f0;
+}
+
+.lightbox-dropdown button.danger {
+  color: #e53935;
+}
+
+.lightbox-dropdown button.danger:hover {
+  background: #ffebee;
+}
+
+/* -- Lightbox Date Modal ----------------- */
+.lightbox-date-modal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  width: 90vw;
+  max-width: 450px;
+}
+
+.lightbox-date-modal input[type="date"] {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.lightbox-date-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.lightbox-date-modal-actions button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lightbox-date-modal-actions .cancel {
+  background: #eee;
+  color: #333;
+}
+
+.lightbox-date-modal-actions .save {
+  background: #2E5C4B;
+  color: white;
+}
+
+/* -- Photo Editor Toolbar & Invariants ---- */
+.photo-editor-toolbar {
+  padding: 16px 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(8px, 4vw, 36px);
+  background-color: #0a0a0a;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 10;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.photo-editor-btn-label {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 768px) {
+  .photo-editor-toolbar {
+    padding: 14px 6px;
+    gap: clamp(4px, 2.5vw, 16px);
+  }
+
+  .photo-editor-toolbar button {
+    padding: 6px 4px !important;
+  }
+
+  .photo-editor-btn-label {
+    font-size: 11px;
+    white-space: nowrap !important;
+  }
+}

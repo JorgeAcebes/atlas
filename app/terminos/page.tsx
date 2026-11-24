@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Términos y Condiciones · Atlas",
+  description: "Condiciones de uso del servicio, propiedad de contenido y normativa de Atlas.",
+};
 
 export default function TerminosPage() {
   return (

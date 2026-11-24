@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 import { compressImage } from "@/lib/image-utils";
@@ -44,17 +44,32 @@ export function ProfileSettings({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const avatarObjectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+        avatarObjectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     async function loadProfile() {
-      if (!supabase) return;
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", session.user.id)
         .single();
 
-      if (data) {
+      if (error) {
+        setError("No se pudieron cargar tus datos de perfil.");
+      } else if (data) {
         setProfile(data);
         setUsername(data.username);
         setIsPublic(data.is_public);
@@ -63,12 +78,28 @@ export function ProfileSettings({
         setEnableExperiences(data.enable_experiences ?? false);
         setSharePhotos(data.share_photos ?? true);
         setShareNotes(data.share_notes ?? true);
-        if (data.avatar_url) setAvatarPreview(getPhotoDisplayUrl(data.avatar_url));
+        if (data.avatar_url) {
+          if (avatarObjectUrlRef.current) {
+            URL.revokeObjectURL(avatarObjectUrlRef.current);
+            avatarObjectUrlRef.current = null;
+          }
+          setAvatarPreview(getPhotoDisplayUrl(data.avatar_url));
+        }
       }
       setLoading(false);
     }
     loadProfile();
-  }, [session]);
+  }, [session.user.id]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !showDeleteModal && !saving) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showDeleteModal, saving, onClose]);
 
   useEffect(() => {
     lockScroll();
@@ -126,6 +157,8 @@ export function ProfileSettings({
       avatarUrl = getPhotoDisplayUrl(avatarUrl);
     }
 
+    let oldAvatarToDelete: string | null = null;
+
     if (avatarFile) {
       if (!avatarFile.type.startsWith("image/")) {
         setError("El archivo seleccionado debe ser una imagen válida.");
@@ -145,15 +178,12 @@ export function ProfileSettings({
         });
         const newAvatarUrl = getPhotoDisplayUrl(uploadResult.publicUrl, uploadResult.storagePath);
 
-        // Limpiar avatar anterior si existía para no dejar huérfanos
         if (profile?.avatar_url) {
           const oldUrl = profile.avatar_url;
           const oldMatch = oldUrl.match(/(?:(?:pub-[^/]+\.r2\.dev|\/api\/photos\/view)\/)(.+)$/);
           const oldStoragePath = oldMatch ? oldMatch[1] : (oldUrl.startsWith(`${session.user.id}/`) ? oldUrl : null);
           if (oldStoragePath && oldStoragePath !== uploadResult.storagePath) {
-            deleteStoragePhotos({ paths: [oldStoragePath], session, supabase }).catch((e) =>
-              console.warn("Fallo no crítico al limpiar avatar previo:", e)
-            );
+            oldAvatarToDelete = oldStoragePath;
           }
         }
 
@@ -187,6 +217,11 @@ export function ProfileSettings({
           : error.message
       );
     } else {
+      if (oldAvatarToDelete) {
+        deleteStoragePhotos({ paths: [oldAvatarToDelete], session, supabase }).catch((e) =>
+          console.warn("Fallo no crítico al limpiar avatar previo:", e)
+        );
+      }
       setSuccess("Perfil guardado correctamente.");
       if (onProfileUpdate) {
         onProfileUpdate(updates);
@@ -289,8 +324,13 @@ export function ProfileSettings({
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
+                        if (avatarObjectUrlRef.current) {
+                          URL.revokeObjectURL(avatarObjectUrlRef.current);
+                        }
+                        const objectUrl = URL.createObjectURL(file);
+                        avatarObjectUrlRef.current = objectUrl;
                         setAvatarFile(file);
-                        setAvatarPreview(URL.createObjectURL(file));
+                        setAvatarPreview(objectUrl);
                       }
                     }}
                     style={{
@@ -376,6 +416,7 @@ export function ProfileSettings({
                   <label className="custom-toggle">
                     <input
                       type="checkbox"
+                      aria-label="Perfil público"
                       checked={isPublic}
                       onChange={(e) => setIsPublic(e.target.checked)}
                     />
@@ -407,6 +448,7 @@ export function ProfileSettings({
                 <label className="custom-toggle">
                   <input
                     type="checkbox"
+                    aria-label="Mostrar mis fotos"
                     checked={sharePhotos}
                     onChange={(e) => setSharePhotos(e.target.checked)}
                   />
@@ -425,6 +467,7 @@ export function ProfileSettings({
                 <label className="custom-toggle">
                   <input
                     type="checkbox"
+                    aria-label="Mostrar mis notas"
                     checked={shareNotes}
                     onChange={(e) => setShareNotes(e.target.checked)}
                   />
@@ -458,6 +501,7 @@ export function ProfileSettings({
                 <label className="custom-toggle">
                   <input
                     type="checkbox"
+                    aria-label="Modo Picos"
                     checked={enablePeaks}
                     onChange={(e) => handleTogglePeaks(e.target.checked)}
                   />
@@ -475,6 +519,7 @@ export function ProfileSettings({
                 <label className="custom-toggle">
                   <input
                     type="checkbox"
+                    aria-label="Modo Países"
                     checked={enableCountries}
                     onChange={(e) => handleToggleCountries(e.target.checked)}
                   />
@@ -539,6 +584,7 @@ export function ProfileSettings({
                   >
                     <input
                       type="checkbox"
+                      aria-label="Modo Experiencias"
                       checked={enableCountries && enableExperiences}
                       disabled={!enableCountries}
                       onChange={(e) => enableCountries && setEnableExperiences(e.target.checked)}

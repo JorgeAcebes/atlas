@@ -1,5 +1,5 @@
 /**
- * Utilidades de control de tasa (Rate Limiting) y extracción de IP para endpoints de la API.
+ * Rate limiting & client IP extraction utilities for API endpoints.
  */
 
 export interface RateLimitResult {
@@ -24,14 +24,25 @@ export class RateLimiter {
     this.max = options.max;
   }
 
-  /**
-   * Comprueba si una clave (normalmente la IP del cliente) tiene permitido realizar una petición.
-   */
+  private pruneExpired(now: number): void {
+    const windowStart = now - this.windowMs;
+    for (const [k, ts] of this.hits.entries()) {
+      const active = ts.filter((t) => t > windowStart);
+      if (active.length === 0) {
+        this.hits.delete(k);
+      } else if (active.length !== ts.length) {
+        this.hits.set(k, active);
+      }
+    }
+  }
+
   public check(key: string): RateLimitResult {
     const now = Date.now();
-    const timestamps = this.hits.get(key) || [];
+    if (this.hits.size > 1000) {
+      this.pruneExpired(now);
+    }
 
-    // Descartar marcas de tiempo que cayeron fuera de la ventana
+    const timestamps = this.hits.get(key) || [];
     const windowStart = now - this.windowMs;
     const validTimestamps = timestamps.filter((t) => t > windowStart);
 
@@ -58,9 +69,6 @@ export class RateLimiter {
     };
   }
 
-  /**
-   * Limpia el registro de una clave específica o de todas las claves (para pruebas).
-   */
   public reset(key?: string): void {
     if (key) {
       this.hits.delete(key);
@@ -70,9 +78,6 @@ export class RateLimiter {
   }
 }
 
-/**
- * Extrae la dirección IP del cliente a partir de los encabezados de la petición HTTP.
- */
 export function getClientIp(request: Request): string {
   const xForwardedFor = request.headers.get("x-forwarded-for");
   if (xForwardedFor) {
@@ -93,38 +98,24 @@ export function getClientIp(request: Request): string {
   return "127.0.0.1";
 }
 
-// ── Instancias de limitadores para rutas de API ──────────────────────────────
-
-/**
- * Límite para app/api/auth/username-login:
- * 10 intentos por minuto por IP para mitigar ataques de fuerza bruta sobre contraseñas.
- */
 export const authRateLimiter = new RateLimiter({
   windowMs: 60 * 1000,
   max: 10,
 });
 
-/**
- * Límite por cliente para app/api/geocoding:
- * Máximo 1 petición por segundo por IP cliente según directrices de Nominatim.
- */
+export const uploadRateLimiter = new RateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+});
+
 export const geocodingClientRateLimiter = new RateLimiter({
   windowMs: 1000,
   max: 1,
 });
 
-// ── Serializador/Cola global para llamadas a Nominatim ───────────────────────
-// La política de uso de Nominatim (OpenStreetMap) exige como máximo 1 petición por segundo
-// desde la misma IP pública (Vercel). Para evitar que múltiples usuarios concurrentes
-// saturen la IP saliente del servidor, encolamos y espaciamos las llamadas salientes.
-
 let lastNominatimTimestamp = 0;
 let nominatimChain: Promise<void> = Promise.resolve();
 
-/**
- * Garantiza que transcurran al menos minIntervalMs milisegundos entre peticiones
- * consecutivas a Nominatim en el servidor.
- */
 export async function throttleNominatim(minIntervalMs = 1000): Promise<void> {
   const prevChain = nominatimChain;
   let release: () => void;

@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { compareFeedRecords } from "@/lib/feed-sort";
-import * as fs from "fs";
-import * as path from "path";
+import {
+  readAllStyles,
+  readFeedSources,
+  readFile,
+  readMapSources,
+  readRankingSources,
+  readRankingStyles,
+  readSocialSources,
+  readTrackerSources,
+} from "@/tests/utils/source-reader";
 
 describe("Polish Enhancements (Mini modificaciones)", () => {
   describe("1. Feed sorting by start date and end date", () => {
@@ -73,23 +81,19 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
   });
 
   describe("2. Install prompt title typography matches brand banner", () => {
-    it("should use DM Sans and 0.13em tracking in install-prompt-title", () => {
-      const cssPath = path.resolve(process.cwd(), "app/globals.css");
-      const css = fs.readFileSync(cssPath, "utf-8");
+    it("should use --font-sans (DM Sans) and 0.13em tracking in install-prompt-title", () => {
+      const css = readAllStyles();
 
-      expect(css).toMatch(/\.install-prompt-title\s*\{[^}]*font-family:\s*"DM Sans"/);
+      expect(css).toMatch(/\.install-prompt-title\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
       expect(css).toMatch(/\.install-prompt-title\s*\{[^}]*letter-spacing:\s*0\.13em/);
-      expect(css).not.toMatch(/\.install-prompt-title\s*\{[^}]*Playfair Display/);
+      expect(css).not.toMatch(/\.install-prompt-title\s*\{[^}]*--font-display/);
     });
   });
 
   describe("3. Share record icon matches feed posts (Share2)", () => {
     it("should use Share2 from lucide-react in summit-tracker and feed-tab", () => {
-      const trackerPath = path.resolve(process.cwd(), "components/summit-tracker.tsx");
-      const tracker = fs.readFileSync(trackerPath, "utf-8");
-
-      const feedPath = path.resolve(process.cwd(), "components/feed-tab.tsx");
-      const feed = fs.readFileSync(feedPath, "utf-8");
+      const tracker = readTrackerSources();
+      const feed = readFeedSources();
 
       expect(feed).toContain("<Share2 size={16} />");
       const iconShareFunc = tracker.slice(
@@ -103,11 +107,8 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
 
   describe("4. Social hero when anonymous (not logged in)", () => {
     it("should remove the motto on desktop and mobile and center login button", () => {
-      const socialPath = path.resolve(process.cwd(), "components/social-tab.tsx");
-      const social = fs.readFileSync(socialPath, "utf-8");
-
-      const cssPath = path.resolve(process.cwd(), "app/globals.css");
-      const css = fs.readFileSync(cssPath, "utf-8");
+      const social = readSocialSources();
+      const css = readAllStyles();
 
       expect(social).not.toContain("Comunidad viajera");
       expect(social).not.toContain("Comparte el camino");
@@ -122,17 +123,15 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
 
   describe("5. Ranking hero", () => {
     it("should remove motto phrases completely and center user ranking on all viewports", () => {
-      const rankingPath = path.resolve(process.cwd(), "components/ranking-tab.tsx");
-      const ranking = fs.readFileSync(rankingPath, "utf-8");
-
-      const rankingCss = fs.readFileSync(path.resolve(process.cwd(), "components/ranking.css"), "utf-8");
+      const ranking = readRankingSources();
+      const rankingCss = readRankingStyles();
+      const globalsCss = readAllStyles();
 
       expect(ranking).not.toContain("Grandes viajeros");
       expect(ranking).not.toContain("Techos de España");
       expect(ranking).not.toContain("El podio mundial");
       expect(ranking).not.toContain("El podio de cumbres");
 
-      const globalsCss = fs.readFileSync(path.resolve(process.cwd(), "app/globals.css"), "utf-8");
       expect(rankingCss).toMatch(/\.hero-main--ranking\s*\{[^}]*display:\s*flex\s*!important/);
       expect(rankingCss).toMatch(/\.hero-main--ranking\s*\{[^}]*text-align:\s*center\s*!important/);
       expect(rankingCss).toMatch(/\.hero-main--ranking\s+\.ranking-hero-aside\s*\{[^}]*display:\s*flex\s*!important/);
@@ -144,7 +143,7 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
 
   describe("6. User map title @ symbol spacing and overflow protection", () => {
     it("should provide horizontal padding and negative margins to prevent clipping of italic characters like @", () => {
-      const globalsCss = fs.readFileSync(path.resolve(process.cwd(), "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toMatch(/\.hero-title--user\s+em,\s*\n*\.hero-main--with-follow\s+h1\s+em\s*\{[^}]*overflow:\s*hidden/);
       expect(globalsCss).toMatch(/\.hero-title--user\s+em,\s*\n*\.hero-main--with-follow\s+h1\s+em\s*\{[^}]*text-overflow:\s*ellipsis/);
       expect(globalsCss).toMatch(/\.hero-title--user\s+em,\s*\n*\.hero-main--with-follow\s+h1\s+em\s*\{[^}]*padding:\s*0\.04em\s+0\.18em/);
@@ -154,8 +153,7 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
 
   describe("7. Collective map visitor deep-link to record panel", () => {
     it("should link visitor items to user profile with #panel=recordId and set auto_open_panel in sessionStorage", () => {
-      const collectivePath = path.resolve(process.cwd(), "components/collective-map.tsx");
-      const collective = fs.readFileSync(collectivePath, "utf-8");
+      const collective = readMapSources();
 
       expect(collective).toContain("useRouter");
       expect(collective).toContain("recordUrlWithHash");
@@ -166,62 +164,61 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
       expect(collective).toContain("collective-visitor-link");
     });
 
-    it("should have hover styling in ranking.css for collective-visitor-link across modes", () => {
-      const rankingCss = fs.readFileSync(path.resolve(process.cwd(), "components/ranking.css"), "utf-8");
+    it("should have hover styling in collective-map styles for collective-visitor-link across modes", () => {
+      const rankingCss = readRankingStyles();
       expect(rankingCss).toMatch(/\.collective-visitor-link:hover\s*\{[^}]*background:/);
       expect(rankingCss).toMatch(/\.mode-peaks \.collective-visitor-link:hover\s*\{[^}]*background:/);
     });
   });
 
   describe("8. Spain map zoom responsiveness & fluidity", () => {
-    it("should configure non-rigid maxBoundsViscosity and 0.5 canvas padding in spain-map.tsx", () => {
-      const spainMapPath = path.resolve(process.cwd(), "components/spain-map.tsx");
-      const content = fs.readFileSync(spainMapPath, "utf-8");
+    it("should configure non-rigid maxBoundsViscosity and adaptive canvas padding in spain-map", () => {
+      const spainContent = readFile("components/spain-map.tsx");
+      const patchContent = readFile("lib/leaflet-canvas-patch.ts");
 
-      expect(content).toContain("maxBoundsViscosity={0.5}");
-      expect(content).toContain("L.Canvas.prototype.options.padding = 0.5;");
-      expect(content).toContain("rafRef.current");
+      expect(spainContent).toContain("maxBoundsViscosity={0.5}");
+      expect(spainContent).toContain('createAdaptiveCanvasRenderer("spain")');
+      expect(patchContent).toContain("L.canvas({ padding })");
+      expect(readMapSources()).toContain("rafRef.current");
     });
   });
 
   describe("9. Photo loading acceleration in feed and records", () => {
-    it("should use eager loading and async decoding for top feed items and prefetch in feed-tab.tsx", () => {
-      const feedPath = path.resolve(process.cwd(), "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedPath, "utf-8");
+    it("should use eager loading, async decoding, and throttled preloadImages in feed-tab", () => {
+      const content = readFeedSources();
 
-      expect(content).toContain("decoding=\"async\"");
+      expect(content).toContain('decoding="async"');
       expect(content).toContain("imgLoading");
-      expect(content).toContain("topPhotosToPreload");
+      expect(content).toContain("preloadUrls");
+      expect(content).toContain("preloadImages");
     });
 
-    it("should use eager loading, async decoding and preloading in summit-tracker.tsx", () => {
-      const trackerPath = path.resolve(process.cwd(), "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+    it("should use eager loading, async decoding, and throttled preloadImages in summit-tracker", () => {
+      const content = readTrackerSources();
+      const preloaderContent = readFile("lib/image-preloader.ts");
 
       expect(content).toContain("targetSummitId");
-      expect(content).toContain("new Image()");
+      expect(preloaderContent).toContain("new window.Image()");
       expect(content).toContain('decoding="async"');
     });
   });
 
   describe("10. Mobile photo batch selector and assignment modal", () => {
     it("should ensure photo-batch-bar has high zIndex (100050) above mobile info-panel and correct assignment calculation", () => {
-      const trackerPath = path.resolve(process.cwd(), "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).toContain("zIndex: 100050");
       expect(content).toContain("zIndex: 100060");
       expect(content).toContain("!selectedPhotosForEdit.includes(p.id)");
 
-      const globalsCss = fs.readFileSync(path.resolve(process.cwd(), "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toContain(".photo-batch-bar");
       expect(globalsCss).toMatch(/\.photo-batch-bar\s*\{[^}]*z-index:\s*100050\s*!important/);
     });
   });
   describe("11. Close record/panel anti-reopening guards and mobile tooltip cleanup", () => {
     it("should prevent momentary re-opening when closing panel/record with close button", () => {
-      const trackerPath = path.resolve(process.cwd(), "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      const trackerContent = readTrackerSources();
 
       expect(trackerContent).toContain("isClosingPanelRef = useRef(false)");
       expect(trackerContent).toContain("initialPanelRestoredRef = useRef(false)");
@@ -230,19 +227,20 @@ describe("Polish Enhancements (Mini modificaciones)", () => {
     });
 
     it("should clean up and prevent lingering tooltips on touch devices / back navigation", () => {
-      const globalsCss = fs.readFileSync(path.resolve(process.cwd(), "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toContain("@media (hover: none) and (pointer: coarse)");
       expect(globalsCss).toContain("display: none !important;");
 
-      const worldMapContent = fs.readFileSync(path.resolve(process.cwd(), "components/world-map.tsx"), "utf-8");
-      expect(worldMapContent).toContain("safeCloseTooltip(layer)");
-      expect(worldMapContent).toContain("container.querySelectorAll(\".leaflet-tooltip\")");
+      const worldMapContent = readFile("components/world-map.tsx");
+      const lifecycleContent = readMapSources();
+      expect(worldMapContent).toContain("safeCloseTooltip(pathLayer)");
+      expect(lifecycleContent).toContain('container.querySelectorAll(".leaflet-tooltip")');
 
-      const spainMapContent = fs.readFileSync(path.resolve(process.cwd(), "components/spain-map.tsx"), "utf-8");
-      expect(spainMapContent).toContain("safeCloseTooltip(layer)");
-      expect(spainMapContent).toContain("container.querySelectorAll(\".leaflet-tooltip\")");
+      const spainMapContent = readFile("components/spain-map.tsx");
+      expect(spainMapContent).toContain("safeCloseTooltip(pathLayer)");
+      expect(lifecycleContent).toContain('container.querySelectorAll(".leaflet-tooltip")');
 
-      const trackerContent = fs.readFileSync(path.resolve(process.cwd(), "components/summit-tracker.tsx"), "utf-8");
+      const trackerContent = readTrackerSources();
       expect(trackerContent).toContain('.querySelectorAll(".leaflet-tooltip")');
     });
   });

@@ -32,6 +32,13 @@ export function DeleteAccountModal({
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
 
+    return () => {
+      unlockScroll();
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !isDeleting) {
         e.stopPropagation();
@@ -39,9 +46,7 @@ export function DeleteAccountModal({
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-
     return () => {
-      unlockScroll();
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, isDeleting, onClose]);

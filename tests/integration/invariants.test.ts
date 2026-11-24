@@ -5,6 +5,16 @@ import { peaks } from "@/data/peaks";
 import { predefinedCategories } from "@/data/experiences";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import {
+  readAllStyles,
+  readFeedSources,
+  readFile,
+  readMapSources,
+  readRankingSources,
+  readRankingStyles,
+  readSocialSources,
+  readTrackerSources,
+} from "@/tests/utils/source-reader";
 
 function isUnknownDate(dateVal: string | undefined | null): boolean {
   if (!dateVal) return true;
@@ -50,8 +60,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
 
   describe("Feed Card & Date Invariants", () => {
     it("Invariant 1.1: Feed tab must format relative time for header and retain title link", () => {
-      const feedTabPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedTabPath, "utf-8");
+      const content = readFeedSources();
 
       expect(content).toContain("formatDateSafe(");
       expect(content).toContain("#panel=");
@@ -79,16 +88,14 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 1.6: Feed cards must include feed-share-btn for sharing deep-links", () => {
-      const feedTabPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedTabPath, "utf-8");
+      const content = readFeedSources();
 
       expect(content).toContain("feed-share-btn");
       expect(content).toContain("handleShare");
     });
 
     it("Invariant 1.7: Feed cards must NOT contain reaction buttons (like, dislike, comment)", () => {
-      const feedTabPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedTabPath, "utf-8");
+      const content = readFeedSources();
 
       expect(content).not.toContain("feed-reaction-btn");
       expect(content).not.toContain("feed-comments-section");
@@ -96,16 +103,14 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 1.8: Feed title must NOT concatenate date, keeping displayTitle clean", () => {
-      const feedTabPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedTabPath, "utf-8");
+      const content = readFeedSources();
 
       expect(content).toContain("const displayTitle = finalLocationName;");
       expect(content).not.toMatch(/displayTitle\s*=\s*dateRangeStr/);
     });
 
     it("Invariant 1.9: Sharing publications must NOT include user-entered external links (link, link_2) to preserve Open Graph photo banners", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      const trackerContent = readTrackerSources();
 
       // Extract handleShareRecord function implementation
       const shareRecordMatch = trackerContent.match(/async function handleShareRecord[\s\S]*?await executeShare/);
@@ -161,8 +166,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
 
   describe("Auth, Layout & Hydration Invariants", () => {
     it("Invariant 3.1: AuthContext must preserve session across mounts and only purge on SIGNED_OUT", () => {
-      const authContextPath = path.join(rootDir, "components/auth-context.tsx");
-      const content = fs.readFileSync(authContextPath, "utf-8");
+      const content = readFile("components/auth-context.tsx");
 
       expect(content).toContain("globalSession");
       expect(content).toContain("globalProfile");
@@ -170,22 +174,19 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 3.2: AuthDialog must not show 'He olvidado la contraseña' when creating an account (isRegister)", () => {
-      const authDialogPath = path.join(rootDir, "components/auth-dialog.tsx");
-      const content = fs.readFileSync(authDialogPath, "utf-8");
+      const content = readFile("components/auth-dialog.tsx");
 
       expect(content).toMatch(/!isRegister\s*&&\s*\(?[\s\S]*?He olvidado la contraseña/);
     });
 
     it("Invariant 4.1: Layout CSS must retain stable scrollbar gutter to prevent desktop shift", () => {
-      const globalsCssPath = path.join(rootDir, "app/globals.css");
-      const content = fs.readFileSync(globalsCssPath, "utf-8");
+      const content = readAllStyles();
 
       expect(content).toMatch(/scrollbar-gutter:\s*stable/);
     });
 
     it("Invariant 5.1: Ranking CSS must retain top-3 podium margin to prevent avatar outline clipping", () => {
-      const rankingCssPath = path.join(rootDir, "components/ranking.css");
-      const content = fs.readFileSync(rankingCssPath, "utf-8");
+      const content = readRankingStyles();
 
       expect(content).toContain(".ranking-avatar");
       expect(content).toMatch(/\.ranking-avatar\s*\{[^}]*margin:\s*4px/);
@@ -194,66 +195,59 @@ describe("Project Critical Invariants (No Regressions)", () => {
 
   describe("Experiences & Map Invariants", () => {
     it("Invariant 6.1: world-map.tsx must only render experience markers when experiencesMode is true", () => {
-      const worldMapPath = path.join(rootDir, "components/world-map.tsx");
-      const content = fs.readFileSync(worldMapPath, "utf-8");
+      const content = readFile("components/world-map.tsx");
 
-      expect(content).toContain("if (experiencesMode && experienceRecords)");
-      expect(content).toContain("experiencesModeRef.current = experiencesMode;");
+      expect(content).toContain("if (!experiencesMode || !experienceRecords.length) return [];");
+      expect(content).toContain("{experiencesMode && experienceRecords && experienceRecords.length > 0 && (");
     });
 
     it("Invariant 6.2: summit-tracker.tsx must guard handleExperienceClick and conditionally pass experienceRecords", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
-      expect(content).toMatch(/function handleExperienceClick[\s\S]*?if \(!experiencesMode\) return;/);
-      expect(content).toMatch(/experiencesMode\s*\?\s*experienceRecords\.map/);
+      expect(content).toMatch(/const handleExperienceClick = useCallback[\s\S]*?if \(!experiencesMode\) return;/);
+      expect(content).toContain("if (!experiencesMode) return EMPTY_EXP_RECORDS;");
+      expect(content).toContain("experienceRecords={mappedExperienceRecords}");
     });
 
     it("Invariant 6.3: summit-tracker.tsx must close experience records upon deactivating experiences mode", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).toContain("handleToggleExperiences");
-      expect(content).toContain("isSelectedExperience");
+      expect(content).toContain("isSelectedExp");
       expect(content).toContain("setExperiencesMode(false)");
     });
   });
 
   describe("Record Links Invariants", () => {
     it("Invariant 7.1: summit-tracker.tsx must render record links in completed record cards", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
-      expect(content).toContain("renderRecordLink");
-      expect(content).toContain("{renderRecordLink(ascent.link, (ascent as any).link_name)}");
+      expect(content).toContain("RecordLinkBadge");
+      expect(content).toContain("<RecordLinkBadge link={record.link} linkName={record.link_name} />");
     });
 
     it("Invariant 7.2: summit-tracker.tsx must support a second link with subtle display and persistence", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).toContain("link_2");
       expect(content).toContain("link_name_2");
       expect(content).toContain("showSecondLink");
-      expect(content).toContain("renderRecordLink((ascent as any).link_2, (ascent as any).link_name_2)");
+      expect(content).toContain("<RecordLinkBadge link={record.link_2} linkName={record.link_name_2} />");
     });
 
     it("Invariant 7.3: feed-tab.tsx must select and render the second link in activity cards", () => {
-      const feedPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedPath, "utf-8");
+      const content = readFeedSources();
 
       expect(content).toContain("link_2");
       expect(content).toContain("link_name_2");
-      expect(content).toContain("renderFeedLink(item.link_2, item.link_name_2)");
+      expect(content).toContain("<RecordLinkBadge link={item.link_2} linkName={item.link_name_2} />");
     });
 
     it("Invariant 7.4: Footprints icon must be assigned for hiking/running links and placeholders for links must guide user dynamically per mode", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      const trackerContent = readTrackerSources();
       expect(trackerContent).toContain("Footprints");
-      expect(trackerContent).toMatch(/strava\.com[\s\S]*?Icon\s*=\s*Footprints/);
-      expect(trackerContent).toMatch(/strava\.app\.link[\s\S]*?Icon\s*=\s*Footprints/);
-      expect(trackerContent).toMatch(/wikiloc\.com[\s\S]*?Icon\s*=\s*Footprints/);
+      expect(trackerContent).toMatch(/strava\.com[\s\S]*?wikiloc\.com/);
+      expect(trackerContent).toContain('"footprints"');
       // Placeholders must adapt per active mode
       expect(trackerContent).toContain("Ej: Track de la Ruta");
       expect(trackerContent).toContain("Ej: Equipamiento utilizado");
@@ -263,46 +257,39 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(trackerContent).toContain("Ej: Guía para la experiencia");
       expect(trackerContent).toContain("getLinkPlaceholders");
 
-      const feedPath = path.join(rootDir, "components/feed-tab.tsx");
-      const feedContent = fs.readFileSync(feedPath, "utf-8");
+      const feedContent = readFeedSources();
       expect(feedContent).toContain("Footprints");
-      expect(feedContent).toMatch(/strava\.com[\s\S]*?Icon\s*=\s*Footprints/);
-      expect(feedContent).toMatch(/strava\.app\.link[\s\S]*?Icon\s*=\s*Footprints/);
-      expect(feedContent).toMatch(/wikiloc\.com[\s\S]*?Icon\s*=\s*Footprints/);
+      expect(feedContent).toContain("getRecordLinkPresentation");
     });
 
     it("Invariant 7.5: Country record dialog must omit continent, dropzone must disable on 4 photos, and second link container must omit dashed border", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
-      expect(trackerContent).toMatch(/countries\.some\(\(c\)\s*=>\s*c\.id\s*===\s*selected\.id\)\s*\?\s*null\s*:/);
+      const trackerContent = readTrackerSources();
+      expect(trackerContent).toMatch(/countriesIdSet\.has\(selected\.id\)\s*\?\s*null\s*:/);
       expect(trackerContent).toContain("isPhotoLimitReached");
       expect(trackerContent).toContain("file-dropzone--disabled");
       expect(trackerContent).not.toMatch(/borderTop:\s*"1px dashed/);
 
-      const globalsCssPath = path.join(rootDir, "app/globals.css");
-      const globalsCss = fs.readFileSync(globalsCssPath, "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toContain(".file-dropzone--disabled");
     });
   });
 
   describe("Test Profile Stealth & Isolation Invariants", () => {
-    it("Invariant 8.1: ranking-tab.tsx must exclude is_test profiles from user counts", () => {
-      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
-      const content = fs.readFileSync(rankingPath, "utf-8");
-      expect(content).toContain(".neq('is_test', true)");
+    it("Invariant 8.1: ranking-tab.tsx must exclude is_test profiles via get_user_ranking RPC", () => {
+      const content = readRankingSources();
+      expect(content).toMatch(/supabase!?\.rpc\("get_user_ranking"/);
+      expect(content).toContain("is_test");
     });
 
     it("Invariant 8.2: feed-tab.tsx must exclude activities from is_test profiles", () => {
-      const feedPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedPath, "utf-8");
+      const content = readFeedSources();
       expect(content).toContain("if (a.profiles?.is_test) return false;");
       expect(content).toContain("if (e.profiles?.is_test) return false;");
     });
 
-    it("Invariant 8.3: social-tab.tsx must exclude is_test profiles from search and recommendations", () => {
-      const socialPath = path.join(rootDir, "components/social-tab.tsx");
-      const content = fs.readFileSync(socialPath, "utf-8");
-      expect(content).toContain(".neq('is_test', true)");
+    it("Invariant 8.3: social connections loader must exclude is_test profiles", () => {
+      const content = readFile("lib/social-cache.ts");
+      expect(content).toContain('.neq("is_test", true)');
     });
 
     it("Invariant 8.4: migration 023 must define is_test on profiles and update get_user_ranking", () => {
@@ -316,8 +303,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
 
   describe("Mobile Scroll Locking & Photo Lightbox History Invariants", () => {
     it("Invariant 9.1: feed-tab.tsx must push #lightbox state and listen to popstate to close lightbox without leaving feed", () => {
-      const feedPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedPath, "utf-8");
+      const content = readFeedSources();
 
       expect(content).toContain('window.history.pushState({ feedLightbox: true }, "", "#lightbox")');
       expect(content).toContain('window.addEventListener("popstate", handleCloseOnNavigation)');
@@ -326,28 +312,24 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 9.2: Both feed-tab.tsx and summit-tracker.tsx must lock documentElement and body scroll when viewing photos", () => {
-      const feedPath = path.join(rootDir, "components/feed-tab.tsx");
-      const feedContent = fs.readFileSync(feedPath, "utf-8");
+      const feedContent = readFeedSources();
       expect(feedContent).toContain('document.documentElement.style.overflow = "hidden"');
       expect(feedContent).toContain('document.body.style.overflow = "hidden"');
 
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
-      expect(trackerContent).toContain('document.documentElement.style.overflow = "hidden"');
-      expect(trackerContent).toContain('document.body.style.overflow = "hidden"');
+      const trackerContent = readTrackerSources();
+      expect(trackerContent).toContain("isScrollLocked");
+      expect(trackerContent).toContain("useScrollLock");
     });
 
     it("Invariant 9.3: summit-tracker.tsx must lock background scroll on mobile when viewing a record", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
-      expect(content).toContain("isMobile && !!selected");
+      expect(content).toMatch(/isMobile\s*&&\s*(!!selected|Boolean\(activeSelected\))/);
       expect(content).toContain("isScrollLocked");
     });
 
     it("Invariant 9.4: globals.css must contain overscroll-behavior and disable pointer-events on background elements on mobile", () => {
-      const cssPath = path.join(rootDir, "app/globals.css");
-      const content = fs.readFileSync(cssPath, "utf-8");
+      const content = readAllStyles();
 
       expect(content).toContain("overscroll-behavior: contain");
       expect(content).toContain("touch-action: none");
@@ -356,18 +338,16 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 9.5: globals.css must hide country summit pins at zoom levels 0 through 5 and by default in mode-countries", () => {
-      const cssPath = path.join(rootDir, "app/globals.css");
-      const content = fs.readFileSync(cssPath, "utf-8");
+      const content = readAllStyles();
 
-      expect(content).toContain('.mode-countries .summit-pin:not(.summit-pin--experience)');
+      expect(content).toContain(".mode-countries .summit-pin:not(.summit-pin--experience)");
       expect(content).toContain('.mode-countries .map[data-zoom="0"] .summit-pin:not(.summit-pin--experience)');
       expect(content).toContain('.mode-countries .map[data-zoom="5"] .summit-pin:not(.summit-pin--experience)');
       expect(content).toContain('.map[data-zoom="0"] .summit-pin:not(.summit-pin--experience)');
     });
 
     it("Invariant 9.6: profile-settings.tsx must lock documentElement and body scroll when mounted", () => {
-      const settingsPath = path.join(rootDir, "components/profile-settings.tsx");
-      const content = fs.readFileSync(settingsPath, "utf-8");
+      const content = readFile("components/profile-settings.tsx");
 
       expect(content).toContain('document.documentElement.style.overflow = "hidden"');
       expect(content).toContain('document.body.style.overflow = "hidden"');
@@ -377,8 +357,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
 
   describe("Modality Preferences & Visibility Invariants", () => {
     it("Invariant 10.1: profile-settings.tsx must include toggles for both peaks and countries and prevent disabling both", () => {
-      const settingsPath = path.join(rootDir, "components/profile-settings.tsx");
-      const content = fs.readFileSync(settingsPath, "utf-8");
+      const content = readFile("components/profile-settings.tsx");
 
       expect(content).toContain("enablePeaks");
       expect(content).toContain("enableCountries");
@@ -386,17 +365,15 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 10.2: summit-tracker.tsx must guard mode-selector with hasBothModes", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
-      expect(content).toContain("hasBothModes && (");
+      expect(content).toContain("{hasBothModes && (");
       expect(content).toContain("canShowPeaks");
       expect(content).toContain("canShowCountries");
     });
 
     it("Invariant 10.3: ranking-tab.tsx must guard mode-selector with hasBothModes", () => {
-      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
-      const content = fs.readFileSync(rankingPath, "utf-8");
+      const content = readRankingSources();
 
       expect(content).toContain("hasBothModes && (");
       expect(content).toContain("enablePeaks");
@@ -404,8 +381,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 10.4: feed-tab.tsx must filter out posts of disabled modalities", () => {
-      const feedPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedPath, "utf-8");
+      const content = readFeedSources();
 
       expect(content).toContain("visibleFeedItems");
       expect(content).toContain("!enablePeaks && isPeak");
@@ -423,37 +399,25 @@ describe("Project Critical Invariants (No Regressions)", () => {
 
   describe("Topbar Account Button & Modality Hierarchy Invariants", () => {
     it("Invariant 11.1: Topbar account button must ONLY display avatar and NEVER display email or username text", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
-      const socialPath = path.join(rootDir, "components/social-tab.tsx");
+      const topbarContent = readFile("components/layout/app-topbar.tsx");
+      const trackerContent = readTrackerSources();
+      const rankingContent = readRankingSources();
+      const socialContent = readSocialSources();
 
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
-      const rankingContent = fs.readFileSync(rankingPath, "utf-8");
-      const socialContent = fs.readFileSync(socialPath, "utf-8");
+      // Shared AppTopbar must contain account-button and account-avatar, and NEVER email/username text
+      expect(topbarContent).toContain('className="account-button"');
+      expect(topbarContent).toContain('className="account-avatar"');
+      expect(topbarContent).not.toMatch(/className="account-button"[\s\S]*?<span>\{myProfile\?\.username/);
+      expect(topbarContent).not.toMatch(/className="account-button"[\s\S]*?session\.user\.email\?\.split\("@"\)/);
+      expect(topbarContent).not.toContain("account-username");
 
-      for (const [name, content] of [
-        ["summit-tracker.tsx", trackerContent],
-        ["ranking-tab.tsx", rankingContent],
-        ["social-tab.tsx", socialContent],
-      ]) {
-        // Must contain account-button and account-avatar
-        expect(content, `${name} must include account-button`).toContain('className="account-button"');
-        expect(content, `${name} must include account-avatar`).toContain('className="account-avatar"');
-
-        // Must NOT render username or email text next to the avatar
-        expect(content, `${name} must not render username text in account-button`).not.toMatch(
-          /className="account-button"[\s\S]*?<span>\{myProfile\?\.username/
-        );
-        expect(content, `${name} must not render email text in account-button`).not.toMatch(
-          /className="account-button"[\s\S]*?session\.user\.email\?\.split\("@"\)/
-        );
-        expect(content, `${name} must not contain account-username class`).not.toContain("account-username");
-      }
+      expect(trackerContent).toContain("<AppTopbar");
+      expect(rankingContent).toContain("<AppTopbar");
+      expect(socialContent).toContain("<AppTopbar");
     });
 
     it("Invariant 11.2: profile-settings.tsx must freeze experiences when countries mode is disabled", () => {
-      const settingsPath = path.join(rootDir, "components/profile-settings.tsx");
-      const content = fs.readFileSync(settingsPath, "utf-8");
+      const content = readFile("components/profile-settings.tsx");
 
       expect(content).toContain("setEnableExperiences(false)");
       expect(content).toContain("enable_experiences: enableCountries ? enableExperiences : false");
@@ -461,31 +425,28 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.3: summit-tracker.tsx must force experiencesMode to false if canShowCountries is false", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).toContain("if (!canShowCountries) {");
       expect(content).toContain("if (experiencesMode) setExperiencesMode(false)");
     });
 
     it("Invariant 11.4: globals.css must style mountain-art with 160px for both countries and experiences modes", () => {
-      const globalsCssPath = path.join(rootDir, "app/globals.css");
-      const content = fs.readFileSync(globalsCssPath, "utf-8");
+      const content = readAllStyles();
 
       expect(content).toMatch(/\.mode-countries\s+\.mountain-art,\s*\r?\n\s*\.mode-experiences\s+\.mountain-art\s*\{[^}]*font-size:\s*160px;/);
     });
 
-    it("Invariant 11.5: spain-map.tsx must use Lucide React SVG icons for all pins and avoid raw unicode symbols", () => {
-      const spainMapPath = path.join(rootDir, "components/spain-map.tsx");
-      const content = fs.readFileSync(spainMapPath, "utf-8");
+    it("Invariant 11.5: spain-map.tsx and leaflet icons must use Lucide React SVG paths for all pins and avoid raw unicode symbols", () => {
+      const content = readMapSources();
 
       // Must not contain raw unicode characters in markerIcons
-      expect(content).not.toContain("summit-pin summit-pin--done\">✓");
-      expect(content).not.toContain("summit-pin\">△");
-      expect(content).not.toContain("summit-pin summit-pin--wishlist\">★");
-      expect(content).not.toContain("summit-pin summit-pin--diff-only-me\">✓");
-      expect(content).not.toContain("summit-pin summit-pin--diff-both\">⬟");
-      expect(content).not.toContain("summit-pin summit-pin--diff-none\">△");
+      expect(content).not.toContain('summit-pin summit-pin--done">✓');
+      expect(content).not.toContain('summit-pin">△');
+      expect(content).not.toContain('summit-pin summit-pin--wishlist">★');
+      expect(content).not.toContain('summit-pin summit-pin--diff-only-me">✓');
+      expect(content).not.toContain('summit-pin summit-pin--diff-both">⬟');
+      expect(content).not.toContain('summit-pin summit-pin--diff-none">△');
 
       // Must contain SVG icons with proper paths
       expect(content).toContain("M20 6 9 17l-5-5"); // Check
@@ -495,8 +456,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.6: summit-tracker.tsx must not display dates in photo captions (only photo.caption if present) or in the photo lightbox view", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       // Figcaptions must not fallback to formatDate(photo.taken_on)
       expect(content).not.toContain("formatDate(photo.taken_on)");
@@ -534,8 +494,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.10: Removed banner and eyebrow texts must not be present in components/summit-tracker.tsx", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const content = fs.readFileSync(trackerPath, "utf-8");
+      const content = readTrackerSources();
 
       expect(content).not.toContain("UN RETO, 196 PAÍSES");
       expect(content).not.toContain("UN RETO, 47 PICOS");
@@ -572,124 +531,128 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.12: Topbar must remain sticky and map navigation must support scrollToMap without breaking other tabs", () => {
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8").replace(/\r\n/g, "\n");
-      expect(globalsCss).toContain(".topbar {\n  position: sticky;");
-      expect(globalsCss).not.toContain(".topbar {\n  position: relative;");
+      const globalsCss = readAllStyles().replace(/\r\n/g, "\n");
+      expect(globalsCss).toMatch(/\.topbar\s*\{[^}]*position:\s*sticky;/);
+      expect(globalsCss).not.toMatch(/\.topbar\s*\{[^}]*position:\s*relative;/);
 
-      const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+      const topbarContent = readFile("components/layout/app-topbar.tsx");
+      expect(topbarContent).toContain("scrollToMap");
+      expect(topbarContent).toContain("scrollToMap(e)");
+      expect(topbarContent).toMatch(/<Link[\s\S]*?topbar-nav-link--mapa[\s\S]*?>[\s\S]*?Mapa[\s\S]*?<\/Link>/);
+
+      const trackerContent = readTrackerSources();
       expect(trackerContent).toContain("scrollToMap");
-      expect(trackerContent).toContain("scrollToMap(e)");
-
-      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-      expect(socialContent).toContain('<Link href={mapLink} prefetch={true} className="topbar-nav-link topbar-nav-link--mapa">Mapa</Link>');
-
-      const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
-      expect(rankingContent).toContain('<Link href={mapLink} prefetch={true} className="topbar-nav-link topbar-nav-link--mapa">Mapa</Link>');
     });
 
     it("Invariant 11.13: Topbar mode toggle and nav links must maintain consistent coordinates without bold layout shifts", () => {
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toMatch(/\.topbar\s+\.app-mode-switch\s*\{[^}]*top:\s*50%;[^}]*transform:\s*translate\(-50%,\s*-50%\);/);
       expect(globalsCss).toContain(".topbar-nav-link--active");
 
-      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-      expect(socialContent).not.toContain("fontWeight: 'bold'");
-      expect(socialContent).toContain("topbar-nav-link--social topbar-nav-link--active");
+      const topbarContent = readFile("components/layout/app-topbar.tsx");
+      expect(topbarContent).not.toContain("fontWeight: 'bold'");
+      expect(topbarContent).toContain("topbar-nav-link--social");
+      expect(topbarContent).toContain("topbar-nav-link--ranking");
+      expect(topbarContent).toContain("topbar-nav-link--active");
 
-      const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
+      const socialContent = readSocialSources();
+      expect(socialContent).not.toContain("fontWeight: 'bold'");
+      const rankingContent = readRankingSources();
       expect(rankingContent).not.toContain("fontWeight: 'bold'");
-      expect(rankingContent).toContain("topbar-nav-link--ranking topbar-nav-link--active");
     });
 
     it("Invariant 11.14: Social tab vertebral bar must place profile on left and single category ratio on right", () => {
-      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-      expect(socialContent).toContain("hero-profile-wrap");
-      expect(socialContent).toContain("activeAchieved");
-      expect(socialContent).toContain("activeTotal");
-      expect(socialContent).toContain("activeUnit");
-      expect(socialContent).toContain("activeCompletion");
+      const socialHeroContent = readFile("components/social/social-hero.tsx");
+      expect(socialHeroContent).toContain("hero-profile-wrap");
+      expect(socialHeroContent).toContain("activeAchieved");
+      expect(socialHeroContent).toContain("activeTotal");
+      expect(socialHeroContent).toContain("activeUnit");
+      expect(socialHeroContent).toContain("activeCompletion");
 
       // Verify that profile is on left and hero-stat is on right inside hero-main--social
-      const heroSection = socialContent.slice(socialContent.indexOf('hero-main--social'), socialContent.indexOf('hide-on-desktop'));
-      const profilePos = heroSection.indexOf('hero-profile-wrap');
-      const statPos = heroSection.indexOf('hero-stat');
+      const heroSection = socialHeroContent.slice(
+        socialHeroContent.indexOf("hero-main--social"),
+        socialHeroContent.indexOf("hide-on-desktop")
+      );
+      const profilePos = heroSection.indexOf("hero-profile-wrap");
+      const statPos = heroSection.indexOf("hero-stat");
       expect(profilePos).toBeGreaterThan(-1);
       expect(statPos).toBeGreaterThan(-1);
       expect(profilePos).toBeLessThan(statPos);
 
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toMatch(/\.hero-main--social\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
     });
 
     it("Invariant 11.15: Social tab must include search pill on left and experiences toggle on right aligned with post column", () => {
-      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-      expect(socialContent).toContain('social-feed-controls');
-      expect(socialContent).toContain('social-search-box');
-      expect(socialContent).toContain('social-search-input');
-      expect(socialContent).toContain('diff-toggle-wrap');
-      expect(socialContent).toContain("maxWidth: '680px'");
+      const socialContent = readSocialSources();
+      expect(socialContent).toContain("social-feed-controls");
+      expect(socialContent).toContain("social-search-box");
+      expect(socialContent).toContain("social-search-input");
+      expect(socialContent).toContain("diff-toggle-wrap");
+      expect(socialContent).toMatch(/maxWidth:\s*["']680px["']/);
 
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
-      expect(globalsCss).toContain('.social-feed-controls');
-      expect(globalsCss).toContain('.social-search-box');
-      expect(globalsCss).toContain('.social-search-input');
+      const globalsCss = readAllStyles();
+      expect(globalsCss).toContain(".social-feed-controls");
+      expect(globalsCss).toContain(".social-search-box");
+      expect(globalsCss).toContain(".social-search-input");
     });
 
     it("Invariant 11.16: Vertebral bar in Social tab must lower profile and lock mobile layout in fixed grid to prevent mode-switching shifts", () => {
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toMatch(/\.hero-main--social\s+\.hero-profile-wrap\s*\{[^}]*margin-top:\s*4px/);
       expect(globalsCss).toMatch(/@media\s*\(max-width:\s*700px\)[\s\S]*?\.hero-main--social\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*1fr\s+1fr/);
       expect(globalsCss).toMatch(/@media\s*\(max-width:\s*700px\)[\s\S]*?\.hero-main--social\s+\.hero-profile-wrap\s*\{[^}]*padding-left:\s*6px/);
     });
 
     it("Invariant 11.17: Hero mottos must be strictly hidden on mobile and tablet viewports (<= 1023px)", () => {
-      const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+      const trackerContent = readTrackerSources();
       expect(trackerContent).toMatch(/hero-title-wrap--motto\s+hide-on-mobile/);
 
-      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-      expect(socialContent).toContain('hero-title-wrap hide-on-mobile');
+      const socialContent = readSocialSources();
+      expect(socialContent).not.toContain("hero-title-wrap--motto");
 
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toMatch(/@media\s*\(max-width:\s*1023px\)[\s\S]*?\.hero-title-wrap--motto\s*\{[^}]*display:\s*none\s*!important/);
     });
 
     it("Invariant 11.18: feed-tab.tsx must support multi-field search filtering by username, location and date", () => {
-      const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+      const feedContent = readFeedSources();
       expect(feedContent).toContain('searchQuery = ""');
-      expect(feedContent).toContain('searchQuery.trim()');
-      expect(feedContent).toContain('tokens.every');
-      expect(feedContent).toContain('formatRecordDateRange');
-      expect(feedContent).toContain('No se encontraron actividades para');
+      expect(feedContent).toContain("searchQuery.trim()");
+      expect(feedContent).toContain("tokens.every");
+      expect(feedContent).toContain("formatRecordDateRange");
+      expect(feedContent).toContain("No se encontraron actividades para");
     });
 
     it("Invariant 11.19: Social and ranking search inputs must hide native cancel buttons to avoid duplicate cross buttons", () => {
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toMatch(/\.social-search-input::-webkit-search-cancel-button[\s\S]*?display:\s*none\s*!important/);
 
-      const rankingCss = fs.readFileSync(path.join(rootDir, "components/ranking.css"), "utf-8");
+      const rankingCss = readRankingStyles();
       expect(rankingCss).toMatch(/\.ranking-search-input::-webkit-search-cancel-button[\s\S]*?display:\s*none/);
     });
 
     it("Invariant 11.20: Experiences mode in Social tab must trigger dark theme across feed, cards, links, numbers and search", () => {
-      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      const socialContent = readSocialSources();
       expect(socialContent).toContain('main className={isPeaks ? "" : isExp ? "mode-experiences" : "mode-countries"}');
       expect(socialContent).toContain('document.body.classList.add("mode-experiences")');
 
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
-      expect(globalsCss).toContain('.mode-experiences .feed-card');
-      expect(globalsCss).toContain('.mode-experiences .social-search-input');
-      expect(globalsCss).toContain('.mode-experiences .feed-link');
-      expect(globalsCss).toContain('.mode-experiences .hero-stat strong');
+      const globalsCss = readAllStyles();
+      expect(globalsCss).toContain(".mode-experiences .feed-card");
+      expect(globalsCss).toContain(".mode-experiences .social-search-input");
+      expect(globalsCss).toContain(".mode-experiences .feed-link");
+      expect(globalsCss).toContain(".mode-experiences .hero-stat strong");
     });
 
     it("Invariant 11.21: Experiences mode in Social tab must strictly filter feed to experiences only and exclude countries", () => {
-      const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+      const feedContent = readFeedSources();
       expect(feedContent).toMatch(/if\s*\(\s*experiencesMode\s*&&\s*enableExperiences\s*\)\s*\{\s*return\s+isExperience;\s*\}/);
       expect(feedContent).toMatch(/return\s+isCountry;/);
     });
 
     it("Invariant 11.22: Target profile central follow button must render UserRound icons and state labels", () => {
-      const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+      const trackerContent = readTrackerSources();
       expect(trackerContent).toContain("UserRoundPlus");
       expect(trackerContent).toContain("UserRoundCheck");
       expect(trackerContent).toContain("UserRoundMinus");
@@ -700,7 +663,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(trackerContent).toContain("hero-target-follow-center");
       expect(trackerContent).toContain("hero-center-follow-label");
 
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toContain(".hero-center-follow-icon--minus");
       expect(globalsCss).toContain(".hero-center-follow-icon--check");
       expect(globalsCss).toContain(".hero-center-follow-label");
@@ -708,7 +671,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.23: Social tab search placeholder must omit 'Buscar por' and controls must provide a Following filter button on the left", () => {
-      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+      const socialContent = readSocialSources();
       // Search placeholder should omit 'Buscar por'
       expect(socialContent).not.toContain("Buscar por @usuario");
       expect(socialContent).toContain('currentMode === "peaks"');
@@ -724,14 +687,14 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(socialContent).toContain("followingUserIds");
 
       // feed-tab.tsx receives and processes followingOnly
-      const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
+      const feedContent = readFeedSources();
       expect(feedContent).toContain("followingOnly = false");
       expect(feedContent).toContain("followingUserIds");
       expect(feedContent).toContain("followingUserIdsSet");
-      expect(feedContent).toContain("if (followingOnly)");
+      expect(feedContent).toContain("if (followingOnly");
 
       // globals.css defines styles for left grouping, following button, and active states
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       expect(globalsCss).toContain(".social-feed-controls-left");
       expect(globalsCss).toContain(".social-following-btn");
       expect(globalsCss).toContain(".social-following-btn--active");
@@ -739,8 +702,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.16: Ranking participants count must strictly count users with at least 1 registered item and never raw profiles", () => {
-      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
-      const rankingContent = fs.readFileSync(rankingPath, "utf-8");
+      const rankingContent = readRankingSources();
 
       // Must not query total profiles table for ranking participant count
       expect(rankingContent).not.toContain("supabase.from('profiles').select('*', { count: 'exact'");
@@ -752,49 +714,44 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.17: Map search control (lupa) is only offset down when compare button is present", () => {
-      const mapSearchPath = path.join(rootDir, "components/map-search.tsx");
-      const mapSearchContent = fs.readFileSync(mapSearchPath, "utf-8");
+      const mapSearchContent = readFile("components/map-search.tsx");
       expect(mapSearchContent).toContain("offsetDown?: boolean");
-      expect(mapSearchContent).toContain('map-search-control--offset');
+      expect(mapSearchContent).toContain("map-search-control--offset");
 
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       // Default position is top
       expect(globalsCss).toMatch(/\.map-search-control\s*\{[^}]*top:\s*10px;/);
       // Offset position is 48px
       expect(globalsCss).toMatch(/\.map-search-control\.map-search-control--offset\s*\{[^}]*top:\s*48px;/);
 
-      // SummitTracker passes hasCompareButton strictly when isReadOnly and session
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      // SummitTracker / TrackerMapSection passes hasCompareButton strictly when isReadOnly and session
+      const trackerContent = readTrackerSources();
       expect(trackerContent).toContain("hasCompareButton={Boolean(isReadOnly && session)}");
 
       // CollectiveMap uses standard top position without displacement
-      const collectivePath = path.join(rootDir, "components/collective-map.tsx");
-      const collectiveContent = fs.readFileSync(collectivePath, "utf-8");
+      const collectiveContent = readFile("components/collective-map.tsx");
       expect(collectiveContent).toContain("<MapSearchControl");
       expect(collectiveContent).not.toContain("offsetDown={true}");
     });
 
     it("Invariant 11.24: Ranking tab controls (search box & following pill) and container layout must strictly align with Social tab", () => {
-      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
-      const rankingContent = fs.readFileSync(rankingPath, "utf-8");
-      const socialPath = path.join(rootDir, "components/social-tab.tsx");
-      const socialContent = fs.readFileSync(socialPath, "utf-8");
+      const rankingContent = readRankingSources();
+      const socialContent = readSocialSources();
 
       // Outer section padding and inner max-width container must match exactly (14px desktop to align with map-section legend)
-      expect(rankingContent).toContain('className="page-container ranking-main-container" style={{ paddingTop: \'14px\', paddingBottom: \'70px\', paddingLeft: \'16px\', paddingRight: \'16px\' }}');
-      expect(socialContent).toContain('className="page-container" style={{ paddingTop: \'14px\', paddingBottom: \'70px\', paddingLeft: \'16px\', paddingRight: \'16px\' }}');
-      expect(rankingContent).toContain("<div style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>");
-      expect(socialContent).toContain("<div style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>");
+      expect(rankingContent).toMatch(/className="page-container ranking-main-container"\s+style=\{\{\s*paddingTop:\s*["']14px["'],\s*paddingBottom:\s*["']70px["'],\s*paddingLeft:\s*["']16px["'],\s*paddingRight:\s*["']16px["'],?\s*\}\}/);
+      expect(socialContent).toMatch(/className="page-container"\s+style=\{\{\s*paddingTop:\s*["']14px["'],\s*paddingBottom:\s*["']70px["'],\s*paddingLeft:\s*["']16px["'],\s*paddingRight:\s*["']16px["'],?\s*\}\}/);
+      expect(rankingContent).toMatch(/<div style=\{\{\s*maxWidth:\s*["']680px["'],\s*margin:\s*["']0 auto["'],\s*width:\s*["']100%["']\s*\}\}>/);
+      expect(socialContent).toMatch(/<div style=\{\{\s*maxWidth:\s*["']680px["'],\s*margin:\s*["']0 auto["'],\s*width:\s*["']100%["']\s*\}\}>/);
 
       // Controls structure must be identical
       expect(rankingContent).toContain('className="social-feed-controls"');
       expect(rankingContent).toContain('className="social-feed-controls-left"');
       expect(rankingContent).toContain('className="social-search-box ranking-search-box"');
-      expect(rankingContent).toContain('social-following-btn');
+      expect(rankingContent).toContain("social-following-btn");
 
       // Ranking CSS must harmonize ranking-search-box and ranking-main-container
-      const rankingCss = fs.readFileSync(path.join(rootDir, "components/ranking.css"), "utf-8");
+      const rankingCss = readRankingStyles();
       expect(rankingCss).toMatch(/\.ranking-search-box\s*\{[^}]*flex:\s*0\s*1\s*190px/);
       expect(rankingCss).toMatch(/\.ranking-main-container\s*\{[^}]*box-sizing:\s*border-box;/);
       expect(rankingContent).toContain('className="ranking-feed-controls-right"');
@@ -802,8 +759,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.25: Collective map UI layout, following filter button, and typography alignment", () => {
-      const collectivePath = path.join(rootDir, "components/collective-map.tsx");
-      const collectiveContent = fs.readFileSync(collectivePath, "utf-8");
+      const collectiveContent = readMapSources();
 
       // Following filter button in collective map uses canonical .social-following-btn with UserRoundCheck
       expect(collectiveContent).toContain("UserRoundCheck");
@@ -813,83 +769,81 @@ describe("Project Critical Invariants (No Regressions)", () => {
       // Must not have the old dual global/following pill markup
       expect(collectiveContent).not.toContain("list-filter-pill");
 
-      // Ranking CSS positions collective-visitors-panel at bottom-right so it doesn't obstruct top-right controls
-      const rankingCss = fs.readFileSync(path.join(rootDir, "components/ranking.css"), "utf-8");
+      // Collective map styles position collective-visitors-panel at bottom-right so it doesn't obstruct top-right controls
+      const rankingCss = readRankingStyles();
       expect(rankingCss).toMatch(/\.collective-visitors-panel\s*\{[^}]*bottom:\s*24px;/);
       expect(rankingCss).toMatch(/\.collective-visitors-panel\s*\{[^}]*right:\s*24px;/);
 
-      // Collective map overlay and panel use canonical fonts DM Sans and Playfair Display
-      expect(rankingCss).toMatch(/\.collective-map-overlay\s*\{[^}]*font-family:\s*['"]DM Sans['"]/);
-      expect(rankingCss).toMatch(/\.collective-map-header h2\s*\{[^}]*font-family:\s*['"]Playfair Display['"]/);
-      expect(rankingCss).toMatch(/\.collective-visitors-header h3\s*\{[^}]*font-family:\s*['"]Playfair Display['"]/);
-      expect(rankingCss).toMatch(/\.collective-visitors-panel\s*\{[^}]*font-family:\s*['"]DM Sans['"]/);
+      // Collective map overlay and panel use canonical CSS font variables (--font-sans & --font-display)
+      expect(rankingCss).toMatch(/\.collective-map-overlay\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
+      expect(rankingCss).toMatch(/\.collective-map-header h2\s*\{[^}]*font-family:\s*var\(--font-display\)/);
+      expect(rankingCss).toMatch(/\.collective-visitors-header h3\s*\{[^}]*font-family:\s*var\(--font-display\)/);
+      expect(rankingCss).toMatch(/\.collective-visitors-panel\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
 
       // Bidirectional scope synchronization between RankingTab and CollectiveMap
-      const rankingPath = path.join(rootDir, "components/ranking-tab.tsx");
-      const rankingContent = fs.readFileSync(rankingPath, "utf-8");
+      const rankingContent = readRankingSources();
       expect(rankingContent).toContain("scope={scope}");
-      expect(rankingContent).toContain("onScopeChange={handleScopeChange}");
-      expect(collectiveContent).toContain("scope?: \"all\" | \"following\"");
-      expect(collectiveContent).toContain("onScopeChange?: (scope: \"all\" | \"following\") => void");
+      expect(rankingContent).toMatch(/onScopeChange=\{(handleScopeChange|setScope)\}/);
+      expect(collectiveContent).toContain('scope?: "all" | "following"');
+      expect(collectiveContent).toContain('onScopeChange?: (scope: "all" | "following") => void');
       expect(collectiveContent).toContain("onScopeChange(next)");
 
       // Collective map supports both countries and peaks mode with identical controls
       expect(rankingContent).toContain('((mode === "countries" && enableCountries) || (mode === "peaks" && enablePeaks))');
       expect(rankingContent).toContain("mode={mode}");
       expect(collectiveContent).toContain('mode?: "countries" | "peaks"');
-      expect(collectiveContent).toContain("isPeaks ? <FitSpain /> : <FitWorld />");
+      expect(collectiveContent).toContain("isPeaks ? <FitSpain persistSessionState={false} /> : <FitWorld persistSessionState={false} />");
       expect(collectiveContent).toContain('placeholder={isPeaks ? "Buscar pico o provincia..." : "Buscar país..."}');
-      expect(collectiveContent).toContain('3+ {isPeaks ? "escaladores" : "visitantes"}');
+      expect(collectiveContent).toContain('3+{" "}');
+      expect(collectiveContent).toContain('{isPeaks ? "escaladores" : "visitantes"}');
     });
 
     it("Invariant 11.26: Map concentric circles button (add experience) must be hidden when selecting location", () => {
-      const worldMapPath = path.join(rootDir, "components/world-map.tsx");
-      const worldMapContent = fs.readFileSync(worldMapPath, "utf-8");
+      const worldMapContent = readFile("components/world-map.tsx");
 
       // The concentric circles button on the map must not be displayed when selectingLocation is true
       expect(worldMapContent).toContain("experiencesMode && onAddExperience && !selectingLocation");
 
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
-      expect(trackerContent).toContain("onAddExperience={!isReadOnly && !selectingLocationForExp");
+      const trackerContent = readTrackerSources();
+      expect(trackerContent).toContain("!isReadOnly && !selectingLocationForExp ? onOpenExpSelector : undefined");
+      expect(trackerContent).toContain("onAddExperience={addExperienceHandler}");
     });
 
     it("Invariant 11.27: Experience selector modal must lock body scroll and contain overscroll", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      const trackerContent = readTrackerSources();
+      const expModalsContent = readFile("components/tracker/experience-modals.tsx");
 
       // isScrollLocked must include expSelectorOpen
-      expect(trackerContent).toContain("!!expSelectorOpen");
+      expect(trackerContent).toContain("expSelectorOpen");
       // expSelectorOpen backdrop must stop wheel propagation and contain overscroll
-      expect(trackerContent).toContain("{expSelectorOpen && (");
-      const expSelectorSlice = trackerContent.slice(trackerContent.indexOf("{expSelectorOpen && ("));
+      expect(expModalsContent).toContain("{expSelectorOpen && (");
+      const expSelectorSlice = expModalsContent.slice(expModalsContent.indexOf("{expSelectorOpen && ("));
       expect(expSelectorSlice).toContain('className="modal-backdrop"');
       expect(expSelectorSlice).toContain("onWheel={(e) => e.stopPropagation()}");
+      expect(expSelectorSlice).toContain('overscrollBehavior: "contain"');
     });
 
     it("Invariant 11.28: Selecting location on map must pin viewport to map, lock window scroll, and provide cancel cross button", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+      const trackerContent = readTrackerSources();
 
       // isScrollLocked must include selectingLocationForExp
-      expect(trackerContent).toContain("!!selectingLocationForExp");
+      expect(trackerContent).toContain("Boolean(selectingLocationForExp)");
       // Must scroll to top: 0 on mobile and snap to map on desktop when selectingLocationForExp is active
-      expect(trackerContent).toContain("if (selectingLocationForExp)");
+      expect(trackerContent).toContain("if (!selectingLocationForExp) return;");
       expect(trackerContent).toMatch(/isMobileScreen[\s\S]*?scrollTo\(\{\s*top:\s*0/);
       expect(trackerContent).toContain('document.getElementById("mapa")');
 
-      const worldMapPath = path.join(rootDir, "components/world-map.tsx");
-      const worldMapContent = fs.readFileSync(worldMapPath, "utf-8");
+      const worldMapContent = readFile("components/world-map.tsx");
 
       // Banner must include cancel cross button at top-right
       expect(worldMapContent).toContain("selecting-location-cancel-btn");
-      expect(worldMapContent).toContain("onCancelSelectingLocation();");
+      expect(worldMapContent).toContain("onCancelSelectingLocation?.();");
       // Escape key listener for cancelling
       expect(worldMapContent).toMatch(/e\.key\s*===\s*["']Escape["']/);
     });
 
     it("Invariant 11.29: Compare button (.map-floating-btn) must not change color when switching to experiences mode", () => {
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
 
       // .mode-experiences .diff-toggle must exclude .map-floating-btn to prevent dark mode styling on compare button
       expect(globalsCss).toContain(".mode-experiences .diff-toggle:not(.map-floating-btn)");
@@ -905,8 +859,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.30: Photo editor toolbar buttons in mobile must display labels strictly in a single line (white-space: nowrap) without breaking Espejo H/V", () => {
-      const editorPath = path.join(rootDir, "components/photo-editor.tsx");
-      const editorContent = fs.readFileSync(editorPath, "utf-8");
+      const editorContent = readFile("components/photo-editor.tsx");
 
       // photo-editor must contain photo-editor-toolbar and photo-editor-btn-label
       expect(editorContent).toContain("photo-editor-toolbar");
@@ -916,8 +869,8 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(editorContent).toContain('{"Espejo\\u00A0H"}');
       expect(editorContent).toContain('{"Espejo\\u00A0V"}');
 
-      // globals.css must define .photo-editor-btn-label with white-space: nowrap !important
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      // globals.css / media-viewer.css must define .photo-editor-btn-label with white-space: nowrap !important
+      const globalsCss = readAllStyles();
       expect(globalsCss).toContain(".photo-editor-btn-label");
       expect(globalsCss).toMatch(/\.photo-editor-btn-label\s*\{[^}]*white-space:\s*nowrap\s*!important;/);
 
@@ -926,20 +879,19 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.31: Collective map experiences pins visibility and toggle control", () => {
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
       // collective-map-overlay must override mode-countries so experience-hitbox and summit-pin--experience are visible
       expect(globalsCss).toMatch(/\.collective-map-overlay[\s\S]*?\.experience-hitbox\s*\{[^}]*display:\s*block\s*!important/);
       expect(globalsCss).toMatch(/\.collective-map-overlay[\s\S]*?\.summit-pin--experience\s*\{[^}]*display:\s*inline-flex\s*!important/);
       // Pins must use the morado color #cba6f7 matching inverted experiences mode
       expect(globalsCss).toMatch(/\.collective-map-overlay[\s\S]*?\.summit-pin--experience\s*\{[^}]*background:\s*#cba6f7\s*!important/);
 
-      const collectivePath = path.join(rootDir, "components/collective-map.tsx");
-      const collectiveContent = fs.readFileSync(collectivePath, "utf-8");
+      const collectiveContent = readMapSources();
       // Experiences toggle control must exist and toggle experiences
       expect(collectiveContent).toContain("ExperiencesToggleControl");
       expect(collectiveContent).toContain("collective-exp-toggle-control");
       expect(collectiveContent).toContain("#cba6f7");
-      expect(collectiveContent).toContain("showExperiences && experienceMarkers.map");
+      expect(collectiveContent).toContain("visibleExperiences.map");
       expect(collectiveContent).toContain("subItem?.name || exp?.name || marker.location_name");
     });
 
@@ -952,22 +904,20 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.33: Social feed must not execute Cartesian user_id x summit_id queries for photos", () => {
-      const feedTabPath = path.join(rootDir, "components/feed-tab.tsx");
-      const content = fs.readFileSync(feedTabPath, "utf-8");
+      const content = readFeedSources();
       expect(content).toContain("get_feed_photos");
       expect(content).not.toMatch(/\.in\(['"]user_id['"],\s*batchUserIds\)\.in\(['"]summit_id['"],\s*batchSummitIds\)/);
     });
 
     it("Invariant 11.34: Comparative legend is centered on mobile, Ninguno is visible, and colors remain invariant in dark mode", () => {
-      const summitTrackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const summitContent = fs.readFileSync(summitTrackerPath, "utf-8");
+      const summitContent = readTrackerSources();
 
       // map-legend-area--diff class applied during diffMode
       expect(summitContent).toContain('map-legend-area ${diffMode ? "map-legend-area--diff" : ""}');
       // Ninguno item has diff-legend-item--none
       expect(summitContent).toContain('className="diff-legend-item--none"');
 
-      const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+      const globalsCss = readAllStyles();
 
       // Ninguno must NOT be hidden
       expect(globalsCss).not.toMatch(/\.diff-legend\s+\.diff-legend-item--none\s*\{[^}]*display:\s*none/);
@@ -983,8 +933,7 @@ describe("Project Critical Invariants (No Regressions)", () => {
     });
 
     it("Invariant 11.35: Scroll isolation and top reset must be enforced across tabs and routes in AppTabsShell", () => {
-      const shellPath = path.join(rootDir, "components/app-tabs-shell.tsx");
-      const shellContent = fs.readFileSync(shellPath, "utf-8");
+      const shellContent = readFile("components/app-tabs-shell.tsx");
 
       expect(shellContent).toContain('window.history.scrollRestoration = "manual"');
       expect(shellContent).toContain("resetScrollToTop");
@@ -992,18 +941,13 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(shellContent).toContain("resetScrollToTop(false)");
       expect(shellContent).toContain("resetScrollToTop(true)");
 
-      const socialTabPath = path.join(rootDir, "components/social-tab.tsx");
-      const socialContent = fs.readFileSync(socialTabPath, "utf-8");
-      expect(socialContent).toMatch(/topbar-nav-link--social topbar-nav-link--active[\s\S]*?onClick=/);
-
-      const rankingTabPath = path.join(rootDir, "components/ranking-tab.tsx");
-      const rankingContent = fs.readFileSync(rankingTabPath, "utf-8");
-      expect(rankingContent).toMatch(/topbar-nav-link--ranking topbar-nav-link--active[\s\S]*?onClick=/);
+      const topbarContent = readFile("components/layout/app-topbar.tsx");
+      expect(topbarContent).toMatch(/topbar-nav-link--social[\s\S]*?onClick=/);
+      expect(topbarContent).toMatch(/topbar-nav-link--ranking[\s\S]*?onClick=/);
     });
 
     it("Invariant 11.36: PWA Install Prompt must use official raster icon, handle session dismissal and auto-hide when installed", () => {
-      const installPromptPath = path.join(rootDir, "components/install-prompt.tsx");
-      const installPromptContent = fs.readFileSync(installPromptPath, "utf-8");
+      const installPromptContent = readFile("components/install-prompt.tsx");
 
       // 1. Must use official raster icon /icon-192.png and NOT fragile SVG url(#ipGreen)
       expect(installPromptContent).toContain('src="/icon-192.png"');
@@ -1017,11 +961,10 @@ describe("Project Critical Invariants (No Regressions)", () => {
       // 3. Must persist pwa_app_installed on accepted installation
       expect(installPromptContent).toContain('localStorage.setItem("pwa_app_installed", "true")');
 
-      // 4. summit-tracker.tsx must auto-hide hero download button when alreadyInstalled
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf-8");
-      expect(trackerContent).toContain('localStorage.getItem("pwa_app_installed") === "true"');
-      expect(trackerContent).toContain("!alreadyInstalled");
+      // 4. use-pwa-install hook must auto-hide install button when alreadyInstalled
+      const pwaHookContent = readFile("hooks/use-pwa-install.ts");
+      expect(pwaHookContent).toContain('localStorage.getItem("pwa_app_installed") === "true"');
+      expect(pwaHookContent).toContain("!alreadyInstalled");
     });
 
     it("Invariant 11.37: PWA icon scale calibrated (ratio 0.375, 75% scale), splash screen anti-pixelation and out-of-scope protection", () => {
@@ -1054,55 +997,51 @@ describe("Project Critical Invariants (No Regressions)", () => {
       expect(installPromptContent).toContain("atlas-install-prompt-ready");
     });
 
-    it("Invariant 11.38: Canvas real-time drag expansion, padding and smoothFactor in Leaflet maps", () => {
-      const worldMapContent = fs.readFileSync(path.join(rootDir, "components/world-map.tsx"), "utf-8");
-      const collectiveMapContent = fs.readFileSync(path.join(rootDir, "components/collective-map.tsx"), "utf-8");
-      const spainMapContent = fs.readFileSync(path.join(rootDir, "components/spain-map.tsx"), "utf-8");
+    it("Invariant 11.38: Adaptive Canvas renderer instances, smoothFactor and zoom suspension across Leaflet maps", () => {
+      const canvasPatch = readFile("lib/leaflet-canvas-patch.ts");
+      const worldMapContent = readFile("components/world-map.tsx");
+      const collectiveMapContent = readFile("components/collective-map.tsx");
+      const spainMapContent = readFile("components/spain-map.tsx");
 
-      // 1. world-map.tsx: padding 2.5, smoothFactor 1.2, move hook
-      expect(worldMapContent).toContain("L.Canvas.prototype.options.padding = 2.5;");
-      expect(worldMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
-      expect(worldMapContent).toContain("_atlasMovePatched");
-      expect(worldMapContent).toContain("_onCanvasMove");
-      expect(worldMapContent).toContain("!(this._map.dragging && this._map.dragging.moving())");
+      // Shared patch must use adaptive instance options rather than mutating global L.Canvas.prototype.options.padding
+      expect(canvasPatch).toContain("createAdaptiveCanvasRenderer");
+      expect(canvasPatch).toContain("L.canvas({ padding })");
+      expect(canvasPatch).not.toContain("L.Canvas.prototype.options.padding =");
+      expect(canvasPatch).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
+      expect(canvasPatch).toContain("_atlasMovePatched");
+      expect(canvasPatch).toContain("_onCanvasMove");
+      expect(canvasPatch).toContain("!(this._map.dragging && this._map.dragging.moving())");
 
-      // 2. collective-map.tsx: padding 2.5, smoothFactor 1.2, move hook
-      expect(collectiveMapContent).toContain("L.Canvas.prototype.options.padding = 2.5;");
-      expect(collectiveMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
-      expect(collectiveMapContent).toContain("_atlasMovePatched");
-      expect(collectiveMapContent).toContain("_onCanvasMove");
-      expect(collectiveMapContent).toContain("!(this._map.dragging && this._map.dragging.moving())");
-
-      // 3. spain-map.tsx: preserves padding 0.5 (tested by polish-enhancements), smoothFactor 1.2, move hook
-      expect(spainMapContent).toContain("L.Canvas.prototype.options.padding = 0.5;");
-      expect(spainMapContent).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
-      expect(spainMapContent).toContain("_atlasMovePatched");
-      expect(spainMapContent).toContain("_onCanvasMove");
-      expect(spainMapContent).toContain("!(this._map.dragging && this._map.dragging.moving())");
+      // All 3 maps must instantiate their dedicated adaptive Canvas renderer
+      expect(worldMapContent).toContain('createAdaptiveCanvasRenderer("world")');
+      expect(spainMapContent).toContain('createAdaptiveCanvasRenderer("spain")');
+      expect(collectiveMapContent).toContain('createAdaptiveCanvasRenderer("collective")');
     });
 
-    it("Invariant 11.39: Staggered background preloading for Feed, Social, Ranking and Summit photos", () => {
-      const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
-      const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-      const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
-      const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+    it("Invariant 11.39: Throttled background preloading for Feed, Social and Ranking caches", () => {
+      const preloaderContent = readFile("lib/image-preloader.ts");
+      const feedContent = readFeedSources();
+      const socialContent = readSocialSources();
+      const rankingContent = readRankingSources();
 
-      // 1. FeedTab: preloads feed in background and 30 photos for countries & peaks with decoding=async
-      expect(feedContent).toContain("fetchFeed(true)");
-      expect(feedContent).toContain("countryPhotosToPreload.length < 30");
-      expect(feedContent).toContain("peakPhotosToPreload.length < 30");
-      expect(feedContent).toContain('img.decoding = "async"');
+      // 1. Shared image preloader throttles concurrency and decodes async
+      expect(preloaderContent).toContain("preloadImages");
+      expect(preloaderContent).toContain("maxConcurrent");
+      expect(preloaderContent).toContain('img.decoding = "async"');
 
-      // 2. SocialTab: preloads user progress and connections in background
+      // 2. FeedTab: preloads feed in background via throttled preloadImages
+      expect(feedContent).toContain("loadFeed(true)");
+      expect(feedContent).toContain("fetchCombinedFeed");
+      expect(feedContent).toContain("preloadUrls");
+      expect(feedContent).toContain("preloadImages");
+
+      // 3. SocialTab: preloads user progress and connections in background
       expect(socialContent).toContain("fetchUserProgress()");
-      expect(socialContent).toContain("fetchConnections()");
+      expect(socialContent).toContain("loadConnections()");
 
-      // 3. RankingTab: preloads ranking data in background and caches both modes
+      // 4. RankingTab: preloads ranking data in background and caches both modes
       expect(rankingContent).toContain("fetchRanking(true)");
       expect(rankingContent).toContain("globalRankingCache");
-
-      // 4. SummitTracker: preloads up to 30 user summit photos in background
-      expect(trackerContent).toContain("photos.slice(0, 30).forEach");
     });
   });
 });

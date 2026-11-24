@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useScrollLock } from "@/lib/scroll-lock";
 
 // Key for localStorage
@@ -83,6 +83,11 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
   const [isApple, setIsApple] = useState(false);
   const [closing, setClosing] = useState(false);
   const [showManualAndroidSteps, setShowManualAndroidSteps] = useState(false);
+  const onManualCloseRef = useRef(onManualClose);
+
+  useEffect(() => {
+    onManualCloseRef.current = onManualClose;
+  }, [onManualClose]);
 
   useScrollLock(showPrompt);
 
@@ -129,7 +134,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       clearInstallPrompt();
       setDeferredPrompt(null);
       setShowPrompt(false);
-      onManualClose?.();
+      onManualCloseRef.current?.();
     };
 
     window.addEventListener("beforeinstallprompt", handler);
@@ -190,7 +195,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       window.removeEventListener("atlas-app-installed", handleAppInstalled);
       clearTimeout(timer);
     };
-  }, [manualOpen, onManualClose]);
+  }, [manualOpen]);
 
   const handleInstall = useCallback(async () => {
     let promptEvent = deferredPrompt || getInstallPrompt();
@@ -227,7 +232,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
             /* ignore */
           }
           setShowPrompt(false);
-          onManualClose?.();
+          onManualCloseRef.current?.();
         }
         setDeferredPrompt(null);
         clearInstallPrompt();
@@ -237,7 +242,7 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       }
     }
     setShowManualAndroidSteps(true);
-  }, [deferredPrompt, onManualClose]);
+  }, [deferredPrompt]);
 
   const handleClose = useCallback(() => {
     setClosing(true);
@@ -252,9 +257,20 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
       setShowPrompt(false);
       setClosing(false);
       setShowManualAndroidSteps(false);
-      onManualClose?.();
+      onManualCloseRef.current?.();
     }, 280);
-  }, [dontShowAgain, isManual, onManualClose]);
+  }, [dontShowAgain, isManual]);
+
+  useEffect(() => {
+    if (!showPrompt) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showPrompt, handleClose]);
 
   if (!showPrompt) return null;
 
@@ -262,9 +278,13 @@ export function InstallPrompt({ manualOpen, onManualClose }: InstallPromptProps 
     <div
       className={`install-prompt-overlay${closing ? " install-prompt-overlay--closing" : ""}`}
       onClick={handleClose}
+      role="presentation"
     >
       <div
         className={`install-prompt-dialog${closing ? " install-prompt-dialog--closing" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Instalar aplicación Atlas"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}

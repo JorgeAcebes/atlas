@@ -1,6 +1,15 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import {
+  readAllStyles,
+  readFeedSources,
+  readFile,
+  readRankingSources,
+  readSocialSources,
+  readStatsSources,
+  readTrackerSources,
+} from "@/tests/utils/source-reader";
 
 describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
   const rootDir = path.resolve(__dirname, "../..");
@@ -8,7 +17,8 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
   it("1. Component structure: Central toggle, swipe gestures, visual timeline, cordilleras dropdown, and memories gallery", () => {
     const modalPath = path.join(rootDir, "components/stats-modal.tsx");
     expect(fs.existsSync(modalPath)).toBe(true);
-    const content = fs.readFileSync(modalPath, "utf-8");
+    const content = readStatsSources();
+    const peaksViewContent = readFile("components/stats/stats-peaks-view.tsx");
 
     // Central mode toggle with canonical app-mode-switch without parentheses
     expect(content).toContain("app-mode-switch");
@@ -61,10 +71,10 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(content).toContain("stats-continents-chart-legend");
     expect(content).toContain('<h3 className="stats-card-title">Desglose por Continentes</h3>');
 
-    // Order: "Ver galería" is placed above timeline, which is above "Techo Más Alto Alcanzado"
-    const galleryBtnIdx = content.indexOf('className="stats-gallery-btn-wrap"');
-    const timelineIdx = content.indexOf("LÍNEA DEL TIEMPO DE PICOS");
-    const highestPeakIdx = content.indexOf('className="stats-highlight-banner"');
+    // Order in StatsPeaksView: "Ver galería" above StatsTimeline, above "Techo Más Alto Alcanzado"
+    const galleryBtnIdx = peaksViewContent.indexOf('className="stats-gallery-btn-wrap"');
+    const timelineIdx = peaksViewContent.indexOf("<StatsTimeline");
+    const highestPeakIdx = peaksViewContent.indexOf('className="stats-highlight-banner"');
     expect(galleryBtnIdx).toBeGreaterThan(0);
     expect(timelineIdx).toBeGreaterThan(0);
     expect(highestPeakIdx).toBeGreaterThan(0);
@@ -85,7 +95,7 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(content).toContain("stats-gallery-grid");
     expect(content).toContain("stats-gallery-item-tag");
     expect(content).toContain("getLocationInfo");
-    expect(content).toContain("modePhotos");
+    expect(content).toContain("sortedPhotos");
     expect(content).toContain("sortOrder");
     expect(content).toContain("Más recientes");
     expect(content).toContain("Más antiguas");
@@ -101,7 +111,7 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     // Gallery overlay: No back arrow, X closes gallery
     expect(content).not.toContain("stats-gallery-back-btn");
     expect(content).not.toContain("<ArrowLeft");
-    expect(content).toContain('onClick={() => setGalleryOpen(false)}');
+    expect(content).toContain("onCloseGallery");
 
     // Cordilleras: No "Toca para desplegar" chip, and percentages removed from cordilleras count
     expect(content).not.toContain("Toca para desplegar");
@@ -139,7 +149,7 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(content).toContain("stats-continent-progress-fill");
 
     // Inverted months: months sorted descending (b - a) inside each year
-    expect(content).toContain(".sort((a, b) => b - a)");
+    expect(content).toContain(".sort((a, b) => b[0] - a[0])");
 
     // Has updated phrases
     expect(content).toContain("picos provinciales");
@@ -147,38 +157,34 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(content).not.toContain("cumbres provinciales");
     expect(content).not.toContain("Desnivel coronado en España");
 
-    // Strictly NO emojis inside stats-modal.tsx
+    // Strictly NO emojis inside stats sources
     const emojiRegex = /[\uD800-\uDBFF][\uDC00-\uDFFF]/;
     expect(emojiRegex.test(content)).toBe(false);
   });
 
   it("2. Topbar integration: All three main tabs have topbar-stats-btn with ChartNoAxesColumn before account-button", () => {
-    const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
-    const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-    const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
+    const topbarContent = readFile("components/layout/app-topbar.tsx");
+    const trackerContent = readTrackerSources();
+    const socialContent = readSocialSources();
+    const rankingContent = readRankingSources();
 
-    // SummitTracker
-    expect(trackerContent).toContain("topbar-stats-btn");
-    expect(trackerContent).toMatch(/topbar-stats-btn[\s\S]*?account-button/);
-    expect(trackerContent).toContain("ChartNoAxesColumn");
-    expect(trackerContent).toContain("<StatsModal");
+    // Shared AppTopbar places topbar-stats-btn with ChartNoAxesColumn before account-button
+    expect(topbarContent).toContain("topbar-stats-btn");
+    expect(topbarContent).toMatch(/topbar-stats-btn[\s\S]*?account-button/);
+    expect(topbarContent).toContain("ChartNoAxesColumn");
 
-    // SocialTab
-    expect(socialContent).toContain("topbar-stats-btn");
-    expect(socialContent).toMatch(/topbar-stats-btn[\s\S]*?account-button/);
-    expect(socialContent).toContain("ChartNoAxesColumn");
-    expect(socialContent).toContain("<StatsModal");
-
-    // RankingTab
-    expect(rankingContent).toContain("topbar-stats-btn");
-    expect(rankingContent).toMatch(/topbar-stats-btn[\s\S]*?account-button/);
-    expect(rankingContent).toContain("ChartNoAxesColumn");
-    expect(rankingContent).toContain("<StatsModal");
+    // All three main tabs mount AppTopbar and StatsModal
+    expect(trackerContent).toContain("<AppTopbar");
+    expect(trackerContent).toContain("StatsModal");
+    expect(socialContent).toContain("<AppTopbar");
+    expect(socialContent).toContain("StatsModal");
+    expect(rankingContent).toContain("<AppTopbar");
+    expect(rankingContent).toContain("StatsModal");
   });
 
-  it("3. CSS Rules: Mobile only display (<=768px), desktop hidden, clean naked icon, and Fraunces numbers", () => {
-    const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
-    const statsModalCss = fs.readFileSync(path.join(rootDir, "components/stats-modal.css"), "utf-8");
+  it("3. CSS Rules: Mobile only display (<=768px), desktop hidden, clean naked icon, and Fraunces variable numbers", () => {
+    const globalsCss = readAllStyles();
+    const statsModalCss = readFile("components/stats-modal.css");
 
     // Hidden on desktop by default
     expect(globalsCss).toMatch(/\.topbar-stats-btn\s*\{[^}]*display:\s*none\s*!important;/);
@@ -188,15 +194,16 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(globalsCss).toMatch(/@media\s*\(max-width:\s*768px\)[\s\S]*?\.topbar-stats-btn[\s\S]*?border:\s*none\s*!important;/);
     expect(globalsCss).toMatch(/@media\s*\(max-width:\s*768px\)[\s\S]*?\.topbar-stats-btn[\s\S]*?background:\s*transparent\s*!important;/);
 
-    // Numbers styled with Fraunces
-    expect(statsModalCss).toContain('font-family: "Fraunces", Georgia, serif !important;');
-    expect(statsModalCss).toContain('.stats-peak-alt-num');
-    expect(statsModalCss).toContain('.stats-row-num');
+    // Numbers styled with self-hosted Fraunces font variable (--font-serif)
+    expect(statsModalCss).toContain("font-family: var(--font-serif) !important;");
+    expect(statsModalCss).toContain(".stats-peak-alt-num");
+    expect(statsModalCss).toContain(".stats-row-num");
 
-    // Consistent typography: no DM Mono in stats-modal.css
+    // Consistent typography: no DM Mono or external @import in stats-modal.css
     expect(statsModalCss).not.toContain('"DM Mono"');
-    expect(statsModalCss).toContain('var(--font-dm-sans, "DM Sans", sans-serif)');
-    expect(statsModalCss).toContain('"Playfair Display"');
+    expect(statsModalCss).not.toContain("fonts.googleapis.com");
+    expect(statsModalCss).toContain("var(--font-sans)");
+    expect(statsModalCss).toContain("var(--font-display)");
   });
 
   it("4. PhotoLightbox pagination dots: can be disabled via showDots prop", () => {
@@ -249,13 +256,13 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
   });
 
   it("6. Spacing and typography assertions: Gallery margin-bottom, Fraunces altitude, and scoped theme classes", () => {
-    const statsModalCss = fs.readFileSync(path.join(rootDir, "components/stats-modal.css"), "utf-8");
+    const statsModalCss = readFile("components/stats-modal.css");
 
     // Spacing between "Ver galería" and timeline/sections
     expect(statsModalCss).toMatch(/\.stats-gallery-btn-wrap\s*\{[^}]*margin-bottom:\s*26px;/);
 
-    // Altitude of highest peak has Fraunces tabular nums
-    expect(statsModalCss).toMatch(/\.stats-highlight-alt\s*\{[^}]*font-family:\s*"Fraunces"/);
+    // Altitude of highest peak has Fraunces variable (--font-serif) & tabular nums
+    expect(statsModalCss).toMatch(/\.stats-highlight-alt\s*\{[^}]*font-family:\s*var\(--font-serif\)/);
     expect(statsModalCss).toMatch(/\.stats-highlight-alt\s*\{[^}]*tabular-nums;/);
 
     // Continents chart styles present
@@ -286,10 +293,10 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
   });
 
   it("7. Record links, timeline date integrity, and hash persistence on refresh", () => {
-    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
-    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
-    const socialFile = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-    const rankingFile = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
+    const statsModalFile = readStatsSources();
+    const trackerFile = readTrackerSources();
+    const socialFile = readSocialSources();
+    const rankingFile = readRankingSources();
 
     // onGoToRecord callback is passed and invoked
     expect(statsModalFile).toContain("onGoToRecord?: (summitId: string) => void;");
@@ -302,36 +309,36 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(socialFile).toMatch(/supabase!\.from\("ascents"\)\.select\("\*"\)/);
 
     // Initial state on refresh maintains #estadisticas open in all 3 tabs
-    expect(trackerFile).toMatch(/const \[statsOpen, setStatsOpen\] = useState\(\(\) => [^}]*window\.location\.hash === "#estadisticas"/);
-    expect(socialFile).toMatch(/const \[statsOpen, setStatsOpen\] = useState\(\(\) => [^}]*window\.location\.hash === "#estadisticas"/);
-    expect(rankingFile).toMatch(/const \[statsOpen, setStatsOpen\] = useState\(\(\) => [^}]*window\.location\.hash === "#estadisticas"/);
+    expect(trackerFile).toMatch(/useState\([\s\S]*?window\.location\.hash === "#estadisticas"/);
+    expect(socialFile).toMatch(/useState\([\s\S]*?window\.location\.hash === "#estadisticas"/);
+    expect(rankingFile).toMatch(/useState\([\s\S]*?window\.location\.hash === "#estadisticas"/);
 
     // Teide has correct Santa Cruz de Tenerife ID in threeThousanders
     expect(statsModalFile).toContain('id: "santa-cruz-tenerife"');
     expect(statsModalFile).toContain('completed: completedPeakIds.has("santa-cruz-tenerife") || completedPeakIds.has("teide")');
   });
   it("8. Chronological ascending sort in timeline months and back navigation to statistics", () => {
-    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
-    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+    const statsModalFile = readStatsSources();
+    const trackerFile = readTrackerSources();
 
-    // Chronological ascending sort within month in visitsTimeline and peaksTimeline
-    expect(statsModalFile).toMatch(/countriesList\s*=\s*Object\.values\(yearMap\[y\]\[m\]\)\.sort\(\(\s*a,\s*b\s*\)\s*=>\s*\{[^}]*return\s+a\.earliestTime\s*-\s*b\.earliestTime/);
-    expect(statsModalFile).toMatch(/peaksList\s*=\s*Object\.values\(yearMap\[y\]\[m\]\)\.sort\(\(\s*a,\s*b\s*\)\s*=>\s*\{[^}]*return\s+a\.earliestTime\s*-\s*b\.earliestTime/);
+    // Chronological ascending sort within month in visitsTimeline, peaksTimeline & experiencesTimeline
+    expect(statsModalFile).toContain("buildYearMonthTimeline");
+    expect(statsModalFile).toContain("if (a.earliestTime !== b.earliestTime) return a.earliestTime - b.earliestTime;");
 
     // Navigating to record from stats pushes state to retain #estadisticas in browser history
     expect(trackerFile).toMatch(/panelOpenedFromStatsRef\.current\s*=\s*true/);
     expect(trackerFile).toMatch(/window\.history\.pushState\(\{\s*hasPanel:\s*true,\s*fromStats:\s*true\s*\},/);
 
     // Going back to #estadisticas resets selected item and restores stats modal
-    expect(trackerFile).toMatch(/hash === "#estadisticas"[\s\S]*?setSelected\(null\)/);
     expect(trackerFile).toMatch(/hash === "#estadisticas"[\s\S]*?setStatsOpen\(true\)/);
+    expect(trackerFile).toMatch(/hash === "#estadisticas"[\s\S]*?setSelected\(null\)/);
 
     // Closing panel opened from stats triggers history.back()
     expect(trackerFile).toMatch(/const fromStats = panelOpenedFromStatsRef\.current;[\s\S]*?if\s*\(fromStats\)\s*\{\s*window\.history\.back\(\);/);
   });
   it("9. Gallery and photo lightbox history stack and active mode preservation on return to map", () => {
-    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
-    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+    const statsModalFile = readStatsSources();
+    const trackerFile = readTrackerSources();
 
     // Opening gallery pushes #galeria to history
     expect(statsModalFile).toMatch(/openGallery[\s\S]*?window\.history\.pushState\(\{\s*statsGallery:\s*true\s*\},/);
@@ -341,27 +348,27 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(statsModalFile).toMatch(/openLightbox[\s\S]*?window\.history\.pushState\(\{\s*statsLightbox:\s*true\s*\},/);
     expect(statsModalFile).toContain('"#lightbox"');
 
-    // StatsModal synchronizes hash changes: #lightbox keeps gallery open, #galeria closes lightbox, #estadisticas closes gallery
+    // StatsModal synchronizes hash changes: #lightbox keeps gallery open, #galeria closes lightbox, non-gallery hash closes both
+    expect(statsModalFile).toContain('hash === "#lightbox"');
     expect(statsModalFile).toContain('hash === "#galeria"');
-    expect(statsModalFile).toContain('hash === "#estadisticas"');
-    expect(statsModalFile).toContain('setLightboxIndex(null)');
+    expect(statsModalFile).toContain("setLightboxIndex(null)");
+    expect(statsModalFile).toContain("setGalleryOpen(false)");
 
     // StatsModal notifies mode changes and syncs mode with summit-tracker
-    expect(statsModalFile).toContain('onModeChange?: (mode: StatsMode) => void;');
-    expect(trackerFile).toMatch(/onModeChange=\{\(mode\)\s*=>\s*\{/);
-    expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*"peaks"\);[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*`\/picos/);
-    expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*"countries"\);[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*`\//);
+    expect(statsModalFile).toContain("onModeChange?: (mode: StatsMode) => void;");
+    expect(trackerFile).toMatch(/onModeChange=\{\(newMode\)\s*=>\s*\{/);
+    expect(trackerFile).toMatch(/localStorage\.setItem\("last_active_mode",\s*target\);[\s\S]*?replaceState\(null,\s*"",\s*target === "peaks" \? "\/picos" : "\/"\)/);
   });
   it("10. Target profile stats & gallery isolation, no 'Viaje compartido' badge, and avatar badge overlay", () => {
-    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
-    const feedFile = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
-    const socialFile = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+    const statsModalFile = readStatsSources();
+    const feedFile = readFeedSources();
+    const socialFile = readSocialSources();
 
     // StatsModal isolates target profile photos and does not fall back to session user localStorage
     expect(statsModalFile).toContain("targetProfile?:");
     expect(statsModalFile).toContain("isTargetOther");
-    expect(statsModalFile).toContain("!isTargetOther && typeof window !== \"undefined\" && session?.user?.id");
-    expect(statsModalFile).toContain("Galería de @${targetProfile.username}");
+    expect(statsModalFile).toContain("!isTargetOther && Boolean(session?.user?.id)");
+    expect(statsModalFile).toContain("Galería de @${targetUsername}");
 
     // Feed card has no 'Viaje compartido' badge pill
     expect(feedFile).not.toContain("Viaje compartido");
@@ -373,10 +380,10 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(socialFile).not.toMatch(/acceptedFollowers\.length.*?hero-pending-dot/);
   });
   it("11. Experiences Statistics Mode: Header alignment, experiences toggle button, category breakdown and direct entry", () => {
-    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
-    const statsModalCss = fs.readFileSync(path.join(rootDir, "components/stats-modal.css"), "utf-8");
-    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
-    const socialFile = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+    const statsModalFile = readStatsSources();
+    const statsModalCss = readFile("components/stats-modal.css");
+    const trackerFile = readTrackerSources();
+    const socialFile = readSocialSources();
 
     // Header exact topbar alignment: min-height 76px desktop, 56px mobile, padding clamp
     expect(statsModalCss).toContain("min-height: 76px;");
@@ -398,7 +405,7 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(statsModalFile).toContain("Experiencias Registradas");
 
     // Direct entry from experiences mode
-    expect(trackerFile).toContain('initialMode={isExp ? "experiences" : isPeaks ? "peaks" : "countries"}');
+    expect(trackerFile).toContain('initialMode={experiencesMode ? "experiences" : currentMode}');
     expect(socialFile).toContain('initialMode={isExp ? "experiences" : currentMode}');
   });
 });

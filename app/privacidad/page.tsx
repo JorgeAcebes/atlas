@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Política de Privacidad · Atlas",
+  description: "Cómo recopilamos, protegemos y gestionamos tus datos personales y fotografías en Atlas.",
+};
 
 export default function PrivacidadPage() {
   return (

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useAuth } from "./auth-context";
 import { CompanionProfile, getMutualFollowers } from "@/lib/companions";
 import { Users, UserPlus, X, Check, Clock, Search } from "lucide-react";
-import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
+import { useScrollLock } from "@/lib/scroll-lock";
 
 interface CompanionSelectorProps {
   mode: "peaks" | "countries" | "experience";
@@ -81,22 +81,21 @@ export function CompanionSelector({
     };
   }, [session]);
 
+  useScrollLock(isModalOpen);
+
   const handleOpenModal = () => {
     setTempSelected([...selectedCompanions]);
     setSearch("");
     setIsModalOpen(true);
-    lockScroll();
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    unlockScroll();
   };
 
   const handleSaveModal = () => {
     onChange(tempSelected);
     setIsModalOpen(false);
-    unlockScroll();
   };
 
   // Keyboard navigation: Escape closes this popup without bubbling to parent modal
@@ -480,7 +479,18 @@ export function CompanionSelector({
                   return (
                     <div
                       key={follower.id}
+                      role="checkbox"
+                      aria-checked={isChecked}
+                      aria-disabled={isLimitReached}
+                      tabIndex={isLimitReached ? -1 : 0}
                       onClick={() => !isLimitReached && handleToggleCompanion(follower)}
+                      onKeyDown={(e) => {
+                        if (isLimitReached) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleToggleCompanion(follower);
+                        }
+                      }}
                       style={{
                         padding: "8px 12px",
                         borderRadius: "8px",

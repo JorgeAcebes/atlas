@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import { readAllStyles, readFile, readRankingStyles, readTrackerSources } from "@/tests/utils/source-reader";
 
 describe("PhotoLightbox Invariants and Architecture", () => {
   const rootDir = process.cwd();
@@ -69,19 +70,16 @@ describe("PhotoLightbox Invariants and Architecture", () => {
   });
 
   it("PhotoEditor and Caption modal must portal over PhotoLightbox with zIndex > 99999", () => {
-    const editorPath = path.join(rootDir, "components/photo-editor.tsx");
-    const editorContent = fs.readFileSync(editorPath, "utf-8");
+    const editorContent = readFile("components/photo-editor.tsx");
     expect(editorContent).toContain("createPortal");
     expect(editorContent).toContain("zIndex: 100050");
 
-    const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-    const trackerContent = fs.readFileSync(trackerPath, "utf-8");
+    const trackerContent = readTrackerSources();
     expect(trackerContent).toContain("lightboxCaptionModalOpen &&");
     expect(trackerContent).toContain("createPortal");
     expect(trackerContent).toContain("zIndex: 100050");
 
-    const confirmPath = path.join(rootDir, "components/confirm-modal.tsx");
-    const confirmContent = fs.readFileSync(confirmPath, "utf-8");
+    const confirmContent = readFile("components/confirm-modal.tsx");
     expect(confirmContent).toContain("createPortal");
     expect(confirmContent).toContain("zIndex: 100060");
   });
@@ -110,18 +108,18 @@ describe("PhotoLightbox Invariants and Architecture", () => {
   });
 
   it("CollectiveMap must NOT render a tooltip inside the peak Marker and must open selectedSummit panel on click", () => {
-    const collectivePath = path.join(rootDir, "components/collective-map.tsx");
-    const collectiveContent = fs.readFileSync(collectivePath, "utf-8");
+    const collectiveContent = readFile("components/collective-map.tsx");
 
     // Must not have Tooltip inside peak markers block
-    const uniquePeaksBlock = collectiveContent.slice(
-      collectiveContent.indexOf("uniquePeaks.map"),
-      collectiveContent.indexOf("experienceMarkers.map")
+    const visiblePeaksBlock = collectiveContent.slice(
+      collectiveContent.indexOf("visiblePeaks.map"),
+      collectiveContent.indexOf("visibleExperiences.map")
     );
-    expect(uniquePeaksBlock).not.toContain("<Tooltip");
+    expect(visiblePeaksBlock).not.toContain("<Tooltip");
 
     // Peak marker click must set selectedSummit matching province click behavior
-    expect(uniquePeaksBlock).toContain("setSelectedSummit({ id: peak.id");
+    expect(visiblePeaksBlock).toContain("onSelectSummit({ id: peak.id");
+    expect(collectiveContent).toContain("onSelectSummit={setSelectedSummit}");
   });
 
   it("PhotoLightbox must support swipe navigation across touch, mouse drag, and trackpad", () => {
@@ -133,7 +131,7 @@ describe("PhotoLightbox Invariants and Architecture", () => {
   });
 
   it("CollectiveMap close button must be styled as a circle matching app style", () => {
-    const rankingCss = fs.readFileSync(path.join(rootDir, "components/ranking.css"), "utf-8");
+    const rankingCss = readRankingStyles();
     expect(rankingCss).toMatch(/\.collective-map-close\s*\{[^}]*border-radius:\s*50%/);
     expect(rankingCss).toMatch(/\.collective-map-close\s*\{[^}]*width:\s*36px/);
     expect(rankingCss).toMatch(/\.collective-map-close\s*\{[^}]*height:\s*36px/);
@@ -142,7 +140,7 @@ describe("PhotoLightbox Invariants and Architecture", () => {
   it("PhotoLightbox top-right controls must be wrapped in .lightbox-top-controls and snug to the right on mobile", () => {
     expect(content).toContain('className="lightbox-top-controls"');
 
-    const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+    const globalsCss = readAllStyles();
     expect(globalsCss).toMatch(/\.lightbox-top-controls\s*\{[^}]*right:\s*28px/);
     expect(globalsCss).toMatch(/\.lightbox-top-controls\s*\{[^}]*top:\s*24px/);
     expect(globalsCss).toMatch(/@media[^{]*max-width:\s*768px[^{]*\{[\s\S]*?\.lightbox-top-controls\s*\{[^}]*right:\s*calc\(10px/);

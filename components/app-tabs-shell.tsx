@@ -1,12 +1,27 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { SummitTracker } from "@/components/summit-tracker";
-import { SocialTab } from "@/components/social-tab";
-import { RankingTab } from "@/components/ranking-tab";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { isStandalone } from "@/components/install-prompt";
+
+const SocialTab = dynamic(
+  () => import("@/components/social-tab").then((mod) => mod.SocialTab),
+  {
+    ssr: false,
+    loading: () => <div style={{ minHeight: "100vh", background: "var(--paper)" }} aria-hidden="true" />,
+  }
+);
+
+const RankingTab = dynamic(
+  () => import("@/components/ranking-tab").then((mod) => mod.RankingTab),
+  {
+    ssr: false,
+    loading: () => <div style={{ minHeight: "100vh", background: "var(--paper)" }} aria-hidden="true" />,
+  }
+);
 
 type MainTab = "map" | "social" | "ranking";
 type ChallengeMode = "peaks" | "countries";
@@ -62,24 +77,57 @@ function getInitialExperiencesMode(): boolean {
 function AppTabsShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    if (typeof window !== "undefined") {
-      const standalone = isStandalone();
-      const alreadyInstalled = typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true";
-      if (standalone || alreadyInstalled) {
-        document.documentElement.classList.add("is-pwa");
-        try { localStorage.setItem("pwa_app_installed", "true"); } catch(e) {}
-      }
-    }
-  }, []);
 
   const initialTab = getTabFromPath(pathname) || "map";
   const [activeTab, setActiveTab] = useState<MainTab>(initialTab);
+  const [visitedTabs, setVisitedTabs] = useState<Set<MainTab>>(() => new Set([initialTab]));
   const [sharedMode, setSharedMode] = useState<ChallengeMode>(() => (pathname === "/picos" ? "peaks" : "countries"));
   const [sharedExperiencesMode, setSharedExperiencesMode] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const standalone = isStandalone();
+    const alreadyInstalled = typeof localStorage !== "undefined" && localStorage.getItem("pwa_app_installed") === "true";
+    if (standalone || alreadyInstalled) {
+      document.documentElement.classList.add("is-pwa");
+      try { localStorage.setItem("pwa_app_installed", "true"); } catch {}
+    }
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  }, []);
+
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
+
+  // Pre-warm lazy tab JS bundles on idle without mounting components or triggering fetches
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+    const warmChunks = () => {
+      if (cancelled) return;
+      if (initialTab !== "social") void import("@/components/social-tab");
+      if (initialTab !== "ranking") void import("@/components/ranking-tab");
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warmChunks, { timeout: 2500 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback(id);
+      };
+    }
+    const timer = setTimeout(warmChunks, 2500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [initialTab]);
 
   useEffect(() => {
     if (getInitialExperiencesMode()) {
@@ -108,13 +156,6 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
     if (!smooth) {
       if (document.documentElement) document.documentElement.scrollTop = 0;
       if (document.body) document.body.scrollTop = 0;
-    }
-  }, []);
-
-  useEffect(() => {
-    setMounted(true);
-    if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
-      window.history.scrollRestoration = "manual";
     }
   }, []);
 
@@ -414,7 +455,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           display: isMainRoute && activeTab === "map" ? "contents" : "none",
         }}
       >
-        {(!mounted ? activeTab === "map" : true) && (
+        {(visitedTabs.has("map") || (isMainRoute && activeTab === "map")) && (
           <SummitTracker
             mode={sharedMode}
             experiencesMode={sharedExperiencesMode}
@@ -433,7 +474,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           display: isMainRoute && activeTab === "social" ? "contents" : "none",
         }}
       >
-        {(!mounted ? activeTab === "social" : true) && (
+        {(visitedTabs.has("social") || (isMainRoute && activeTab === "social")) && (
           <SocialTab
             mode={sharedMode}
             experiencesMode={sharedExperiencesMode}
@@ -452,7 +493,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           display: isMainRoute && activeTab === "ranking" ? "contents" : "none",
         }}
       >
-        {(!mounted ? activeTab === "ranking" : true) && (
+        {(visitedTabs.has("ranking") || (isMainRoute && activeTab === "ranking")) && (
           <RankingTab
             mode={sharedMode}
             isActive={isMainRoute && activeTab === "ranking"}
@@ -466,13 +507,19 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       {!isMainRoute && children}
 
       {/* ── Mobile Bottom Navigation Bar ── */}
-      <MobileBottomNav
-        activeTab={activeTab}
-        mode={sharedMode}
-        experiencesMode={sharedExperiencesMode}
-        onNavigate={handleNavigate}
-        isMainRoute={isMainRoute}
-      />
+      {!(
+        pathname.startsWith("/reset-password") ||
+        pathname.startsWith("/privacidad") ||
+        pathname.startsWith("/terminos")
+      ) && (
+        <MobileBottomNav
+          activeTab={activeTab}
+          mode={sharedMode}
+          experiencesMode={sharedExperiencesMode}
+          onNavigate={handleNavigate}
+          isMainRoute={isMainRoute}
+        />
+      )}
     </>
   );
 }

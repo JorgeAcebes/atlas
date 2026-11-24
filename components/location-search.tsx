@@ -37,15 +37,21 @@ export function LocationSearch({ value, onChange, onSelect, placeholder = "Busca
   }, []);
 
   useEffect(() => {
+    if (value.trim().length < 3 || value === lastSelectedRef.current) {
+      setResults([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
     const searchPlaces = async () => {
-      if (value.trim().length < 3 || value === lastSelectedRef.current) {
-        setResults([]);
-        return;
-      }
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/geocoding?q=${encodeURIComponent(value.trim())}`);
+        const res = await fetch(`/api/geocoding?q=${encodeURIComponent(value.trim())}`, {
+          signal: controller.signal,
+        });
         const data = await res.json();
+        if (controller.signal.aborted) return;
         if (Array.isArray(data)) {
           setResults(data);
           setIsOpen(true);
@@ -53,10 +59,13 @@ export function LocationSearch({ value, onChange, onSelect, placeholder = "Busca
           setResults([]);
         }
       } catch (err) {
+        if ((err as { name?: string })?.name === "AbortError") return;
         console.error("Error searching location:", err);
         setResults([]);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -64,7 +73,10 @@ export function LocationSearch({ value, onChange, onSelect, placeholder = "Busca
       searchPlaces();
     }, 500);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [value]);
 
   return (

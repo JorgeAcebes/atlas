@@ -1,13 +1,9 @@
 import { describe, it, expect } from "vitest";
-import fs from "fs";
-import path from "path";
+import { readAllStyles, readTrackerSources } from "@/tests/utils/source-reader";
 
 describe("Peak & Country List Header Simplification & Search Alignment", () => {
-  const rootDir = process.cwd();
-  const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-  const trackerContent = fs.readFileSync(trackerPath, "utf-8");
-  const cssPath = path.join(rootDir, "app/globals.css");
-  const cssContent = fs.readFileSync(cssPath, "utf-8");
+  const trackerContent = readTrackerSources();
+  const cssContent = readAllStyles();
 
   it("1. Slogans and redundant titles are completely eliminated from all list modes", () => {
     // Slogans removed

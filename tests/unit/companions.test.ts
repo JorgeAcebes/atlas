@@ -544,12 +544,8 @@ describe("Companions & Shared Trips Functionality", () => {
 
   describe("Singular vs Plural Companion Labeling", () => {
     it("should verify feed-tab renders singular 'Compañero' for 1 companion and plural 'Compañeros' for multiple", async () => {
-      const fs = await import("fs");
-      const path = await import("path");
-      const feedTabSource = fs.readFileSync(
-        path.resolve(process.cwd(), "components/feed-tab.tsx"),
-        "utf8"
-      );
+      const { readFeedSources } = await import("@/tests/utils/source-reader");
+      const feedTabSource = readFeedSources();
 
       // Verify that feed-tab differentiates single vs multiple companions
       expect(feedTabSource).toContain("visibleCompanions.length === 1");
@@ -562,19 +558,10 @@ describe("Companions & Shared Trips Functionality", () => {
     });
 
     it("should verify summit-tracker renders singular 'Compañero' for 1 companion and plural 'Compañeros' for multiple", async () => {
-      const fs = await import("fs");
-      const path = await import("path");
-      const trackerSource = fs.readFileSync(
-        path.resolve(process.cwd(), "components/summit-tracker.tsx"),
-        "utf8"
-      );
+      const { readTrackerSources } = await import("@/tests/utils/source-reader");
+      const trackerSource = readTrackerSources();
 
-      // Experiences list card
-      expect(trackerSource).toContain(
-        'filteredComps.length === 1 ? "Compañero de experiencia:" : "Compañeros de experiencia:"'
-      );
-
-      // Detail sidebar
+      // Experience record card & detail sidebar differentiate single vs multiple companions
       expect(trackerSource).toContain("filteredComps.length === 1");
       expect(trackerSource).toContain('"Compañero de ruta:"');
       expect(trackerSource).toContain('"Compañeros de ruta:"');

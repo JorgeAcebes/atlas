@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { predefinedCategories } from "@/data/experiences";
+import { readAllStyles, readFile, readTrackerSources } from "@/tests/utils/source-reader";
 
 describe("Predefined Experiences Dataset Integrity", () => {
   it("should have populated categories with valid metadata", () => {
@@ -56,13 +57,8 @@ describe("Predefined Experiences Dataset Integrity", () => {
 });
 
 describe("Experience Modification Safety & Action Buttons Invariants", () => {
-  it("should guard summit-tracker.tsx so only custom experiences can show the edit button", async () => {
-    const fs = await import("fs");
-    const path = await import("path");
-    const trackerContent = fs.readFileSync(
-      path.resolve(__dirname, "../../components/summit-tracker.tsx"),
-      "utf-8"
-    );
+  it("should guard summit-tracker.tsx so only custom experiences can show the edit button", () => {
+    const trackerContent = readTrackerSources();
 
     // Edit button must be conditioned on isCustomExp
     expect(trackerContent).toMatch(
@@ -75,55 +71,37 @@ describe("Experience Modification Safety & Action Buttons Invariants", () => {
     );
   });
 
-  it("should enforce 22px dimensions and 14px icons for experience action buttons", async () => {
-    const fs = await import("fs");
-    const path = await import("path");
-    const trackerContent = fs.readFileSync(
-      path.resolve(__dirname, "../../components/summit-tracker.tsx"),
-      "utf-8"
-    );
+  it("should enforce 22px dimensions and 14px icons for experience action buttons", () => {
+    const trackerContent = readTrackerSources();
 
     // Buttons should have width and height 22px
     expect(trackerContent).toContain('width: "22px"');
     expect(trackerContent).toContain('height: "22px"');
 
     // SVGs should have width and height 14px
-    expect(trackerContent).toContain('width: 14, height: 14');
+    expect(trackerContent).toContain("width: 14, height: 14");
     expect(trackerContent).toContain('width="14"');
     expect(trackerContent).toContain('height="14"');
   });
 
-  it("should include MarqueeText and overflow containment to prevent card blowout", async () => {
-    const fs = await import("fs");
-    const path = await import("path");
-    const trackerContent = fs.readFileSync(
-      path.resolve(__dirname, "../../components/summit-tracker.tsx"),
-      "utf-8"
-    );
-    const globalsCss = fs.readFileSync(
-      path.resolve(__dirname, "../../app/globals.css"),
-      "utf-8"
-    );
+  it("should include MarqueeText and overflow containment to prevent card blowout", () => {
+    const trackerContent = readTrackerSources();
+    const globalsCss = readAllStyles();
 
     // Tracker uses MarqueeText for experience details and titles
     expect(trackerContent).toContain("<MarqueeText");
     expect(trackerContent).toContain("paddingRight:");
     expect(trackerContent).toMatch(/isCustomExp\s*\?\s*"64px"\s*:\s*"38px"/);
 
-    // globals.css defines marquee keyframes and container overflow: hidden
+    // styles define marquee keyframes and container overflow: hidden
     expect(globalsCss).toContain(".marquee-text-container");
     expect(globalsCss).toContain("@keyframes marquee-scroll");
     expect(globalsCss).toContain(".peak-list-item .item-info");
     expect(globalsCss).toMatch(/\.peak-list-item\s*\{[^}]*overflow:\s*hidden/);
   });
 
-  it("should guard summit-tracker.tsx so only custom categories show the edit button and predefined categories cannot be modified", async () => {
-    const fs = await import("fs");
-    const path = await import("path");
-    const trackerContent = fs.readFileSync(
-      path.resolve(__dirname, "../../components/summit-tracker.tsx"),
-      "utf-8"
-    );
+  it("should guard summit-tracker.tsx so only custom categories show the edit button and predefined categories cannot be modified", () => {
+    const trackerContent = readTrackerSources();
 
     // Edit button must be conditioned on isCustomCat
     expect(trackerContent).toMatch(
@@ -139,13 +117,10 @@ describe("Experience Modification Safety & Action Buttons Invariants", () => {
     expect(trackerContent).toMatch(/iconName:\s*cat\.iconName/);
   });
 
-  it("should ensure experience panel and record dialog can be closed cleanly via close button", async () => {
-    const fs = await import("fs");
-    const path = await import("path");
-    const trackerContent = fs.readFileSync(
-      path.resolve(__dirname, "../../components/summit-tracker.tsx"),
-      "utf-8"
-    );
+  it("should ensure experience panel and record dialog can be closed cleanly via close button", () => {
+    const trackerContent = readTrackerSources();
+    const panelContent = readFile("components/tracker/tracker-info-panel.tsx");
+    const recordModalContent = readFile("components/tracker/record-form-modal.tsx");
 
     // setSelected must clear selectedExperience when passed null
     expect(trackerContent).toContain("setSelectedExperience(null)");
@@ -158,12 +133,16 @@ describe("Experience Modification Safety & Action Buttons Invariants", () => {
       /const closePanel\s*=\s*useCallback\(\(\)\s*=>\s*\{[\s\S]*?setSelectedExperience\(null\);/
     );
 
+    // Tracker wires closePanel & handleCloseRecord to panel and record modal onClose
+    expect(trackerContent).toContain("onClose={closePanel}");
+    expect(trackerContent).toContain("onClose={handleCloseRecord}");
+
     // close buttons in info-panel and record-dialog must have type="button" and IconClose
-    expect(trackerContent).toMatch(
-      /<aside[\s\S]*?className="info-panel"[\s\S]*?<button[\s\S]*?type="button"[\s\S]*?onClick=\{closePanel\}[\s\S]*?<IconClose/
+    expect(panelContent).toMatch(
+      /<aside[\s\S]*?className="info-panel"[\s\S]*?<button[\s\S]*?type="button"[\s\S]*?onClick=\{onClose\}[\s\S]*?<IconClose/
     );
-    expect(trackerContent).toMatch(
-      /className="record-dialog"[\s\S]*?<button[\s\S]*?type="button"[\s\S]*?onClick=\{handleCloseRecord\}[\s\S]*?<IconClose/
+    expect(recordModalContent).toMatch(
+      /className="record-dialog"[\s\S]*?<button[\s\S]*?type="button"[\s\S]*?onClick=\{onClose\}[\s\S]*?<IconClose/
     );
   });
 });

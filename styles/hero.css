@@ -1,0 +1,1346 @@
+/* Atlas Hero Banner, Stats & Profile Follow Controls */
+
+.mode-experiences .hero {
+  background-color: #181825;
+}
+
+.mode-experiences .hero-stat-mobile {
+  background: #181825;
+  border-color: #313244;
+}
+
+.mode-experiences .hero-stat-mobile__total,
+.mode-experiences .hero-stat-mobile__label,
+.mode-experiences .hero-stat-mobile__sep {
+  color: #a6adc8;
+}
+
+/* ── Hero ───────────────────────────────── */
+.hero {
+  min-height: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 55px;
+  padding: 44px clamp(22px, 10vw, 160px) 40px;
+  background-color: #f1ede1;
+  overflow: hidden;
+  position: relative;
+}
+
+.hero h1 {
+  font-size: clamp(44px, 5vw, 70px);
+  line-height: 0.96;
+}
+
+.hero h1 em {
+  color: var(--sage);
+  font-style: italic;
+}
+
+.hero p {
+  max-width: 470px;
+  color: #506159;
+  line-height: 1.6;
+  font-size: 16px;
+  margin: 0;
+}
+
+/* ── Hero stat aside ────────────────────── */
+.hero-stat {
+  border: none;
+  padding: 18px 0 6px 0;
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  position: relative;
+}
+
+.mountain-art {
+  position: absolute;
+  right: -22px;
+  top: -55px;
+  font-family: Georgia, serif;
+  font-size: 185px;
+  color: #cfdccf;
+  line-height: 1;
+  z-index: 0;
+  user-select: none;
+}
+
+.hero-stat>*:not(.mountain-art) {
+  position: relative;
+}
+
+.hero-stat strong {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--font-serif);
+  font-size: 54px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.hero-stat strong small {
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.hero-stat>span:not(.mountain-art) {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.hero-stat b {
+  font-size: 11px;
+  margin-top: 7px;
+  color: #49695e;
+}
+
+.progress {
+  height: 5px;
+  background: #d4ddd4;
+  margin-top: 19px;
+  width: 185px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  background: var(--sage);
+  border-radius: 3px;
+  animation: progressGrow 0.8s ease-out;
+  transition: width 0.5s ease;
+}
+
+/* ── Mobile stat card (hidden on desktop) ── */
+.hero-stat-mobile {
+  display: none;
+}
+
+@media (max-width: 1024px) and (min-width: 701px) {
+  .hero {
+    grid-template-columns: 1fr 220px;
+    gap: 35px;
+    padding: 36px clamp(22px, 6vw, 80px) 32px;
+  }
+
+  .hero h1 {
+    font-size: 48px;
+  }
+
+  .hero-stat strong {
+    font-size: 44px;
+  }
+
+  .mountain-art {
+    font-size: 140px;
+  }
+}
+
+@media (max-width: 700px) {
+  .hero {
+    min-height: auto;
+    padding: 28px 20px 20px;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .hero-stat {
+    display: none;
+  }
+
+  /* ── Mobile stat card ───────────── */
+  .hero-stat-mobile {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+
+  .hero-stat-mobile__numbers {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .hero-stat-mobile__numbers strong {
+    font-family: var(--font-serif);
+    font-size: 36px;
+    line-height: 1;
+    color: var(--ink);
+  }
+
+  .hero-stat-mobile__sep {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    color: var(--muted);
+    margin: 0 1px;
+  }
+
+  .hero-stat-mobile__total {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    color: var(--muted);
+  }
+
+  .hero-stat-mobile__label {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.3;
+  }
+
+  .hero-stat-mobile__right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hero-stat-mobile__progress {
+    width: 60px;
+    flex-shrink: 0;
+    margin-top: 0;
+  }
+
+  .hero-stat-mobile__pct {
+    font-size: 12px;
+    color: var(--pine);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .mode-countries .hero-stat-mobile__pct {
+    color: #5b3a8c;
+  }
+
+  .hero h1 {
+    font-size: 40px;
+  }
+
+  .hero p {
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .hero .eyebrow {
+    font-size: 9px;
+  }
+}
+
+.mode-countries .hero {
+  background-color: #ede6f3;
+}
+
+.mode-countries .hero h1 em {
+  color: #9570c7;
+}
+
+.mode-countries .hero-stat {
+  border: none;
+}
+
+.mode-countries .mountain-art,
+.mode-experiences .mountain-art {
+  font-size: 160px;
+}
+
+.mode-countries .mountain-art {
+  color: #d0c4e0;
+}
+
+.mode-countries .progress span {
+  background: #9570c7;
+}
+
+.mode-countries .hero-stat b {
+  color: #6b4fa0;
+}
+
+/* ── Minimalist Centered Hero with Side-by-Side Stat ── */
+.hero {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  height: 124px !important;
+  min-height: 124px !important;
+  max-height: 124px !important;
+  box-sizing: border-box !important;
+  padding: 0 20px !important;
+  overflow: hidden !important;
+  gap: 12px !important;
+}
+
+.hero-main {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: center !important;
+  justify-items: center !important;
+  width: 100% !important;
+  max-width: 620px !important;
+  margin: 0 auto !important;
+  gap: 24px !important;
+}
+
+/* Centered Ranking Hero (single stat on all viewports) */
+.hero-main.hero-main--ranking,
+.hero-main--ranking {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  grid-template-columns: 1fr !important;
+  width: 100% !important;
+  max-width: 620px !important;
+  margin: 0 auto !important;
+  gap: 0 !important;
+  text-align: center !important;
+}
+
+.hero-title-wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+.hero h1 {
+  font-size: clamp(24px, 2.8vw, 34px) !important;
+  line-height: 1.12 !important;
+  letter-spacing: -0.025em !important;
+  margin: 0 !important;
+  text-align: center !important;
+  width: 100% !important;
+  white-space: normal !important;
+}
+
+.hero h1 em {
+  white-space: nowrap !important;
+}
+
+.hero-stat {
+  border: none !important;
+  border-left: none !important;
+  padding: 0 !important;
+  margin-top: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+.mode-countries .hero-stat,
+.mode-experiences .hero-stat {
+  border: none !important;
+  border-left: none !important;
+}
+
+.hero-stat strong {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  font-family: var(--font-serif) !important;
+  font-size: clamp(34px, 3.8vw, 44px) !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+}
+
+.hero-stat strong small {
+  font-size: 17px !important;
+  color: var(--muted) !important;
+  font-weight: 400 !important;
+}
+
+.hero-stat > span:not(.mountain-art) {
+  font-size: 13px !important;
+  color: var(--muted) !important;
+  margin-top: 3px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  display: block !important;
+}
+
+.hero-stat .progress {
+  height: 5px !important;
+  width: 140px !important;
+  max-width: 100% !important;
+  margin: 7px auto 0 !important;
+  border-radius: 3px !important;
+}
+
+@media (max-width: 1023px) {
+  .hero-title-wrap--motto {
+    display: none !important;
+  }
+
+  .hero-main--motto {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    gap: 0 !important;
+  }
+
+  .hero-main--motto .hero-stat {
+    width: 100% !important;
+    margin: 0 auto !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1023px) {
+  .hero {
+    height: 84px !important;
+    min-height: 84px !important;
+    max-height: 84px !important;
+    padding: 0 20px !important;
+    gap: 0 !important;
+  }
+
+  .hero h1 {
+    font-size: clamp(22px, 2.6vw, 28px) !important;
+  }
+
+  .hero-title--user,
+  .hero-main--with-follow h1 {
+    font-size: clamp(25px, 2.9vw, 31px) !important;
+    line-height: 1.08 !important;
+  }
+
+  .hero-stat strong {
+    font-size: 34px !important;
+  }
+
+  .hero .app-mode-switch {
+    display: none !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .hero {
+    height: 76px !important;
+    min-height: 76px !important;
+    max-height: 76px !important;
+    padding: 0 14px !important;
+    gap: 0 !important;
+  }
+
+  .hero-main {
+    gap: 10px !important;
+    max-width: 100% !important;
+  }
+
+  .hero-title-wrap {
+    text-align: center !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .hero-title-wrap--motto {
+    display: none !important;
+  }
+
+  .hero-main--motto {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+    gap: 0 !important;
+  }
+
+  .hero-main--ranking {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .hero-main--motto .hero-stat {
+    width: 100% !important;
+    margin: 0 auto !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  .hero h1 {
+    font-size: clamp(17px, 4.6vw, 22px) !important;
+    line-height: 1.13 !important;
+    text-align: center !important;
+  }
+
+  .hero h1 em {
+    white-space: nowrap !important;
+  }
+
+  .hero-stat {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    border: none !important;
+    border-left: none !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  .hero-stat strong {
+    font-size: clamp(28px, 7.2vw, 34px) !important;
+    justify-content: center !important;
+  }
+
+  .hero-stat strong small {
+    font-size: 14.5px !important;
+  }
+
+  .hero-stat > span:not(.mountain-art) {
+    font-size: 11.5px !important;
+    text-align: center !important;
+  }
+
+  .hero-stat .progress {
+    width: 100px !important;
+    margin: 5px auto 0 !important;
+  }
+
+  .hero .app-mode-switch {
+    display: none !important;
+  }
+}
+
+@media (max-width: 350px) {
+  .hero {
+    height: 122px !important;
+    min-height: 122px !important;
+    max-height: 122px !important;
+    padding: 0 8px !important;
+    gap: 4px !important;
+  }
+
+  .hero-main {
+    gap: 8px !important;
+  }
+
+  .hero-stat {
+    padding: 0 !important;
+    border: none !important;
+    border-left: none !important;
+  }
+
+  .hero-stat strong {
+    font-size: 26px !important;
+  }
+
+  .hero-stat strong small {
+    font-size: 13px !important;
+  }
+
+  .hero-stat .progress {
+    width: 78px !important;
+  }
+
+  .hero-stat > span:not(.mountain-art) {
+    font-size: 10.5px !important;
+  }
+
+  .hero h1 {
+    font-size: 15.5px !important;
+  }
+
+  .hero-title--user,
+  .hero-main--with-follow h1 {
+    font-size: 17px !important;
+    line-height: 1.1 !important;
+  }
+
+  .hero .app-mode-switch {
+    display: none !important;
+  }
+}
+
+/* ── Vertebral Hero Profile & Multi-Stats (Social & Ranking) ── */
+.hero-profile-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+  justify-content: flex-start !important;
+  min-width: 0 !important;
+}
+
+.hero-profile-avatar {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  background: var(--pine);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 19px;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.18s ease;
+}
+
+.hero-profile-avatar:hover {
+  transform: scale(1.05);
+}
+
+.hero-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-profile-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.hero-profile-username {
+  font-family: var(--font-sans) !important;
+  font-size: clamp(15px, 1.8vw, 18px) !important;
+  font-weight: 700 !important;
+  margin: 0 0 2px !important;
+  letter-spacing: -0.01em !important;
+  color: var(--ink) !important;
+  cursor: pointer;
+  line-height: 1.15 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.hero-profile-username:hover {
+  color: var(--pine);
+}
+
+.mode-countries .hero-profile-username:hover {
+  color: #5b3a8c;
+}
+
+.hero-profile-connections {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.hero-profile-conn-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+.hero-profile-conn-btn:hover {
+  color: var(--pine);
+}
+
+.mode-countries .hero-profile-conn-btn:hover {
+  color: #5b3a8c;
+}
+
+.hero-profile-conn-btn strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.hero-profile-conn-sep {
+  color: var(--line);
+  user-select: none;
+}
+
+.hero-pending-dot {
+  width: 6px;
+  height: 6px;
+  background: #e53e3e;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 2px;
+}
+
+.hero-avatar-badge {
+  width: 11px;
+  height: 11px;
+  background-color: #ef4444;
+  border-radius: 50%;
+  border: 2px solid var(--paper, #fdfbf7);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.mode-experiences .hero-avatar-badge {
+  border-color: #13101c !important;
+}
+
+/* Multi-stats in hero (for challenges with progress > 0) */
+.hero-multi-stats {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 14px !important;
+  width: 100% !important;
+  flex-wrap: nowrap !important;
+}
+
+.hero-stat-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 0;
+}
+
+.hero-stat-badge strong {
+  font-family: var(--font-serif);
+  font-size: clamp(20px, 2.4vw, 28px);
+  line-height: 1;
+  color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.hero-stat-badge strong small {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.hero-stat-badge span:not(strong span) {
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: lowercase;
+  color: var(--muted);
+  margin-top: 2px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.hero-stat-anon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Center follow button in hero between title and ratio */
+.hero-main--with-follow {
+  grid-template-columns: 1fr auto 1fr !important;
+  gap: 16px !important;
+}
+
+/* User map title ("El mapa de @user") font sizing balanced with ratio */
+.hero-title--user,
+.hero-main--with-follow h1 {
+  font-size: clamp(30px, 3.4vw, 40px) !important;
+  line-height: 1.08 !important;
+}
+
+.hero-title--user em,
+.hero-main--with-follow h1 em {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  padding: 0.04em 0.18em;
+  margin: -0.04em -0.18em;
+}
+
+.hero-target-follow-center {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  user-select: none;
+}
+
+.hero-center-follow-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  outline: none;
+}
+
+.hero-center-follow-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.hero-center-follow-btn--connect {
+  background: var(--pine);
+  color: #ffffff;
+  border-color: var(--pine);
+}
+
+.mode-countries .hero-center-follow-btn--connect {
+  background: #5b3a8c;
+  border-color: #5b3a8c;
+}
+
+.hero-center-follow-btn--following {
+  background: #ffffff;
+  color: var(--pine);
+  border-color: var(--line);
+}
+
+.mode-countries .hero-center-follow-btn--following {
+  color: #5b3a8c;
+}
+
+.hero-center-follow-btn--following .hero-center-follow-icon--minus {
+  display: none !important;
+}
+
+.hero-center-follow-btn--following .hero-center-follow-icon--check {
+  display: block !important;
+}
+
+.hero-center-follow-btn--pending {
+  background: #ffffff;
+  color: #b7791f;
+  border-color: var(--line);
+}
+
+.hero-center-follow-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.hero-center-follow-label--connect {
+  color: var(--muted);
+}
+
+.hero-center-follow-label--following {
+  color: var(--muted);
+}
+
+.hero-center-follow-label--pending {
+  color: #b7791f;
+}
+
+.mode-experiences .hero-center-follow-btn--following {
+  background: #1e1e2e;
+  color: #cba6f7;
+  border-color: #45475a;
+}
+
+.mode-experiences .hero-center-follow-btn--connect {
+  background: #cba6f7;
+  color: #11111b;
+  border-color: #cba6f7;
+}
+
+.mode-experiences .hero-center-follow-btn--pending {
+  background: #1e1e2e;
+  color: #f9e2af;
+  border-color: #45475a;
+}
+
+.mode-experiences .hero-center-follow-label {
+  color: #a6adc8;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hero-center-follow-btn--connect:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 12px rgba(36, 95, 82, 0.28);
+  }
+
+  .mode-countries .hero-center-follow-btn--connect:hover {
+    box-shadow: 0 4px 12px rgba(91, 58, 140, 0.28);
+  }
+
+  .mode-experiences .hero-center-follow-btn--connect:hover {
+    box-shadow: 0 4px 12px rgba(203, 166, 247, 0.28);
+  }
+
+  .hero-center-follow-btn--following:hover,
+  .hero-target-follow-center:hover .hero-center-follow-btn--following {
+    background: #fff5f5;
+    color: #e53e3e;
+    border-color: #feb2b2;
+    transform: scale(1.08);
+  }
+
+  .hero-center-follow-btn--following:hover .hero-center-follow-icon--check,
+  .hero-target-follow-center:hover .hero-center-follow-btn--following .hero-center-follow-icon--check {
+    display: none !important;
+  }
+
+  .hero-center-follow-btn--following:hover .hero-center-follow-icon--minus,
+  .hero-target-follow-center:hover .hero-center-follow-btn--following .hero-center-follow-icon--minus {
+    display: block !important;
+  }
+
+  .hero-center-follow-btn--pending:hover,
+  .hero-target-follow-center:hover .hero-center-follow-btn--pending {
+    background: #fff5f5;
+    color: #e53e3e;
+    border-color: #feb2b2;
+    transform: scale(1.08);
+  }
+
+  .hero-target-follow-center:hover .hero-center-follow-label--connect {
+    color: var(--ink);
+  }
+
+  .hero-target-follow-center:hover .hero-center-follow-label--following {
+    color: #e53e3e;
+  }
+
+  .hero-target-follow-center:hover .hero-center-follow-label--pending {
+    color: #e53e3e;
+  }
+
+  .mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--connect {
+    color: #cba6f7;
+  }
+
+  .mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--following,
+  .mode-experiences .hero-target-follow-center:hover .hero-center-follow-label--pending {
+    color: #f38ba8;
+  }
+}
+
+/* Touch hold / touch unfollow indication on mobile touch screens */
+.hero-center-follow-btn--following.hero-center-follow-btn--touch-unfollow,
+.hero-target-follow-center--touch-unfollow .hero-center-follow-btn--following {
+  background: #fff5f5 !important;
+  color: #e53e3e !important;
+  border-color: #feb2b2 !important;
+  transform: scale(1.08) !important;
+}
+
+.hero-center-follow-btn--following.hero-center-follow-btn--touch-unfollow .hero-center-follow-icon--check,
+.hero-target-follow-center--touch-unfollow .hero-center-follow-btn--following .hero-center-follow-icon--check {
+  display: none !important;
+}
+
+.hero-center-follow-btn--following.hero-center-follow-btn--touch-unfollow .hero-center-follow-icon--minus,
+.hero-target-follow-center--touch-unfollow .hero-center-follow-btn--following .hero-center-follow-icon--minus {
+  display: block !important;
+}
+
+.hero-target-follow-center--touch-unfollow .hero-center-follow-label--following {
+  color: #e53e3e !important;
+}
+
+.mode-experiences .hero-target-follow-center--touch-unfollow .hero-center-follow-label--following {
+  color: #f38ba8 !important;
+}
+
+/* Clean stable 'Siguiendo' immediately after follow (suppresses hover until pointer leaves or touch resets) */
+.hero-center-follow-btn--just-followed,
+.hero-target-follow-center--just-followed .hero-center-follow-btn--following {
+  background: #ffffff !important;
+  color: var(--pine) !important;
+  border-color: var(--line) !important;
+  transform: none !important;
+}
+
+.mode-countries .hero-center-follow-btn--just-followed,
+.mode-countries .hero-target-follow-center--just-followed .hero-center-follow-btn--following {
+  color: #5b3a8c !important;
+}
+
+.mode-experiences .hero-center-follow-btn--just-followed,
+.mode-experiences .hero-target-follow-center--just-followed .hero-center-follow-btn--following {
+  background: #1e1e2e !important;
+  color: #cba6f7 !important;
+  border-color: #45475a !important;
+}
+
+.hero-center-follow-btn--just-followed .hero-center-follow-icon--minus,
+.hero-target-follow-center--just-followed .hero-center-follow-btn--following .hero-center-follow-icon--minus {
+  display: none !important;
+}
+
+.hero-center-follow-btn--just-followed .hero-center-follow-icon--check,
+.hero-target-follow-center--just-followed .hero-center-follow-btn--following .hero-center-follow-icon--check {
+  display: block !important;
+}
+
+.hero-target-follow-center--just-followed .hero-center-follow-label--following {
+  color: var(--muted) !important;
+}
+
+.mode-experiences .hero-target-follow-center--just-followed .hero-center-follow-label--following {
+  color: #a6adc8 !important;
+}
+
+@media (max-width: 700px) {
+  .hero-main--with-follow {
+    grid-template-columns: 1fr auto 1fr !important;
+    gap: 8px !important;
+  }
+
+  .hero-title--user,
+  .hero-main--with-follow h1 {
+    font-size: clamp(19px, 5.2vw, 24px) !important;
+    line-height: 1.1 !important;
+  }
+
+  .hero-center-follow-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .hero-center-follow-btn svg,
+  .hero-center-follow-icon {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  .hero-center-follow-label {
+    font-size: 10px;
+  }
+}
+
+/* Vertebral Hero in Social (harmonized with single category ratio) */
+.hero-main--social {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: center !important;
+  justify-items: center !important;
+  width: 100% !important;
+  max-width: 620px !important;
+  margin: 0 auto !important;
+  gap: 24px !important;
+}
+
+.hero-main--social .hero-profile-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 14px !important;
+  width: 100% !important;
+  margin-top: 4px !important;
+  margin-bottom: 0 !important;
+}
+
+.hero-main--social.hero-main--social-anon {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  max-width: 620px !important;
+  margin: 0 auto !important;
+  text-align: center !important;
+}
+
+.hero-main--social.hero-main--social-anon .hero-stat--anon {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+}
+
+@media (max-width: 700px) {
+  .hero-main--social {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    align-items: center !important;
+    justify-items: center !important;
+    width: 100% !important;
+    max-width: 380px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+    gap: 4px !important;
+  }
+
+  .hero-main--social .hero-profile-wrap {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    gap: 6px !important;
+    padding-left: 6px !important;
+    margin-top: 4px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .hero-main--social .hero-stat-wrap {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .hero-main--social .hero-stat {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 0 !important;
+    margin-left: -6px !important;
+  }
+
+  .hero-main--social .hero-stat-actions-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .hero-main--social .hero-stat-action-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 28px !important;
+    height: 26px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--line) !important;
+    background: #ffffff !important;
+    color: var(--muted) !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s !important;
+  }
+
+  .hero-main--social .hero-stat-action-btn:hover,
+  .hero-main--social .hero-stat-action-btn:active {
+    background: #f7faf5 !important;
+    border-color: var(--sage) !important;
+    color: var(--ink) !important;
+  }
+
+  .mode-countries .hero-main--social .hero-stat-action-btn:hover,
+  .mode-countries .hero-main--social .hero-stat-action-btn:active {
+    background: #f7f3fb !important;
+    border-color: #9570c7 !important;
+    color: #5b3a8c !important;
+  }
+
+  .mode-experiences .hero-main--social .hero-stat-action-btn {
+    background: #181825 !important;
+    border-color: #313244 !important;
+    color: #a6adc8 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+  }
+
+  .mode-experiences .hero-main--social .hero-stat-action-btn:hover,
+  .mode-experiences .hero-main--social .hero-stat-action-btn:active {
+    background: #313244 !important;
+    border-color: #cba6f7 !important;
+    color: #ffffff !important;
+  }
+
+  .hero-main--social .hero-title-wrap {
+    display: none !important;
+  }
+
+  .hero-main--social.hero-main--anon,
+  .hero-main--social:has(.hero-stat--anon) {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    max-width: 380px !important;
+    margin: 0 auto !important;
+    text-align: center !important;
+  }
+
+  .hero-main--social.hero-main--anon .hero-stat--anon,
+  .hero-main--social .hero-stat--anon {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+  }
+
+  .hero-main--social .hero-profile-info {
+    overflow: visible !important;
+    min-width: 0 !important;
+  }
+
+  .hero-main--social .hero-profile-avatar {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    font-size: 14px !important;
+  }
+
+  .hero-main--social .hero-profile-username {
+    font-size: 13.5px !important;
+    margin: 0 !important;
+  }
+
+  .hero-main--social .hero-profile-connections {
+    font-size: 9.75px !important;
+    gap: 2px !important;
+    letter-spacing: -0.015em !important;
+    white-space: nowrap !important;
+  }
+
+  .hero-main--social .hero-profile-conn-btn {
+    font-size: 9.75px !important;
+    gap: 1.5px !important;
+    letter-spacing: -0.015em !important;
+    white-space: nowrap !important;
+  }
+}
+
+.mode-experiences .hero-profile-avatar {
+  background: #cba6f7 !important;
+  color: #11111b !important;
+  font-weight: 800 !important;
+}
+
+.mode-experiences .hero-profile-username {
+  color: #ffffff !important;
+}
+
+.mode-experiences .hero-profile-username:hover {
+  color: #cba6f7 !important;
+}
+
+.mode-experiences .hero-profile-conn-btn {
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .hero-profile-conn-btn:hover {
+  color: #cba6f7 !important;
+}
+
+.mode-experiences .hero-profile-conn-btn strong {
+  color: #ffffff !important;
+}
+
+.mode-experiences .hero-profile-conn-sep {
+  color: #45475a !important;
+}
+
+.mode-experiences .hero-stat strong {
+  color: #ffffff !important;
+}
+
+.mode-experiences .hero-stat strong small {
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .hero-stat > span:not(.mountain-art) {
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .hero-stat .progress {
+  background: #313244 !important;
+}
+
+.mode-experiences .hero-stat .progress span {
+  background: #cba6f7 !important;
+}
+
+/* Redundant mode switcher in hero is strictly hidden across all screen sizes (always in topbar) */
+.hero .app-mode-switch {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  /* Hide redundant mode switcher in hero since it's now in the sticky topbar */
+  .hero .app-mode-switch.hide-on-desktop {
+    display: none !important;
+  }
+}
+
+/* Mobile Hero Stat Actions: Share & QR */
+.hero-stat-wrap {
+  display: contents;
+}
+
+.hero-stat-actions-mobile {
+  display: none !important;
+}

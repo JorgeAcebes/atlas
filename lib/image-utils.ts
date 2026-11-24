@@ -120,8 +120,12 @@ export async function extractExifDate(file: File | Blob): Promise<Date | null> {
           const ifd0Offset = view.getUint32(tiffStart + 4, littleEndian);
           const dirStart = tiffStart + ifd0Offset;
 
-          const readDateFromIFD = (start: number): Date | null => {
-            if (start + 2 > view.byteLength) return null;
+          const visitedIfds = new Set<number>();
+          const readDateFromIFD = (start: number, depth = 0): Date | null => {
+            if (depth > 4 || start < tiffStart || start + 2 > view.byteLength) return null;
+            if (visitedIfds.has(start)) return null;
+            visitedIfds.add(start);
+
             const entries = view.getUint16(start, littleEndian);
             let exifSubIfdOffset = 0;
 
@@ -163,7 +167,7 @@ export async function extractExifDate(file: File | Blob): Promise<Date | null> {
             }
 
             if (exifSubIfdOffset > 0) {
-              return readDateFromIFD(tiffStart + exifSubIfdOffset);
+              return readDateFromIFD(tiffStart + exifSubIfdOffset, depth + 1);
             }
             return null;
           };
@@ -176,6 +180,7 @@ export async function extractExifDate(file: File | Blob): Promise<Date | null> {
         break;
       } else {
         const markerLength = view.getUint16(offset);
+        if (markerLength < 2) break;
         offset += markerLength;
       }
     }
@@ -254,25 +259,26 @@ export async function sortFilesByCaptureTime(
     files.map(async (file) => {
       const date = await extractPhotoCaptureTime(file, baseDateStr);
       const isoString = date ? date.toISOString() : new Date().toISOString();
-      let sortKey = date ? date.getTime() : (file.lastModified || 0);
+      const sortKey = date ? date.getTime() : (file.lastModified || 0);
 
-      // Si no hay fecha o son idénticas, buscar secuencia numérica en el nombre (ej. 1000050860)
+      let seqKey = 0;
       if ("name" in file) {
         const seqMatch = file.name.match(/(\d{8,12})/);
         if (seqMatch) {
           const seq = parseInt(seqMatch[1], 10);
           if (!isNaN(seq)) {
-            sortKey += seq;
+            seqKey = seq;
           }
         }
       }
 
-      return { file, shotAt: isoString, sortKey };
+      return { file, shotAt: isoString, sortKey, seqKey };
     })
   );
 
   items.sort((a, b) => {
     if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey;
+    if (a.seqKey !== b.seqKey) return a.seqKey - b.seqKey;
     return a.file.name.localeCompare(b.file.name);
   });
 

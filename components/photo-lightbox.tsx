@@ -145,15 +145,16 @@ export function PhotoLightbox({
   }, []);
 
   const handleZoomOut = useCallback(() => {
-    setScale((prev) => {
-      const next = Math.max(1, Number((prev - 0.5).toFixed(2)));
-      if (next <= 1.02) {
-        setPan({ x: 0, y: 0 });
-        return 1;
-      }
+    const next = Math.max(1, Number((scaleRef.current - 0.5).toFixed(2)));
+    if (next <= 1.02) {
+      scaleRef.current = 1;
+      setScale(1);
+      setPan({ x: 0, y: 0 });
+    } else {
+      scaleRef.current = next;
+      setScale(next);
       setPan((currentPan) => clampPan(currentPan.x, currentPan.y, next));
-      return next;
-    });
+    }
   }, [clampPan]);
 
   const handleResetZoom = useCallback(() => {
@@ -220,15 +221,17 @@ export function PhotoLightbox({
       }
 
       const factor = e.deltaY < 0 ? 1.25 : 0.8;
-      setScale((prevScale) => {
-        const nextScale = Math.min(4, Math.max(1, prevScale * factor));
-        if (nextScale <= 1.05) {
-          setPan({ x: 0, y: 0 });
-          return 1;
-        }
+      const nextScale = Math.min(4, Math.max(1, scaleRef.current * factor));
+      if (nextScale <= 1.05) {
+        scaleRef.current = 1;
+        setScale(1);
+        setPan({ x: 0, y: 0 });
+      } else {
+        const roundedScale = Number(nextScale.toFixed(2));
+        scaleRef.current = roundedScale;
+        setScale(roundedScale);
         setPan((currentPan) => clampPan(currentPan.x, currentPan.y, nextScale));
-        return Number(nextScale.toFixed(2));
-      });
+      }
     };
 
     stage.addEventListener("wheel", onWheel, { passive: false });
@@ -481,6 +484,9 @@ export function PhotoLightbox({
   return createPortal(
     <div
       className="lightbox-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title || "Visor de fotos"}
       style={{
         position: "fixed",
         inset: 0,
@@ -617,7 +623,7 @@ export function PhotoLightbox({
       </div>
 
       {/* ── Main Stage: Centrado vertical y horizontal óptico perfecto ── */}
-      <main
+      <div
         ref={stageRef}
         className="lightbox-stage"
         style={{
@@ -706,7 +712,7 @@ export function PhotoLightbox({
             transition: isInteracting
               ? "none"
               : `transform ${GOOGLE_PHOTOS_ZOOM_CONFIG.animationDurationMs}ms ${GOOGLE_PHOTOS_ZOOM_CONFIG.animationEasing}`,
-            cursor: scale > 1.05 ? (isDraggingRef.current ? "grabbing" : "grab") : "zoom-in",
+            cursor: scale > 1.05 ? (isInteracting ? "grabbing" : "grab") : "zoom-in",
           }}
         >
           <img
@@ -730,10 +736,10 @@ export function PhotoLightbox({
             }}
           />
         </div>
-      </main>
+      </div>
 
       {/* ── Bottom Information Card: Título de alta visibilidad, contraste nítido y dots ── */}
-      <footer
+      <div
         className="lightbox-footer"
         style={{
           position: "absolute",
@@ -865,7 +871,7 @@ export function PhotoLightbox({
             </div>
           )}
         </div>
-      </footer>
+      </div>
     </div>,
     document.body
   );

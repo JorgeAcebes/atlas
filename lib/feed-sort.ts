@@ -6,18 +6,26 @@ import { datesOverlap } from "./companions";
  * "si tengo dos registros con misma fecha de inicio, pero uno tiene fecha de final y otro no, el más antiguo es el que no tiene fecha de fin."
  * Por tanto, el que tiene fecha de fin es más reciente y se posiciona por delante (arriba en feed).
  */
+function safeTime(value?: string | null): number {
+  if (!value) return 0;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+
 export function compareFeedRecords(
   a: { record_date: string; end_date?: string | null; created_at?: string; trip_group_id?: string | null; user_id?: string },
   b: { record_date: string; end_date?: string | null; created_at?: string; trip_group_id?: string | null; user_id?: string }
 ): number {
-  const timeA = new Date(a.record_date).getTime();
-  const timeB = new Date(b.record_date).getTime();
+  const timeA = safeTime(a.record_date);
+  const timeB = safeTime(b.record_date);
   if (timeA !== timeB) {
     return timeB - timeA;
   }
 
-  const aHasEnd = !!(a.end_date && !isNaN(new Date(a.end_date).getTime()));
-  const bHasEnd = !!(b.end_date && !isNaN(new Date(b.end_date).getTime()));
+  const endA = safeTime(a.end_date);
+  const endB = safeTime(b.end_date);
+  const aHasEnd = Boolean(a.end_date && endA !== 0);
+  const bHasEnd = Boolean(b.end_date && endB !== 0);
 
   if (aHasEnd && !bHasEnd) {
     // a tiene fin, b no -> b es más antiguo -> a va antes (arriba)
@@ -27,12 +35,8 @@ export function compareFeedRecords(
     // a no tiene fin, b sí -> a es más antiguo -> b va antes (arriba)
     return 1;
   }
-  if (aHasEnd && bHasEnd) {
-    const endA = new Date(a.end_date!).getTime();
-    const endB = new Date(b.end_date!).getTime();
-    if (endA !== endB) {
-      return endB - endA;
-    }
+  if (aHasEnd && bHasEnd && endA !== endB) {
+    return endB - endA;
   }
 
   // Si ambos o alguno pertenece a un viaje compartido en la misma fecha, agrupar por trip_group_id
@@ -47,8 +51,8 @@ export function compareFeedRecords(
   }
 
   // Desempate por fecha de creación (created_at) descendente
-  const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
-  const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+  const createdA = safeTime(a.created_at);
+  const createdB = safeTime(b.created_at);
   return createdB - createdA;
 }
 

@@ -1,10 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest";
-import fs from "fs";
-import path from "path";
 import { isMobileOrTablet } from "@/lib/device-utils";
+import { readFile, readMapSources } from "@/tests/utils/source-reader";
 
 describe("Desktop Map Rendering Optimization & Spain Map 0,0 Zero-Island Prevention", () => {
-  const rootDir = process.cwd();
 
   describe("Device Detection (isMobileOrTablet)", () => {
     afterEach(() => {
@@ -58,7 +56,7 @@ describe("Desktop Map Rendering Optimization & Spain Map 0,0 Zero-Island Prevent
   });
 
   describe("Spain Map 0,0 Zero-Island Prevention", () => {
-    const spainMapContent = fs.readFileSync(path.join(rootDir, "components/spain-map.tsx"), "utf-8");
+    const spainMapContent = readMapSources();
 
     it("FitSpain uses requestAnimationFrame retry loop to wait until container has non-zero client dimensions", () => {
       expect(spainMapContent).toContain("let attempts = 0;");
@@ -86,43 +84,49 @@ describe("Desktop Map Rendering Optimization & Spain Map 0,0 Zero-Island Prevent
     });
 
     it("MapZoomListener ensures coordinates are inside Spain before saving to sessionStorage", () => {
-      expect(spainMapContent).toMatch(/sessionStorage\.setItem\("mapState_spain"/);
+      expect(spainMapContent).toContain('storageKey !== "mapState_spain"');
+      expect(spainMapContent).toContain("sessionStorage.setItem(storageKey");
       expect(spainMapContent).toMatch(/center\.lat\s*>=\s*26\s*&&\s*center\.lat\s*<=\s*45/);
     });
   });
 
-  describe("Desktop Web Continuous Tile Streaming & Google Maps Smooth Zoom", () => {
-    it("spain-map.tsx streams tiles continuously during drag, enables smoothWheelZoom on desktop, and protects mobile", () => {
-      const spainMapContent = fs.readFileSync(path.join(rootDir, "components/spain-map.tsx"), "utf-8");
-      expect(spainMapContent).toContain("L.canvas({ padding: 2.0 })");
-      expect(spainMapContent).toContain("keepBuffer={16}");
+  describe("Desktop Web Continuous Tile Streaming & Adaptive Canvas Performance", () => {
+    it("spain-map.tsx streams tiles continuously during drag, uses adaptive canvas renderer/keepBuffer, and enables scrollWheelZoom={true}", () => {
+      const spainMapContent = readFile("components/spain-map.tsx");
+      const patchContent = readFile("lib/leaflet-canvas-patch.ts");
+      expect(spainMapContent).toContain('createAdaptiveCanvasRenderer("spain")');
+      expect(spainMapContent).toContain("keepBuffer={keepBuffer}");
+      expect(patchContent).toContain("export function getAdaptiveKeepBuffer");
       expect(spainMapContent).toContain("updateInterval={100}");
       expect(spainMapContent).toContain("updateWhenIdle={false}");
-      expect(spainMapContent).toContain("smoothWheelZoom");
-      expect(spainMapContent).toContain("scrollWheelZoom={isMobileOrTablet() ? true : false}");
-      expect(spainMapContent).not.toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
+      expect(spainMapContent).toContain("scrollWheelZoom={true}");
+      expect(spainMapContent).toContain("zoomSnap={1}");
+      expect(spainMapContent).toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
       expect(spainMapContent).not.toContain("if (!isMobileOrTablet()) return;");
     });
 
-    it("world-map.tsx streams tiles continuously during drag, enables smoothWheelZoom on desktop, and protects mobile", () => {
-      const worldMapContent = fs.readFileSync(path.join(rootDir, "components/world-map.tsx"), "utf-8");
-      expect(worldMapContent).toContain("L.canvas({ padding: 3.5 })");
-      expect(worldMapContent).toContain("keepBuffer={32}");
+    it("world-map.tsx streams tiles continuously during drag, uses adaptive canvas renderer/keepBuffer, and enables scrollWheelZoom={true}", () => {
+      const worldMapContent = readFile("components/world-map.tsx");
+      const patchContent = readFile("lib/leaflet-canvas-patch.ts");
+      expect(worldMapContent).toContain('createAdaptiveCanvasRenderer("world")');
+      expect(worldMapContent).toContain("keepBuffer={keepBuffer}");
+      expect(patchContent).toContain("return isMobileOrTablet() ? 4 : 3;");
       expect(worldMapContent).toContain("updateInterval={50}");
       expect(worldMapContent).toContain("updateWhenIdle={false}");
-      expect(worldMapContent).toContain("smoothWheelZoom");
-      expect(worldMapContent).toContain("scrollWheelZoom={isMobileOrTablet() ? true : false}");
-      expect(worldMapContent).not.toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
+      expect(worldMapContent).toContain("scrollWheelZoom={true}");
+      expect(worldMapContent).toContain("zoomSnap={1}");
+      expect(worldMapContent).toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
       expect(worldMapContent).not.toContain("if (!isMobileOrTablet()) return;");
     });
 
-    it("collective-map.tsx streams tiles continuously during drag and enables smoothWheelZoom on desktop", () => {
-      const collectiveMapContent = fs.readFileSync(path.join(rootDir, "components/collective-map.tsx"), "utf-8");
-      expect(collectiveMapContent).toContain("L.canvas({ padding: 3.5 })");
-      expect(collectiveMapContent).toContain("keepBuffer={32}");
+    it("collective-map.tsx streams tiles continuously during drag and enables scrollWheelZoom={true} on desktop", () => {
+      const collectiveMapContent = readFile("components/collective-map.tsx");
+      expect(collectiveMapContent).toContain('createAdaptiveCanvasRenderer("collective")');
+      expect(collectiveMapContent).toContain("keepBuffer={keepBuffer}");
       expect(collectiveMapContent).toContain("updateInterval={50}");
       expect(collectiveMapContent).toContain("updateWhenIdle={false}");
-      expect(collectiveMapContent).toContain("smoothWheelZoom");
+      expect(collectiveMapContent).toContain("scrollWheelZoom={true}");
+      expect(collectiveMapContent).toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
     });
   });
 });

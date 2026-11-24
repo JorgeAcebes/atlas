@@ -1,14 +1,19 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import {
+  readAllStyles,
+  readFeedSources,
+  readFile,
+  readTrackerSources,
+} from "@/tests/utils/source-reader";
 
 describe("PWA Viewport & Zoom Lock and Text Selection Rules", () => {
   const rootDir = process.cwd();
 
   describe("app/layout.tsx Viewport Metadata", () => {
     it("should configure viewport with maximumScale: 1 and userScalable: false", () => {
-      const layoutPath = path.join(rootDir, "app/layout.tsx");
-      const layoutContent = fs.readFileSync(layoutPath, "utf8");
+      const layoutContent = readFile("app/layout.tsx");
 
       expect(layoutContent).toContain('themeColor: "#245f52"');
       expect(layoutContent).toContain('width: "device-width"');
@@ -18,9 +23,8 @@ describe("PWA Viewport & Zoom Lock and Text Selection Rules", () => {
     });
   });
 
-  describe("CSS user-select and touch-action invariants in app/globals.css", () => {
-    const cssPath = path.join(rootDir, "app/globals.css");
-    const cssContent = fs.readFileSync(cssPath, "utf8");
+  describe("CSS user-select and touch-action invariants in styles", () => {
+    const cssContent = readAllStyles();
 
     it("should have global touch-action: pan-x pan-y and text-size-adjust on html", () => {
       expect(cssContent).toContain("touch-action: pan-x pan-y;");
@@ -52,7 +56,7 @@ describe("PWA Viewport & Zoom Lock and Text Selection Rules", () => {
 
   describe("components/pwa-zoom-lock.tsx Component Contract", () => {
     const lockPath = path.join(rootDir, "components/pwa-zoom-lock.tsx");
-    const lockContent = fs.readFileSync(lockPath, "utf8");
+    const lockContent = readFile("components/pwa-zoom-lock.tsx");
 
     it("should export PwaZoomLock component with use client directive", () => {
       expect(fs.existsSync(lockPath)).toBe(true);
@@ -60,12 +64,13 @@ describe("PWA Viewport & Zoom Lock and Text Selection Rules", () => {
       expect(lockContent).toContain("export function PwaZoomLock");
     });
 
-    it("should handle gesturestart, gesturechange, touchstart, and touchend with passive: false", () => {
+    it("should handle WebKit gesturestart and gesturechange with passive: false while relying on passive CSS touch-action for taps/scroll", () => {
       expect(lockContent).toContain('document.addEventListener("gesturestart"');
       expect(lockContent).toContain('document.addEventListener("gesturechange"');
-      expect(lockContent).toContain('document.addEventListener("touchstart"');
-      expect(lockContent).toContain('document.addEventListener("touchend"');
       expect(lockContent).toContain("{ passive: false }");
+      // Never attach global blocking touchstart/touchend document listeners
+      expect(lockContent).not.toContain('document.addEventListener("touchstart"');
+      expect(lockContent).not.toContain('document.addEventListener("touchend"');
     });
 
     it("should exempt Leaflet and Photo Lightbox from gesture prevention", () => {
@@ -78,26 +83,22 @@ describe("PWA Viewport & Zoom Lock and Text Selection Rules", () => {
 
   describe("Integration in Providers and Components", () => {
     it("should mount PwaZoomLock inside Providers", () => {
-      const providersPath = path.join(rootDir, "components/providers.tsx");
-      const providersContent = fs.readFileSync(providersPath, "utf8");
+      const providersContent = readFile("components/providers.tsx");
       expect(providersContent).toContain("<PwaZoomLock />");
     });
 
     it("should have user-written-text class on notes in feed-tab", () => {
-      const feedPath = path.join(rootDir, "components/feed-tab.tsx");
-      const feedContent = fs.readFileSync(feedPath, "utf8");
+      const feedContent = readFeedSources();
       expect(feedContent).toContain('className="feed-item-notes user-written-text"');
     });
 
     it("should have user-written-text class on notes in summit-tracker", () => {
-      const trackerPath = path.join(rootDir, "components/summit-tracker.tsx");
-      const trackerContent = fs.readFileSync(trackerPath, "utf8");
+      const trackerContent = readTrackerSources();
       expect(trackerContent).toContain('className="record-notes user-written-text"');
     });
 
     it("should have user-written-text class on captions in photo-lightbox", () => {
-      const lightboxPath = path.join(rootDir, "components/photo-lightbox.tsx");
-      const lightboxContent = fs.readFileSync(lightboxPath, "utf8");
+      const lightboxContent = readFile("components/photo-lightbox.tsx");
       expect(lightboxContent).toContain('className="lightbox-caption user-written-text"');
     });
   });

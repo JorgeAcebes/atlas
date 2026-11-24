@@ -113,6 +113,7 @@ export function SweepOverlay({ searchedId, layerRefs }: Props) {
     return () => {
       clearTimeout(timer);
       overlayLayer.remove();
+      svgRenderer.remove();
     };
   }, [searchedId, layerRefs, map]);
 

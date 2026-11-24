@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import fs from "fs";
-import path from "path";
+import { readFile, readSocialSources, readTrackerSources } from "@/tests/utils/source-reader";
 import {
   getInitialSocialData,
   getStoredSocialData,
@@ -122,35 +121,36 @@ describe("Social Connections & Followers/Following Preloading", () => {
   });
 
   it("5. social-tab.tsx: uses getInitialSocialData on mount and listens for preloaded events", () => {
-    const socialTabContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+    const socialContent = readSocialSources();
 
     // Imports from social-cache
-    expect(socialTabContent).toContain('import {');
-    expect(socialTabContent).toContain('getInitialSocialData');
-    expect(socialTabContent).toContain('preloadSocialConnections');
-    expect(socialTabContent).toContain('updateSocialCache');
-    expect(socialTabContent).toContain('from "@/lib/social-cache"');
+    expect(socialContent).toContain("getInitialSocialData");
+    expect(socialContent).toContain("preloadSocialConnections");
+    expect(socialContent).toContain("updateSocialCache");
+    expect(socialContent).toContain('from "@/lib/social-cache"');
 
     // State initialized from initialSocial
-    expect(socialTabContent).toContain("const initialSocial = useMemo(() => getInitialSocialData(userId), [userId]);");
-    expect(socialTabContent).toContain("const [followers, setFollowers] = useState<Profile[]>(() => initialSocial.followers);");
-    expect(socialTabContent).toContain("const [following, setFollowing] = useState<Profile[]>(() => initialSocial.following);");
-    expect(socialTabContent).toContain("const [connections, setConnections] = useState<Record<string, ConnectionStatus>>(() => initialSocial.connections);");
-    expect(socialTabContent).toContain("const [followerStatuses, setFollowerStatuses] = useState<Record<string, ConnectionStatus>>(() => initialSocial.followerStatuses);");
+    expect(socialContent).toContain("const initialSocial = useMemo(() => getInitialSocialData(userId), [userId]);");
+    expect(socialContent).toContain("const [followers, setFollowers] = useState<SocialProfile[]>(() => initialSocial.followers);");
+    expect(socialContent).toContain("const [following, setFollowing] = useState<SocialProfile[]>(() => initialSocial.following);");
+    expect(socialContent).toContain("const [connections, setConnections] = useState<Record<string, ConnectionStatus>>(");
+    expect(socialContent).toContain("() => initialSocial.connections");
+    expect(socialContent).toContain("const [followerStatuses, setFollowerStatuses] = useState<Record<string, ConnectionStatus>>(");
+    expect(socialContent).toContain("() => initialSocial.followerStatuses");
 
     // Listens for atlas:social-preloaded
-    expect(socialTabContent).toContain('window.addEventListener("atlas:social-preloaded", handlePreload);');
-    expect(socialTabContent).toContain('window.removeEventListener("atlas:social-preloaded", handlePreload);');
+    expect(socialContent).toContain('window.addEventListener("atlas:social-preloaded", handlePreload);');
+    expect(socialContent).toContain('window.removeEventListener("atlas:social-preloaded", handlePreload);');
 
     // Preloads connections in effect
-    expect(socialTabContent).toContain("await preloadSocialConnections(uid, Boolean(hookPending));");
+    expect(socialContent).toContain("await preloadSocialConnections(uid, Boolean(hookPending));");
   });
 
   it("6. summit-tracker.tsx: preloads social connections in background alongside photo preloading and on follow/unfollow", () => {
-    const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+    const trackerContent = readTrackerSources();
 
     // Imports preloadSocialConnections
-    expect(trackerContent).toContain('import { preloadSocialConnections } from "@/lib/social-cache";');
+    expect(trackerContent).toContain('from "@/lib/social-cache"');
 
     // Background preloading effect
     expect(trackerContent).toMatch(/useEffect\(\(\)\s*=>\s*\{[\s\S]*?preloadSocialConnections\(session\.user\.id\);[\s\S]*?\},?\s*\[session\?\.user\?\.id\]\);/);
@@ -163,7 +163,7 @@ describe("Social Connections & Followers/Following Preloading", () => {
   });
 
   it("7. auth-context.tsx: preloads social connections immediately on session load and auth state changes", () => {
-    const authContent = fs.readFileSync(path.join(rootDir, "components/auth-context.tsx"), "utf-8");
+    const authContent = readFile("components/auth-context.tsx");
 
     expect(authContent).toContain('import { preloadSocialConnections } from "@/lib/social-cache";');
     expect(authContent).toContain("preloadSocialConnections(initSession.user.id);");

@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -64,8 +65,6 @@ function persistSessionSnapshot(s: Session | null) {
     if (s) {
       localStorage.setItem("app_user_session", JSON.stringify({
         user: { id: s.user.id, email: s.user.email },
-        access_token: s.access_token,
-        refresh_token: s.refresh_token,
         expires_at: s.expires_at,
       }));
     } else {
@@ -117,7 +116,8 @@ export function persistProfileCookie(p: UserProfile | null) {
         enable_peaks: p.enable_peaks,
         enable_countries: p.enable_countries,
       };
-      document.cookie = `app_user_profile=${encodeURIComponent(JSON.stringify(data))}; path=/; max-age=31536000; SameSite=Lax`;
+      const secureFlag = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `app_user_profile=${encodeURIComponent(JSON.stringify(data))}; path=/; max-age=31536000; SameSite=Lax${secureFlag}`;
     } else {
       document.cookie = "app_user_profile=; path=/; max-age=0; SameSite=Lax";
     }
@@ -131,27 +131,34 @@ export function AuthProvider({
   children: React.ReactNode;
   initialProfile?: UserProfile | null;
 }) {
-  const [profile, setProfile] = useState<UserProfile | null>(
-    () => initialProfile || globalProfile || getStoredProfile()
-  );
-  const [session, setSession] = useState<Session | null>(() => {
-    if (globalSession) return globalSession;
-    const stored = getStoredSession();
-    if (stored) return stored;
+  const [initBootstrap] = useState(() => {
     const effProfile = initialProfile || globalProfile || getStoredProfile();
-    if (effProfile?.id) {
-      return {
-        user: { id: effProfile.id, email: "" },
-        access_token: "",
-        refresh_token: "",
-        expires_at: 0,
-      } as unknown as Session;
+    let initSession: Session | null = null;
+    if (globalSession) {
+      initSession = globalSession;
+    } else {
+      const stored = getStoredSession();
+      if (stored) {
+        initSession = stored;
+      } else if (effProfile?.id) {
+        initSession = {
+          user: { id: effProfile.id, email: "" },
+          access_token: "",
+          refresh_token: "",
+          expires_at: 0,
+        } as unknown as Session;
+      }
     }
-    return null;
+    return {
+      effProfile,
+      initSession,
+      initLoading: !isAuthInitialized && !effProfile,
+    };
   });
-  const [loading, setLoading] = useState(
-    !isAuthInitialized && !initialProfile && !globalProfile && !getStoredProfile()
-  );
+
+  const [profile, setProfile] = useState<UserProfile | null>(initBootstrap.effProfile);
+  const [session, setSession] = useState<Session | null>(initBootstrap.initSession);
+  const [loading, setLoading] = useState(initBootstrap.initLoading);
 
   const refreshProfile = useCallback(async (activeSession?: Session | null) => {
     const s = activeSession !== undefined ? activeSession : globalSession;
@@ -281,18 +288,21 @@ export function AuthProvider({
     };
   }, [refreshProfile]);
 
+  const authContextValue = useMemo(
+    () => ({
+      session,
+      user: session?.user || null,
+      profile,
+      loading,
+      setProfile,
+      refreshProfile,
+      signOut,
+    }),
+    [session, profile, loading, refreshProfile, signOut]
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user: session?.user || null,
-        profile,
-        loading,
-        setProfile,
-        refreshProfile,
-        signOut,
-      }}
-    >
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );

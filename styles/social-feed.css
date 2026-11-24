@@ -1,0 +1,704 @@
+/* Atlas Ranking, Social Feed & Connections Styles */
+
+/* Ranking Feature */
+.ranking-button {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+  font-weight: bold;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  box-shadow: 0 0 15px rgba(234, 88, 12, 0.6);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  font-size: 0.75rem;
+}
+
+.ranking-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(234, 88, 12, 0.8);
+}
+
+.ranking-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.ranking-podium {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 1rem;
+  margin-bottom: 2rem;
+  min-height: 160px;
+}
+
+.podium-place {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 115px;
+  border-radius: 8px 8px 0 0;
+  padding: 10px 5px;
+  text-align: center;
+}
+
+.podium-gold {
+  background: #FFD700;
+  height: 200px;
+}
+
+.podium-silver {
+  background: #C0C0C0;
+  height: 170px;
+}
+
+.podium-bronze {
+  background: #CD7F32;
+  height: 150px;
+}
+
+.podium-avatar {
+  width: 50px;
+  height: 50px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: #333;
+  margin-top: -35px;
+  margin-bottom: 5px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.podium-gold .podium-avatar {
+  width: 70px;
+  height: 70px;
+  margin-top: -45px;
+  border-width: 4px;
+}
+
+.podium-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.podium-username {
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: #333;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+.podium-score {
+  font-size: 0.7rem;
+  color: #555;
+  font-weight: 500;
+  margin-bottom: auto;
+}
+
+.podium-step {
+  font-size: 2rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: auto;
+}
+
+.ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ranking-list-item {
+  display: flex;
+  align-items: center;
+  background: #f8f9fa;
+  padding: 10px 15px;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.ranking-position {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: #888;
+  width: 30px;
+}
+
+.ranking-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+}
+
+.ranking-list-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+  overflow: hidden;
+}
+
+.ranking-list-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ranking-list-username {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.ranking-list-score {
+  font-weight: bold;
+  color: var(--pine);
+}
+
+/* Social Grid Layout */
+.social-grid-layout { display: flex; flex-direction: column; gap: 24px; padding-top: 24px; max-width: 1200px; margin: 0 auto; }
+
+@media (min-width: 1024px) {
+  .social-grid-layout { display: grid; grid-template-columns: 260px 1fr 260px; align-items: start; gap: 32px; }
+
+  .social-mobile-nav { display: none !important; }
+}
+
+@media (max-width: 1023px) {
+  .sidebar-left, .sidebar-right { display: none; }
+}
+
+.sidebar-left { position: sticky; top: 100px; display: flex; flex-direction: column; gap: 16px; }
+
+.sidebar-right { position: sticky; top: 100px; display: flex; flex-direction: column; gap: 16px; }
+
+.social-nav-btn { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-radius: 8px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.2s; border: none; background: transparent; text-align: left; }
+
+.social-nav-btn:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
+
+.social-nav-btn.active { background: #e7f1ea; color: var(--pine); }
+
+.feed-card { background: white; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+
+.feed-card-header { display: flex; align-items: center; gap: 12px; padding: 16px; }
+
+.feed-card-media { width: 100%; max-height: 500px; object-fit: cover; display: block; border-top: 1px solid var(--line); border-bottom: none; background: #f9f9f9; }
+
+.feed-card-body { padding: 16px; }
+
+.feed-record-title { color: var(--pine); text-decoration: none; transition: opacity 0.15s ease; }
+
+.feed-record-title:hover { text-decoration: underline; opacity: 0.85; }
+
+/* ── Feed Cards & Feed Links: Experiences & Multi-Mode ── */
+.mode-experiences .feed-card {
+  background: #1e1e2e !important;
+  border: 1px solid #313244 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+}
+
+.mode-experiences .feed-card-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.mode-experiences .feed-card-avatar {
+  background: #cba6f7 !important;
+  color: #11111b !important;
+  font-weight: 800 !important;
+}
+
+.mode-experiences .feed-card-header a {
+  color: #ffffff !important;
+}
+
+.mode-experiences .feed-card-header a:hover {
+  color: #cba6f7 !important;
+}
+
+.mode-experiences .feed-card-media {
+  background: #181825 !important;
+  border-top-color: #313244 !important;
+}
+
+.mode-experiences .feed-record-title {
+  color: #cba6f7 !important;
+}
+
+.mode-experiences .feed-record-title:hover {
+  color: #dcb8ff !important;
+}
+
+.mode-experiences .feed-card-body p {
+  color: #e6e9ef !important;
+}
+
+.mode-experiences .feed-share-btn {
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .feed-share-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+.feed-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--pine);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 4px 10px;
+  background-color: rgba(35, 78, 82, 0.05);
+  border-radius: 16px;
+  border: 1px solid rgba(35, 78, 82, 0.15);
+  transition: all 0.2s ease;
+  width: fit-content;
+}
+
+.feed-link:hover {
+  background-color: rgba(35, 78, 82, 0.12);
+}
+
+.mode-countries .feed-link {
+  color: #5b3a8c;
+  background-color: rgba(91, 58, 140, 0.08);
+  border-color: rgba(91, 58, 140, 0.2);
+}
+
+.mode-countries .feed-link:hover {
+  background-color: rgba(91, 58, 140, 0.15);
+}
+
+.mode-experiences .feed-link {
+  color: #cba6f7 !important;
+  background-color: rgba(203, 166, 247, 0.12) !important;
+  border-color: rgba(203, 166, 247, 0.3) !important;
+}
+
+.mode-experiences .feed-link:hover {
+  background-color: rgba(203, 166, 247, 0.22) !important;
+  border-color: rgba(203, 166, 247, 0.5) !important;
+  color: #ffffff !important;
+}
+
+@media (max-width: 1023px) {
+  .sidebar-left, .sidebar-right { display: none !important; }
+}
+
+@media (max-width: 1023px) {
+  .sidebar-nav-desktop { display: none !important; }
+
+  .sidebar-right { display: none !important; }
+
+  .profile-card-desktop { display: flex !important; flex-direction: row !important; align-items: center; gap: 16px; padding: 16px !important; }
+
+  .profile-card-desktop .profile-avatar-container { margin: 0 !important; width: 50px !important; height: 50px !important; }
+
+  .profile-card-desktop .profile-stats-row { margin-top: 0 !important; padding-top: 0 !important; border-top: none !important; display: flex; gap: 16px; }
+
+  .profile-card-desktop .profile-stats-col { text-align: center; }
+
+  .profile-card-desktop .profile-stats-val { font-size: 16px !important; }
+}
+
+@media (max-width: 1023px) {
+  .sidebar-nav-desktop { display: none !important; }
+
+  .sidebar-right { display: none !important; }
+}
+
+/* Mobile reduced padding for tabs */
+.page-container {
+  padding-top: 14px;
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    padding-top: 8px !important;
+  }
+}
+
+.hero-main.hero-main--ranking .ranking-hero-aside,
+.hero-main--ranking .ranking-hero-aside {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+}
+
+.connections-modal-card {
+  animation: fadeScale 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Social Feed Action Bar: Search Pill & Following Button (Left), Experiences Pill (Right) */
+.social-feed-controls {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin-bottom: 16px !important;
+  gap: 12px !important;
+}
+
+.social-feed-controls-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.social-search-box {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  flex: 0 1 260px !important;
+  min-width: 0 !important;
+  max-width: 270px !important;
+  width: 100% !important;
+}
+
+.social-search-icon {
+  position: absolute !important;
+  left: 10px !important;
+  color: var(--muted) !important;
+  pointer-events: none !important;
+}
+
+.social-search-input {
+  width: 100% !important;
+  padding: 6px 28px 6px 30px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  color: var(--ink) !important;
+  outline: none !important;
+  transition: border-color 0.18s, box-shadow 0.18s !important;
+}
+
+.social-search-input::-webkit-search-cancel-button,
+.social-search-input::-webkit-search-decoration,
+.social-search-input::-webkit-search-results-button,
+.social-search-input::-webkit-search-results-decoration {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: none !important;
+}
+
+.social-search-input:focus {
+  border-color: var(--pine) !important;
+  box-shadow: 0 0 0 2px rgba(36, 95, 82, 0.12) !important;
+}
+
+.mode-countries .social-search-input:focus {
+  border-color: #5b3a8c !important;
+  box-shadow: 0 0 0 2px rgba(91, 58, 140, 0.12) !important;
+}
+
+.mode-experiences .social-search-input {
+  background: #181825 !important;
+  border-color: #313244 !important;
+  color: #ffffff !important;
+}
+
+.mode-experiences .social-search-input::placeholder {
+  color: #a6adc8 !important;
+  opacity: 1 !important;
+}
+
+.mode-experiences .social-search-input:focus {
+  border-color: #cba6f7 !important;
+  box-shadow: 0 0 0 2px rgba(203, 166, 247, 0.25) !important;
+}
+
+.mode-experiences .social-search-icon {
+  color: #a6adc8 !important;
+}
+
+.social-search-clear {
+  position: absolute !important;
+  right: 8px !important;
+  background: none !important;
+  border: none !important;
+  color: var(--muted) !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  padding: 2px 6px !important;
+  border-radius: 50% !important;
+  line-height: 1 !important;
+}
+
+.social-search-clear:hover {
+  color: var(--ink) !important;
+}
+
+.mode-experiences .social-search-clear {
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .social-search-clear:hover {
+  color: #ffffff !important;
+}
+
+/* Following Filter Button in Social Controls */
+.social-following-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  border: 1px solid var(--line) !important;
+  background: #ffffff !important;
+  color: var(--muted) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  padding: 5px 12px !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  line-height: 1 !important;
+  height: 31px !important;
+  box-sizing: border-box !important;
+}
+
+.social-following-btn:hover {
+  border-color: var(--sage) !important;
+  color: var(--ink) !important;
+  background: #f7faf5 !important;
+}
+
+.social-following-btn--active {
+  background: var(--pine) !important;
+  border-color: var(--pine) !important;
+  color: #ffffff !important;
+}
+
+.social-following-btn--active:hover {
+  background: var(--pine) !important;
+  border-color: var(--pine) !important;
+  color: #ffffff !important;
+  opacity: 0.92 !important;
+}
+
+.mode-countries .social-following-btn:hover {
+  border-color: #9570c7 !important;
+  background: #f7f3fb !important;
+  color: #3b2260 !important;
+}
+
+.mode-countries .social-following-btn--active {
+  background: #5b3a8c !important;
+  border-color: #5b3a8c !important;
+  color: #ffffff !important;
+}
+
+.mode-countries .social-following-btn--active:hover {
+  background: #5b3a8c !important;
+  border-color: #5b3a8c !important;
+  color: #ffffff !important;
+  opacity: 0.92 !important;
+}
+
+.mode-experiences .social-following-btn {
+  background: #181825 !important;
+  border-color: #313244 !important;
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .social-following-btn:hover {
+  background: #1e1e2e !important;
+  border-color: #cba6f7 !important;
+  color: #ffffff !important;
+}
+
+.mode-experiences .social-following-btn--active {
+  background: #cba6f7 !important;
+  border-color: #cba6f7 !important;
+  color: #11111b !important;
+  font-weight: 600 !important;
+}
+
+.mode-experiences .social-following-btn--active:hover {
+  background: #b48ead !important;
+  border-color: #b48ead !important;
+  color: #11111b !important;
+}
+
+.social-following-icon {
+  width: 14px !important;
+  height: 14px !important;
+  flex-shrink: 0 !important;
+}
+
+.feed-empty-link {
+  background: none !important;
+  border: none !important;
+  color: var(--pine) !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 0 !important;
+}
+
+.mode-countries .feed-empty-link {
+  color: #5b3a8c !important;
+}
+
+.mode-experiences .feed-empty-link {
+  color: #cba6f7 !important;
+}
+
+@media (max-width: 640px) {
+  .social-following-btn {
+    padding: 0 !important;
+    width: 29px !important;
+    height: 29px !important;
+    min-width: 29px !important;
+    justify-content: center !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+  }
+
+  .social-following-btn span {
+    display: none !important;
+  }
+
+  .social-following-icon {
+    width: 14px !important;
+    height: 14px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .social-feed-controls {
+    margin-bottom: 12px !important;
+    gap: 8px !important;
+  }
+
+  .social-feed-controls-left {
+    gap: 6px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .social-search-box {
+    max-width: none !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .ranking-search-box {
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 1 1 auto !important;
+  }
+
+  .social-search-input {
+    font-size: 12px !important;
+    padding: 5px 22px 5px 26px !important;
+  }
+
+  .social-following-btn {
+    padding: 0 !important;
+    width: 29px !important;
+    height: 29px !important;
+    min-width: 29px !important;
+    justify-content: center !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+  }
+
+  .social-following-btn span {
+    display: none !important;
+  }
+
+  .social-following-icon {
+    width: 14px !important;
+    height: 14px !important;
+  }
+}
+
+.mode-experiences .connections-modal-card {
+  background: #1e1e2e !important;
+  color: #ffffff !important;
+  border: 1px solid #313244 !important;
+}
+
+.mode-experiences .connections-modal-header {
+  border-bottom: 1px solid #313244 !important;
+}
+
+.mode-experiences .connections-modal-tab {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .connections-modal-tab.active {
+  background: #cba6f7 !important;
+  color: #11111b !important;
+}
+
+.mode-experiences .connections-modal-close {
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .connections-modal-close:hover {
+  color: #ffffff !important;
+}
+
+.mode-experiences .connections-modal-item {
+  background: #181825 !important;
+  border-color: #313244 !important;
+  color: #ffffff !important;
+}
+
+.mode-experiences .connections-modal-item:hover {
+  background: #232336 !important;
+}
+
+.mode-experiences .connections-item-avatar {
+  background: #cba6f7 !important;
+  color: #11111b !important;
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    padding-bottom: calc(75px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}

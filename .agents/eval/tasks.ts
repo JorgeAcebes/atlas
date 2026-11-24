@@ -4,7 +4,6 @@ import { execSync } from "child_process";
 import { EvalTask } from "./types";
 import { peaks } from "../../data/peaks";
 import { countries } from "../../data/countries";
-import { regionsByCountryIsoA2 } from "../../data/regions";
 import { predefinedCategories } from "../../data/experiences";
 import { createMockSupabaseClient } from "../../tests/mocks/supabase-mock";
 
@@ -70,11 +69,11 @@ export const evalTasks: EvalTask[] = [
 
   {
     id: "eval-02-countries-and-regions",
-    title: "World Countries (196) and Sub-national Regions",
+    title: "World Countries (196) Integrity",
     category: "geodata",
-    description: "Evaluates the 196 world countries dataset, ISO codes, TopoJSON identifiers, and regions dictionary.",
-    instructions: "Ensure `data/countries.ts` maintains 196 nations with unique ISO codes and matching regions in `data/regions.ts`.",
-    expectedOutcome: "196 countries, valid ISO-a2 and ISO-n3 strings, valid continents, non-empty regions map.",
+    description: "Evaluates the 196 world countries dataset, ISO codes, TopoJSON identifiers, and valid coordinates.",
+    instructions: "Ensure `data/countries.ts` maintains 196 nations with unique ISO codes and valid coordinates.",
+    expectedOutcome: "196 countries, valid ISO-a2 and ISO-n3 strings, valid continents and coordinates.",
     verify: async () => {
       let score = 0;
       const issues: string[] = [];
@@ -95,16 +94,27 @@ export const evalTasks: EvalTask[] = [
       if (isoN3Valid) score += 25;
       else issues.push("Invalid ISO-n3 format detected");
 
-      // Check regions map
-      const countryKeys = Object.keys(regionsByCountryIsoA2);
-      if (countryKeys.length >= 2) score += 20;
-      else issues.push("Sub-national regions dataset is unexpectedly small");
+      // Check coordinates & continents
+      const coordsAndContinentsValid = countries.every(
+        (c) =>
+          Boolean(c.continent) &&
+          Array.isArray(c.coordinates) &&
+          c.coordinates.length === 2 &&
+          Number.isFinite(c.coordinates[0]) &&
+          Number.isFinite(c.coordinates[1]) &&
+          c.coordinates[0] >= -90 &&
+          c.coordinates[0] <= 90 &&
+          c.coordinates[1] >= -180 &&
+          c.coordinates[1] <= 180
+      );
+      if (coordsAndContinentsValid) score += 20;
+      else issues.push("Invalid country coordinates or continent detected");
 
       return {
         pass: score === 100,
         score,
-        message: score === 100 ? "Countries and regions evaluation passed" : issues.join("; "),
-        details: { totalCountries: countries.length, totalMappedRegionCountries: countryKeys.length },
+        message: score === 100 ? "Countries evaluation passed" : issues.join("; "),
+        details: { totalCountries: countries.length },
       };
     },
   },

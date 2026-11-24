@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
+import { readFile, readMapSources } from "@/tests/utils/source-reader";
 
 describe("PWA Stats Visibility, Maskable Splash Screen & Map Zoom Resilience", () => {
   const rootDir = process.cwd();
@@ -64,10 +65,10 @@ describe("PWA Stats Visibility, Maskable Splash Screen & Map Zoom Resilience", (
     });
   });
 
-  describe("3. Map Zoom Displacement Shield & Vector Preload Expansion", () => {
-    it("world-map.tsx initializes with explicit renderer (padding: 3.5), center, and zoom", () => {
-      const code = fs.readFileSync(path.join(rootDir, "components/world-map.tsx"), "utf8");
-      expect(code).toContain("L.canvas({ padding: 3.5 })");
+  describe("3. Map Zoom Displacement Shield & Adaptive Canvas Renderer", () => {
+    it("world-map.tsx initializes with adaptive dedicated renderer, center, and zoom", () => {
+      const code = readMapSources();
+      expect(code).toContain('createAdaptiveCanvasRenderer("world")');
       expect(code).toContain("renderer={canvasRenderer}");
       expect(code).toContain("center={[20, 0]}");
       expect(code).toContain("zoom={2}");
@@ -75,9 +76,9 @@ describe("PWA Stats Visibility, Maskable Splash Screen & Map Zoom Resilience", (
       expect(code).toContain("isFirstMountRef.current");
     });
 
-    it("spain-map.tsx initializes with explicit renderer (padding: 2.0), center, and zoom", () => {
-      const code = fs.readFileSync(path.join(rootDir, "components/spain-map.tsx"), "utf8");
-      expect(code).toContain("L.canvas({ padding: 2.0 })");
+    it("spain-map.tsx initializes with adaptive dedicated renderer, center, and zoom", () => {
+      const code = readMapSources();
+      expect(code).toContain('createAdaptiveCanvasRenderer("spain")');
       expect(code).toContain("renderer={canvasRenderer}");
       expect(code).toContain("center={[40.4168, -3.7038]}");
       expect(code).toContain("zoom={5}");
@@ -85,9 +86,11 @@ describe("PWA Stats Visibility, Maskable Splash Screen & Map Zoom Resilience", (
       expect(code).toContain("isFirstMountRef.current");
     });
 
-    it("collective-map.tsx initializes with explicit renderer (padding: 3.5) and initial coordinates", () => {
-      const code = fs.readFileSync(path.join(rootDir, "components/collective-map.tsx"), "utf8");
-      expect(code).toContain("L.canvas({ padding: 3.5 })");
+    it("collective-map.tsx initializes with adaptive dedicated renderer and initial coordinates without mutating prototype padding", () => {
+      const code = readMapSources();
+      expect(code).toContain('createAdaptiveCanvasRenderer("collective")');
+      expect(code).toContain('const padding = mobile ? (kind === "spain" ? 0.8 : 1.0) : 0.5;');
+      expect(code).not.toMatch(/L\.Canvas\.prototype\.options\.padding\s*=/);
       expect(code).toContain("renderer={canvasRenderer}");
       expect(code).toContain("center={isPeaks ? [40.4168, -3.7038] : [20, 0]}");
       expect(code).toContain("zoom={isPeaks ? 5 : 2}");

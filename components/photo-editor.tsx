@@ -206,6 +206,9 @@ export default function PhotoEditor({ imageUrl, onSave, onCancel }: PhotoEditorP
   return createPortal(
     <div
       className="photo-editor-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Editar foto"
       style={{
         position: "fixed",
         inset: 0,

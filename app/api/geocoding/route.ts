@@ -9,8 +9,9 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q");
+    const trimmed = query ? query.trim() : "";
 
-    if (!query || query.trim().length < 2) {
+    if (!trimmed || trimmed.length < 2 || trimmed.length > 200) {
       return NextResponse.json([]);
     }
 
@@ -30,16 +31,16 @@ export async function GET(request: Request) {
       );
     }
 
-    // Asegurar que no se sobrepase el límite estricto de 1 req/segundo de Nominatim
     await throttleNominatim(1000);
 
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query.trim())}&limit=5&accept-language=es`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trimmed)}&limit=5&accept-language=es`;
 
     const res = await fetch(url, {
       headers: {
         "User-Agent": "47Picos-App/1.0 (contacto@47picos.es)",
-        "Accept": "application/json",
+        Accept: "application/json",
       },
+      signal: AbortSignal.timeout(5000),
       next: { revalidate: 3600 },
     });
 

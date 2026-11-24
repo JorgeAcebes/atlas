@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { deleteR2Objects } from "@/lib/r2-storage";
+import { filterSafeUserOwnedPaths } from "@/lib/photo-security";
 
 export async function POST(request: Request) {
   try {
@@ -30,30 +31,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { paths } = body;
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Cuerpo JSON inválido" }, { status: 400 });
+    }
+    const { paths } = body || {};
 
     if (!Array.isArray(paths) || paths.length === 0) {
       return NextResponse.json({ error: "Lista de rutas requerida" }, { status: 400 });
     }
 
-    // Seguridad: verificar que todas las rutas pertenecen al usuario autenticado
-    const safePaths = paths.filter(
-      (p): p is string => typeof p === "string" && p.startsWith(`${user.id}/`)
-    );
+    // Security: strictly verify user ownership and reject path traversal
+    const safePaths = filterSafeUserOwnedPaths(paths, user.id);
 
     if (safePaths.length === 0) {
       return NextResponse.json({ success: true, count: 0 });
     }
 
-    // 1. Eliminar de Cloudflare R2 si aplica
     await deleteR2Objects(safePaths);
 
-    // 2. Eliminar también de Supabase Storage por si eran fotos anteriores
     try {
       await supabaseAdmin.storage.from("summit-photos").remove(safePaths);
-    } catch (e) {
-      // Ignorar si no existía en Supabase
+    } catch {
+      // Ignore if not present in legacy Supabase Storage
     }
 
     return NextResponse.json({ success: true, count: safePaths.length });

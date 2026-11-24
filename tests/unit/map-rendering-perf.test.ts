@@ -1,31 +1,36 @@
 import { describe, it, expect } from "vitest";
-import fs from "fs";
-import path from "path";
+import {
+  readAllStyles,
+  readFeedSources,
+  readFile,
+  readMapSources,
+  readRankingSources,
+  readSocialSources,
+  readTrackerSources,
+} from "@/tests/utils/source-reader";
 
 describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
-  const rootDir = process.cwd();
+  it("1. spain-map.tsx: optimizes 47 vector markers with memoization, singleton icons, smooth tile streaming, and adaptive canvas bounds", () => {
+    const content = readMapSources();
+    const spainContent = readFile("components/spain-map.tsx");
 
-  it("1. spain-map.tsx: optimizes 47 vector markers with memoization, singleton icons, smooth tile streaming, and dynamic canvas bounds", () => {
-    const spainMapPath = path.join(rootDir, "components/spain-map.tsx");
-    const content = fs.readFileSync(spainMapPath, "utf-8");
+    // Singleton marker icons cache & memoized PeakMarker
+    expect(content).toContain("export function getPeakMarkerIcons()");
+    expect(spainContent).toContain("const PeakMarker = memo(function PeakMarker");
+    expect(spainContent).toContain("<PeakMarker");
+    expect(spainContent).toContain("handleMarkerClick");
 
-    // Static singleton marker icons & memoized PeakMarker
-    expect(content).toContain("const PEAK_MARKER_ICONS = {");
-    expect(content).toContain("const PeakMarker = memo(function PeakMarker");
-    expect(content).toContain("<PeakMarker");
-    expect(content).toContain("handleMarkerClick");
+    // Continuous tile streaming and adaptive buffer
+    expect(spainContent).toContain("keepBuffer={keepBuffer}");
+    expect(content).toContain("getAdaptiveKeepBuffer");
+    expect(spainContent).toContain("updateWhenIdle={false}");
+    expect(spainContent).toContain("updateInterval={100}");
+    expect(spainContent).toContain("maxNativeZoom={19}");
+    expect(spainContent).not.toContain("updateWhenZooming={false}");
 
-    // Continuous tile streaming and large buffer for fast panning
-    expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?16/);
-    expect(content).toMatch(/updateWhenIdle=\{(isMobileOrTablet\(\)\s*\?\s*)?false/);
-    expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?100/);
-    expect(content).toContain("maxNativeZoom={19}");
-    expect(content).not.toContain("updateWhenZooming={false}");
-
-    // Canvas polygon simplification via Polyline prototype options
+    // Canvas polygon simplification & no global prototype padding mutation
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
-    // Canvas padding preserved
-    expect(content).toContain("L.Canvas.prototype.options.padding = 0.5;");
+    expect(content).not.toMatch(/L\.Canvas\.prototype\.options\.padding\s*=/);
 
     // Real-time canvas bounds expansion on drag with zoom protection
     expect(content).toContain("_atlasMovePatched");
@@ -33,72 +38,69 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain("_map._animatingZoom");
     expect(content).toContain("!(this._map.dragging && this._map.dragging.moving())");
 
-    // Per-instance renderer with wide padding and initial coordinate initialization
-    expect(content).toContain("renderer={canvasRenderer}");
-    expect(content).toContain("center={[40.4168, -3.7038]}");
-    expect(content).toContain("zoom={5}");
+    // Per-instance adaptive renderer and initial coordinate initialization
+    expect(spainContent).toContain('createAdaptiveCanvasRenderer("spain")');
+    expect(spainContent).toContain("renderer={canvasRenderer}");
+    expect(spainContent).toContain("center={[40.4168, -3.7038]}");
+    expect(spainContent).toContain("zoom={5}");
     expect(content).toContain("padding: [12, 12], animate: false");
   });
 
   it("2. world-map.tsx: throttles zoom listeners, memoizes country markers, streams tiles fluidly, and dynamically expands canvas bounds", () => {
-    const worldMapPath = path.join(rootDir, "components/world-map.tsx");
-    const content = fs.readFileSync(worldMapPath, "utf-8");
+    const content = readMapSources();
+    const worldContent = readFile("components/world-map.tsx");
 
     // RAF throttling on zoom listener to avoid synchronous DOM attribute writes on every micro-tick
     expect(content).toContain("rafRef.current = requestAnimationFrame(() => {");
 
     // Memoized CountryMarker & zoomend-only update in CountryMarkersLayer
-    expect(content).toContain("const CountryMarker = memo(function CountryMarker");
-    expect(content).toContain("<CountryMarker");
-    expect(content).toMatch(/CountryMarkersLayer[\s\S]*?useMapEvents\(\{\s*zoomend:/);
+    expect(worldContent).toContain("const CountryMarker = memo(function CountryMarker");
+    expect(worldContent).toContain("<CountryMarker");
+    expect(worldContent).toMatch(/CountryMarkersLayer[\s\S]*?useMapEvents\(\{\s*zoomend:/);
 
-    // Continuous tile streaming and large buffer for unseen areas
-    expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?32/);
-    expect(content).toMatch(/updateWhenIdle=\{(isMobileOrTablet\(\)\s*\?\s*)?false/);
-    expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?50/);
-    expect(content).toContain("maxNativeZoom={19}");
-    expect(content).not.toContain("updateWhenZooming={false}");
+    // Continuous tile streaming and adaptive buffer
+    expect(worldContent).toContain("keepBuffer={keepBuffer}");
+    expect(worldContent).toContain("updateWhenIdle={false}");
+    expect(worldContent).toContain("updateInterval={50}");
+    expect(worldContent).toContain("maxNativeZoom={19}");
+    expect(worldContent).not.toContain("updateWhenZooming={false}");
 
-    // Canvas polygon simplification via Polyline prototype options
+    // Canvas polygon simplification & adaptive canvas renderer
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
-
-    // Large canvas padding + real-time move expansion to eliminate cut-off during drag
     expect(content).toContain("!(this._map.dragging && this._map.dragging.moving())");
-    expect(content).toContain("L.Canvas.prototype.options.padding = 2.5;");
     expect(content).toContain("_atlasMovePatched");
     expect(content).toContain("_onCanvasMove");
 
-    // Dedicated instance renderer with 3.5 padding and coordinate initialization to prevent first zoom jump
-    expect(content).toContain("renderer={canvasRenderer}");
-    expect(content).toContain("L.canvas({ padding: 3.5 })");
-    expect(content).toContain("center={[20, 0]}");
-    expect(content).toContain("zoom={2}");
+    // Dedicated instance renderer and coordinate initialization to prevent first zoom jump
+    expect(worldContent).toContain("renderer={canvasRenderer}");
+    expect(worldContent).toContain('createAdaptiveCanvasRenderer("world")');
+    expect(worldContent).toContain("center={[20, 0]}");
+    expect(worldContent).toContain("zoom={2}");
     expect(content).toContain("padding: [0, 0], animate: false");
   });
 
   it("3. collective-map.tsx: streams tiles smoothly, simplifies vector paths, and expands canvas dynamically", () => {
-    const collectivePath = path.join(rootDir, "components/collective-map.tsx");
-    const content = fs.readFileSync(collectivePath, "utf-8");
+    const content = readMapSources();
+    const collectiveContent = readFile("components/collective-map.tsx");
 
-    expect(content).toMatch(/keepBuffer=\{(isMobileOrTablet\(\)\s*\?\s*)?32/);
-    expect(content).toMatch(/updateWhenIdle=\{(isMobileOrTablet\(\)\s*\?\s*)?false/);
-    expect(content).toMatch(/updateInterval=\{(isMobileOrTablet\(\)\s*\?\s*)?50/);
-    expect(content).toContain("maxNativeZoom={19}");
+    expect(collectiveContent).toContain("keepBuffer={keepBuffer}");
+    expect(collectiveContent).toContain("updateWhenIdle={false}");
+    expect(collectiveContent).toContain("updateInterval={50}");
+    expect(collectiveContent).toContain("maxNativeZoom={19}");
 
-    // Polyline smoothFactor on collective map
+    // Polyline smoothFactor and canvas move patch on collective map
     expect(content).toContain("!(this._map.dragging && this._map.dragging.moving())");
     expect(content).toContain("L.Polyline.prototype.options.smoothFactor = 1.2;");
     expect(content).toContain("_atlasMovePatched");
     expect(content).toContain("_onCanvasMove");
 
-    // Dedicated instance renderer with 3.5 padding and coordinate initialization
-    expect(content).toContain("renderer={canvasRenderer}");
-    expect(content).toContain("L.canvas({ padding: 3.5 })");
+    // Dedicated adaptive instance renderer and coordinate initialization
+    expect(collectiveContent).toContain("renderer={canvasRenderer}");
+    expect(collectiveContent).toContain('createAdaptiveCanvasRenderer("collective")');
   });
 
-  it("4. app/globals.css: isolates summit-pin GPU compositor layers and removes drag transitions", () => {
-    const cssPath = path.join(rootDir, "app/globals.css");
-    const content = fs.readFileSync(cssPath, "utf-8");
+  it("4. styles/maps.css: isolates summit-pin & pane compositor layers without promoting every marker icon permanently", () => {
+    const content = readAllStyles();
 
     // Hardware acceleration and containment for summit-pin
     expect(content).toContain("contain: layout style paint;");
@@ -109,44 +111,42 @@ describe("Map Rendering Performance & Tile Streaming Optimizations", () => {
     expect(content).toContain(".leaflet-dragging .summit-pin,");
     expect(content).toContain(".leaflet-drag-target .summit-pin,");
 
-    // Marker pane containment & will-change
+    // Pane-level will-change & marker pane containment without per-icon will-change bloat
+    expect(content).toContain(".leaflet-tile-pane,");
     expect(content).toContain(".leaflet-marker-pane");
     expect(content).toContain("contain: layout style;");
-    expect(content).toContain(".leaflet-marker-icon");
-    expect(content).toContain("will-change: transform;");
+    expect(content).not.toMatch(/\.leaflet-marker-icon\s*\{[^}]*will-change:\s*transform/);
   });
 
   it("5. public/sw.js: caches OpenStreetMap tiles across all subdomains", () => {
-    const swPath = path.join(rootDir, "public/sw.js");
-    const content = fs.readFileSync(swPath, "utf-8");
-
-    expect(content).toContain("url.hostname.endsWith('tile.openstreetmap.org')");
+    const swContent = readFile("public/sw.js");
+    expect(swContent).toContain('url.hostname.endsWith("tile.openstreetmap.org")');
   });
 
-  it("6. feed-tab.tsx & social-tab.tsx: enables background prefetching and preloads up to 30 photos for countries & peaks", () => {
-    const feedContent = fs.readFileSync(path.join(rootDir, "components/feed-tab.tsx"), "utf-8");
-    const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
+  it("6. feed-tab & social-tab: enables background prefetching and throttled photo preloading", () => {
+    const feedContent = readFeedSources();
+    const socialContent = readSocialSources();
 
-    // Feed background prefetching when not active
-    expect(feedContent).toContain("fetchFeed(true)");
-    expect(feedContent).toContain("topPhotosToPreload");
-    expect(feedContent).toContain("countryPhotosToPreload");
-    expect(feedContent).toContain("peakPhotosToPreload");
+    // Feed preloading via throttled preloader (maxConcurrent + maxCount cap)
+    expect(feedContent).toContain("preloadImages");
+    expect(feedContent).toContain("preloadUrls");
+    expect(feedContent).toContain("maxConcurrent: 3");
 
     // Social background prefetching of user progress and connections
     expect(socialContent).toContain("fetchUserProgress()");
-    expect(socialContent).toContain("fetchConnections()");
+    expect(socialContent).toContain("loadConnections()");
   });
 
-  it("7. ranking-tab.tsx & summit-tracker.tsx: preloads ranking data and user summit photos in background", () => {
-    const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
-    const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+  it("7. ranking-tab & summit-tracker: preloads ranking data and summit photos with throttled preloader", () => {
+    const rankingContent = readRankingSources();
+    const trackerContent = readTrackerSources();
 
     // Ranking background prefetch
     expect(rankingContent).toContain("fetchRanking(true)");
     expect(rankingContent).toContain("globalRankingCache");
 
-    // SummitTracker user photos preloading
-    expect(trackerContent).toContain("photos.slice(0, 30).forEach");
+    // SummitTracker throttled photo preloading
+    expect(trackerContent).toContain("preloadImages(urls, { maxConcurrent: 3, maxCount: 6 })");
+    expect(trackerContent).toContain("photos.slice(0, 12)");
   });
 });

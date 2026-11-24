@@ -1,0 +1,58 @@
+/* Atlas Design Tokens & Mode Palettes */
+
+/* ── Tokens ─────────────────────────────── */
+:root {
+  --font-sans: var(--font-dm-sans, "DM Sans"), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: var(--font-dm-mono, "DM Mono"), monospace;
+  --font-serif: var(--font-fraunces, "Fraunces"), Georgia, serif;
+  --font-display: var(--font-playfair, "Playfair Display"), Georgia, serif;
+  --ink: #18342d;
+  --pine: #245f52;
+  --sage: #5c9b7d;
+  --paper: #faf8f1;
+  --sand: #f0eadc;
+  --line: #dce4da;
+  --muted: #62716b;
+  --amber: #d2a54b;
+  --amber-bg: #fff8e7;
+  --danger: #a34f3d;
+  --radius: 3px;
+  --transition: 0.22s ease;
+  --purple: #5b3a8c;
+}
+
+/* ── Countries mode purple tokens ──────── */
+.mode-countries {
+  --ink: #2a1f3d;
+  --pine: #5b3a8c;
+  --sage: #9570c7;
+  --paper: #faf8fc;
+  --sand: #f0e8f4;
+  --line: #ddd4e8;
+  --muted: #6b5f7a;
+}
+
+/* ── Peaks mode green tokens ──────────── */
+.mode-peaks,
+.stats-overlay--peaks {
+  --ink: #18342d;
+  --pine: #245f52;
+  --sage: #5c9b7d;
+  --paper: #faf8f1;
+  --sand: #f0eadc;
+  --line: #dce4da;
+  --muted: #62716b;
+  --amber: #d2a54b;
+  --amber-bg: #fff8e7;
+}
+
+/* ── Experiences mode dark tokens ──────── */
+.mode-experiences {
+  --ink: #ffffff;
+  --pine: #cba6f7;
+  --sage: #a6adc8;
+  --paper: #11111b;
+  --sand: #181825;
+  --line: #313244;
+  --muted: #a6adc8;
+}

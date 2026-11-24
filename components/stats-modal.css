@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
-
 /* ── Stats Modal (Mis Estadísticas) ── */
 
 .stats-overlay {
@@ -11,7 +9,7 @@
   flex-direction: column;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   color: var(--ink, #18342d);
   animation: statsFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -33,8 +31,6 @@
   top: 0;
   z-index: 30;
   background: rgba(250, 248, 241, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line, #dce4da);
   flex-shrink: 0;
 }
@@ -519,7 +515,7 @@
 }
 
 .stats-kpi-label {
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--muted);
@@ -541,7 +537,7 @@
 
 /* Número canónico con Fraunces y tabular-nums (estilo Atlas) */
 .stats-kpi-value {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 1.65rem;
@@ -556,7 +552,7 @@
 }
 
 .stats-kpi-value small {
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
@@ -564,7 +560,7 @@
 }
 
 .stats-kpi-sub {
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
@@ -639,7 +635,7 @@
   background: white;
   border: 1px solid var(--line);
   border-radius: 12px;
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
@@ -719,7 +715,7 @@
 }
 
 .stats-highlight-title {
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -737,7 +733,7 @@
 }
 
 .stats-highlight-text {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 1.15rem;
   font-weight: 700;
   margin: 0;
@@ -749,7 +745,7 @@
 }
 
 .stats-highlight-alt {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 1.15rem;
@@ -770,12 +766,12 @@
 }
 
 .stats-highlight-alt strong {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-weight: 700;
 }
 
 .stats-highlight-alt small {
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif) !important;
+  font-family: var(--font-sans) !important;
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
@@ -783,7 +779,7 @@
 }
 
 .stats-highlight-sub {
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--muted);
 }
@@ -837,7 +833,7 @@
 }
 
 .stats-card-title {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 700;
   margin: 0;
@@ -852,7 +848,7 @@
 }
 
 .stats-card-chip {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 11.5px;
@@ -894,7 +890,7 @@
 }
 
 .stats-peak-alt-num {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 14px;
@@ -916,7 +912,7 @@
 
 .stats-peak-alt-num small,
 .stats-range-peak-alt small {
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif) !important;
+  font-family: var(--font-sans) !important;
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
@@ -924,7 +920,7 @@
 }
 
 .stats-row-num {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 13.5px;
@@ -937,7 +933,7 @@
 }
 
 .stats-row-num strong {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-weight: 700;
 }
 
@@ -958,7 +954,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 12.5px;
   color: var(--ink);
   gap: 12px;
@@ -1054,7 +1050,7 @@
 }
 
 .stats-range-name {
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
@@ -1078,7 +1074,7 @@
 
 .stats-range-meta strong,
 .stats-range-count-num {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 13px;
@@ -1090,12 +1086,12 @@
 }
 
 .stats-range-count-num strong {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-weight: 700;
 }
 
 .stats-range-pct {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap !important;
@@ -1220,7 +1216,7 @@
 }
 
 .stats-range-peak-alt {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 13px;
@@ -1342,7 +1338,7 @@
 }
 
 .stats-timeline-year-label {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 1.25rem;
@@ -1361,7 +1357,7 @@
 }
 
 .stats-timeline-year-count strong {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-weight: 700;
@@ -1414,7 +1410,7 @@
   padding: 3.5px 8px;
   border-radius: 6px;
   border: 1px solid transparent;
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
@@ -1435,7 +1431,7 @@
 }
 
 .stats-travel-chip-count {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 11px;
@@ -1521,7 +1517,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: var(--muted);
 }
@@ -1543,7 +1539,7 @@
 }
 
 .stats-continents-legend-pct {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-weight: 700;
@@ -1570,7 +1566,7 @@
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--paper);
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: var(--muted);
 }
@@ -1618,7 +1614,7 @@
   flex-direction: column;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   animation: statsFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1640,7 +1636,7 @@
 }
 
 .stats-header--gallery .stats-header-title {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 1.15rem;
   font-weight: 700;
   margin: 0;
@@ -1675,7 +1671,7 @@
 }
 
 .stats-gallery-count {
-  font-family: "Fraunces", Georgia, serif !important;
+  font-family: var(--font-serif) !important;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   font-size: 13px;
@@ -1702,7 +1698,7 @@
   background: transparent;
   padding: 4px 10px;
   border-radius: 99px;
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
@@ -1770,7 +1766,7 @@
   right: 0;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
   color: #ffffff;
-  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   font-weight: 600;
   padding: 14px 6px 4px 6px;
@@ -1798,7 +1794,7 @@
 }
 
 .stats-gallery-empty-title {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 1.25rem;
   color: var(--ink);
   margin: 0 0 8px 0;

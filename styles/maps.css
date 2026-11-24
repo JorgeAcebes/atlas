@@ -1,0 +1,1204 @@
+/* Atlas Maps, Leaflet Overrides, Pins, Legends & Map Controls */
+
+.mode-experiences .legend-pin {
+  background: #181825;
+  color: var(--muted);
+  border-color: rgba(186, 194, 222, 0.3);
+}
+
+.mode-experiences .legend-done,
+.mode-experiences .summit-pin--done {
+  background: var(--pine) !important;
+  color: #11111b !important;
+  border-color: transparent !important;
+}
+
+.mode-experiences .summit-pin {
+  background: #181825;
+  color: var(--muted);
+  border-color: rgba(186, 194, 222, 0.3);
+}
+
+.mode-experiences .summit-pin--diff-only-me {
+  background: var(--pine);
+  border-color: rgba(149, 112, 199, 0.3);
+}
+
+.mode-experiences .summit-pin--diff-both {
+  background: rgba(149, 112, 199, 0.4);
+  border-color: rgba(149, 112, 199, 0.2);
+}
+
+.mode-experiences .diff-toggle:not(.map-floating-btn) {
+  background: #11111b;
+  border-color: #313244;
+  color: #a6adc8;
+}
+
+.mode-experiences .diff-toggle:not(.map-floating-btn):hover {
+  background: #1e1e2e;
+  border-color: var(--pine);
+  color: #f0f0f0;
+}
+
+.mode-experiences .diff-toggle--active:not(.map-floating-btn) {
+  background: #313244;
+  color: #f0f0f0;
+  border-color: var(--pine);
+}
+
+.mode-experiences .diff-toggle--active:not(.map-floating-btn):hover {
+  background: #45475a;
+  border-color: var(--pine);
+}
+
+/* ── Map section ────────────────────────── */
+.map-section {
+  padding: 30px clamp(22px, 8vw, 126px) 84px;
+  max-width: 1540px;
+  margin: auto;
+}
+
+#mapa {
+  scroll-margin-top: 80px;
+}
+
+.map-legend {
+  display: flex;
+  gap: 17px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.map-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-pin,
+.legend-wishlist,
+.legend-done {
+  font-style: normal;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #5c9b7d;
+  background: #e7f1ea;
+  border: 1px solid #8bb8ae;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 0;
+}
+
+.mode-countries .legend-pin {
+  color: #5b3a8c;
+  background: #eee8f0;
+  border-color: #9b8ab8;
+  padding: 0;
+}
+
+.legend-wishlist {
+  background: #ecd9a5;
+  color: #a67c29;
+  border-color: #d2a54b;
+  font-size: 12px;
+  padding: 0;
+}
+
+.mode-countries .legend-wishlist {
+  background: #ecd9a5;
+  color: #a67c29;
+  border-color: #d2a54b;
+}
+
+.legend-done {
+  background: #5c9b7d;
+  color: white;
+  border-color: #245f52;
+  padding: 0;
+}
+
+.mode-countries .legend-done {
+  background: #8f6cb5;
+  border-color: #4a2878;
+}
+
+/* ── Map container ──────────────────────── */
+.map {
+  height: min(68vh, 660px);
+  min-height: 460px;
+  width: 100%;
+  border: none;
+  background: #dce8e4;
+  z-index: 1;
+  border-radius: 2px;
+  contain: layout style paint;
+}
+
+.map-loading {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 14px;
+  background: linear-gradient(90deg, #e4ede8 25%, #eff5f0 50%, #e4ede8 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+/* ── Leaflet overrides ──────────────────── */
+.leaflet-container {
+  font-family: var(--font-sans);
+  background-color: #dce8e4;
+}
+
+.mode-countries .leaflet-container {
+  background-color: #e0dce8;
+}
+
+.mode-experiences .leaflet-container {
+  background-color: #1a1824;
+}
+
+/* Evita que aparezca un rectángulo al clicar (focus) en los vectores (países, regiones, cimas) */
+.leaflet-interactive:focus {
+  outline: none;
+}
+
+/* Force GPU compositing for tile, overlay, and marker panes to prevent white-flash and jank */
+.leaflet-tile-pane,
+.leaflet-overlay-pane,
+.leaflet-marker-pane {
+  will-change: transform;
+}
+
+/* Disable cursor hit-testing and point-in-polygon checks on canvas during rapid wheel zoom */
+.leaflet-container.is-wheeling canvas {
+  pointer-events: none !important;
+}
+
+.leaflet-container.is-wheeling .leaflet-interactive {
+  pointer-events: none !important;
+}
+
+.leaflet-marker-pane {
+  contain: layout style;
+}
+
+.leaflet-tile {
+  will-change: auto;
+  backface-visibility: hidden;
+}
+
+.leaflet-control-attribution {
+  font-size: 9px !important;
+}
+
+.summit-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #e7f1ea;
+  color: #5c9b7d;
+  border: 2px solid #8bb8ae;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 2px 5px rgba(33, 79, 68, 0.2);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  padding: 0;
+  contain: layout style paint;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.leaflet-dragging .summit-pin,
+.leaflet-drag-target .summit-pin,
+.leaflet-zoom-anim .summit-pin,
+.leaflet-zooming .summit-pin {
+  transition: none !important;
+}
+
+.summit-pin svg,
+.legend-pin svg,
+.legend-wishlist svg,
+.legend-done svg,
+.peak-list-item .item-check svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.mode-countries .summit-pin {
+  background: #eee8f0;
+  color: #5b3a8c;
+  border-color: #9b8ab8;
+  box-shadow: 0 2px 5px rgba(74, 40, 120, 0.2);
+  padding: 0;
+}
+
+.summit-pin:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 10px rgba(33, 79, 68, 0.35);
+}
+
+.mode-countries .summit-pin:hover {
+  box-shadow: 0 4px 10px rgba(74, 40, 120, 0.35);
+}
+
+.summit-pin--done {
+  background: #5c9b7d !important;
+  color: white !important;
+  border-color: #245f52 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  padding: 0 !important;
+}
+
+.mode-countries .summit-pin--done {
+  background: #8f6cb5 !important;
+  border-color: #4a2878 !important;
+  color: white !important;
+  padding: 0 !important;
+}
+
+.summit-pin--wishlist {
+  background: #ecd9a5 !important;
+  color: #a67c29 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  border-color: #d2a54b !important;
+  padding: 0 !important;
+}
+
+.mode-countries .summit-pin--wishlist {
+  background: #ecd9a5 !important;
+  color: #a67c29 !important;
+  border-color: #d2a54b !important;
+  padding: 0 !important;
+}
+
+/* ── Dynamic map zoom scaling ──────────────── */
+.map[data-zoom="0"] .summit-pin,
+.map[data-zoom="1"] .summit-pin,
+.map[data-zoom="2"] .summit-pin,
+.map[data-zoom="3"] .summit-pin,
+.map[data-zoom="4"] .summit-pin {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.3);
+}
+
+.map[data-zoom="5"] .summit-pin {
+  opacity: 0.2;
+  transform: scale(0.45);
+}
+
+.map[data-zoom="6"] .summit-pin {
+  opacity: 0.8;
+  pointer-events: auto;
+  transform: scale(0.85);
+}
+
+.map[data-zoom="7"] .summit-pin,
+.map[data-zoom="8"] .summit-pin,
+.map[data-zoom="9"] .summit-pin,
+.map[data-zoom="10"] .summit-pin,
+.map[data-zoom="11"] .summit-pin,
+.map[data-zoom="12"] .summit-pin {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+/* Reglas base para ocultar *todos* en zoom bajo (0 al 7) - Spain */
+.map-spain[data-zoom="0"] .summit-pin,
+.map-spain[data-zoom="1"] .summit-pin,
+.map-spain[data-zoom="2"] .summit-pin,
+.map-spain[data-zoom="3"] .summit-pin,
+.map-spain[data-zoom="4"] .summit-pin,
+.map-spain[data-zoom="5"] .summit-pin,
+.map-spain[data-zoom="6"] .summit-pin,
+.map-spain[data-zoom="7"] .summit-pin {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.3);
+}
+
+/* En zoom alto (8 en adelante), mostramos todos los iconos - Spain */
+.map-spain[data-zoom="8"] .summit-pin {
+  opacity: 0.8;
+  pointer-events: auto;
+  transform: scale(0.85);
+}
+
+.map-spain[data-zoom="9"] .summit-pin,
+.map-spain[data-zoom="10"] .summit-pin,
+.map-spain[data-zoom="11"] .summit-pin,
+.map-spain[data-zoom="12"] .summit-pin {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+/* Retrasar aparición de pines de países genéricos (NO experiencias) */
+.mode-countries .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="0"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="1"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="2"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="3"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="4"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="5"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="0"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="1"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="2"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="3"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="4"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="5"] .summit-pin:not(.summit-pin--experience) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: scale(0.3) !important;
+}
+
+.mode-countries .map[data-zoom="6"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="6"] .summit-pin:not(.summit-pin--experience) {
+  opacity: 0.4 !important;
+  pointer-events: auto !important;
+  transform: scale(0.65) !important;
+}
+
+.mode-countries .map[data-zoom="7"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="8"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="9"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="10"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="11"] .summit-pin:not(.summit-pin--experience),
+.mode-countries .map[data-zoom="12"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="7"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="8"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="9"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="10"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="11"] .summit-pin:not(.summit-pin--experience),
+.map[data-zoom="12"] .summit-pin:not(.summit-pin--experience) {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: scale(1) !important;
+}
+
+/* Experiences pins: hidden in countries mode */
+.mode-countries .experience-hitbox,
+.mode-countries .summit-pin--experience {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* Ensure collective map experiences are always visible regardless of global mode */
+.collective-map-overlay.mode-countries .experience-hitbox,
+.collective-map-overlay .experience-hitbox {
+  display: block !important;
+  pointer-events: auto !important;
+}
+
+.collective-map-overlay.mode-countries .summit-pin--experience,
+.collective-map-overlay .summit-pin--experience {
+  display: inline-flex !important;
+  opacity: 0.9 !important;
+  pointer-events: auto !important;
+  transform: scale(0.9) !important;
+  background: #cba6f7 !important;
+  border-color: #b48bf2 !important;
+  color: #11111b !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+.collective-map-overlay .experience-hitbox:hover .summit-pin--experience {
+  opacity: 1 !important;
+  transform: scale(1.15) !important;
+}
+
+/* Experiences specific zooms: always visible from zoom 1 upwards in experiences mode */
+.mode-experiences .summit-pin--experience,
+.mode-experiences .map[data-zoom="1"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="2"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="3"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="4"] .summit-pin--experience {
+  opacity: 0.85 !important;
+  pointer-events: auto !important;
+  transform: scale(0.9) !important;
+}
+
+.mode-experiences .map[data-zoom="5"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="6"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="7"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="8"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="9"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="10"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="11"] .summit-pin--experience,
+.mode-experiences .map[data-zoom="12"] .summit-pin--experience {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: scale(1.1) !important;
+}
+
+/* Ensure collective map experiences are correctly scaled and visible across zooms */
+.collective-map-overlay .map[data-zoom="0"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="1"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="2"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="3"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="4"] .summit-pin--experience {
+  opacity: 0.85 !important;
+  pointer-events: auto !important;
+  transform: scale(0.9) !important;
+}
+
+.collective-map-overlay .map[data-zoom="5"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="6"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="7"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="8"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="9"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="10"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="11"] .summit-pin--experience,
+.collective-map-overlay .map[data-zoom="12"] .summit-pin--experience {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: scale(1.1) !important;
+}
+
+.map .summit-pin:hover {
+  opacity: 1 !important;
+  transform: scale(1.15) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+}
+
+/* ── Tooltips (Labels) ──────────────────── */
+.summit-tooltip {
+  color: white;
+  border: none;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .summit-tooltip {
+    display: none !important;
+  }
+}
+
+/* Hide the default Leaflet tooltip arrow for cleaner look */
+.summit-tooltip::before {
+  display: none;
+}
+
+/* Peaks */
+.summit-tooltip.tooltip-todo {
+  background: #e7f1ea;
+  color: #245f52;
+  border: 1px solid #8bb8ae;
+}
+
+.summit-tooltip.tooltip-done {
+  background: #5c9b7d;
+  color: white;
+  border: 1px solid #245f52;
+}
+
+.summit-tooltip.tooltip-wishlist {
+  background: #ecd9a5;
+  color: #a67c29;
+  border: 1px solid #d2a54b;
+}
+
+/* Countries and Experiences */
+.mode-countries .summit-tooltip.tooltip-todo,
+.mode-experiences .summit-tooltip.tooltip-todo {
+  background: #ece5f3;
+  color: #4a2878;
+  border: 1px solid #9b8ab8;
+}
+
+.mode-countries .summit-tooltip.tooltip-done,
+.mode-experiences .summit-tooltip.tooltip-done {
+  background: #7b52ab;
+  color: white;
+  border: 1px solid #4a2878;
+}
+
+.mode-countries .summit-tooltip.tooltip-wishlist,
+.mode-experiences .summit-tooltip.tooltip-wishlist {
+  background: #ecd9a5;
+  color: #a67c29;
+  border: 1px solid #d2a54b;
+}
+
+.leaflet-popup-content {
+  margin: 13px 15px;
+}
+
+.popup-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 190px;
+  animation: fadeUp 0.2s ease;
+}
+
+.popup-content strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.popup-content>span:not(.eyebrow) {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.popup-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.popup-actions .button {
+  font-size: 10px;
+  padding: 7px 8px;
+  gap: 0;
+}
+
+.popup-actions .button--quiet {
+  border-color: #cbd6ce;
+}
+
+@media (max-width: 1024px) and (min-width: 701px) {
+  .map-section {
+    padding: 24px 28px 70px;
+  }
+}
+
+@media (max-width: 700px) {
+  .map-section {
+    padding: 16px 16px 48px;
+  }
+
+  #mapa {
+    scroll-margin-top: 60px;
+  }
+
+  .map {
+    height: 420px;
+    min-height: 0;
+  }
+
+  .map-legend {
+    gap: 8px;
+    font-size: 11px;
+  }
+}
+
+.mode-countries .map {
+  border: none;
+  background: #e0dce8;
+}
+
+.mode-countries .map-loading {
+  background: linear-gradient(90deg, #e4dee8 25%, #efe8f5 50%, #e4dee8 75%);
+  background-size: 400px 100%;
+}
+
+.mode-countries .leaflet-popup-content-wrapper {
+  box-shadow: 0 8px 24px rgba(42, 31, 61, 0.2);
+}
+
+/* ── Diff comparison mode ──────────────── */
+.diff-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  max-width: 100%;
+}
+
+.diff-toggle-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.diff-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
+  height: 31px;
+  box-sizing: border-box;
+}
+
+.diff-toggle:hover {
+  border-color: var(--sage);
+  color: var(--ink);
+  background: #f7faf5;
+}
+
+.diff-toggle--active {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+
+.diff-toggle--active:hover {
+  background: var(--pine);
+  border-color: var(--pine);
+  color: white;
+}
+
+.mode-countries .diff-toggle:hover {
+  border-color: #9570c7;
+  background: #f7f3fb;
+}
+
+.mode-countries .diff-toggle--active {
+  background: #2a1f3d;
+  border-color: #2a1f3d;
+}
+
+.mode-countries .diff-toggle--active:hover {
+  background: #5b3a8c;
+  border-color: #5b3a8c;
+}
+
+.diff-toggle-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Diff legend ──────────────────────── */
+.diff-legend {
+  display: flex;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 11px;
+  animation: fadeUp 0.25s ease;
+}
+
+.diff-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-diff-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.legend-diff-dot--only-me {
+  background: #5c9b7d;
+}
+
+.legend-diff-dot--only-them {
+  background: #c75a3a;
+}
+
+.legend-diff-dot--both {
+  background: #bcd4c8;
+}
+
+.legend-diff-dot--none {
+  background: #ddd8d0;
+}
+
+.mode-countries .legend-diff-dot--only-me,
+.mode-experiences .legend-diff-dot--only-me {
+  background: #7b52ab !important;
+  border: none !important;
+}
+
+.mode-countries .legend-diff-dot--both,
+.mode-experiences .legend-diff-dot--both {
+  background: #c5b3da !important;
+  border: none !important;
+}
+
+.mode-countries .legend-diff-dot--only-them,
+.mode-experiences .legend-diff-dot--only-them {
+  background: #c75a3a !important;
+  border: none !important;
+}
+
+.mode-countries .legend-diff-dot--none,
+.mode-experiences .legend-diff-dot--none {
+  background: #ddd8d0 !important;
+  border: none !important;
+}
+
+/* ── Diff map pin variants ────────────── */
+.summit-pin--diff-only-me {
+  background: #4a8a6a;
+  border-color: #e6f2eb;
+}
+
+.summit-pin--diff-only-them {
+  background: #c75a3a;
+  border-color: #f8e8e3;
+}
+
+.summit-pin--diff-both {
+  background: #a3c4b3;
+  border-color: #eef5f0;
+}
+
+.summit-pin--diff-none {
+  background: #c4beb5;
+  border-color: #f0ede8;
+  opacity: 0.55;
+}
+
+.mode-countries .summit-pin--diff-only-me {
+  background: #6b42a0;
+  border-color: #ece5f3;
+}
+
+.mode-countries .summit-pin--diff-both {
+  background: #b099cc;
+  border-color: #f0e8f4;
+}
+
+/* ── Diff heading row ─────────────────── */
+.map-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.map-legend-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .map-heading-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .map-legend-area {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap-reverse;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .map-legend-area>.map-legend,
+  .map-legend-area>.diff-legend {
+    order: 0;
+  }
+
+  .map-legend-area>.diff-toggle-wrap {
+    order: 1;
+    margin-left: 0;
+    width: 100%;
+    max-width: calc(100vw - 32px);
+  }
+
+  .diff-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .diff-legend span {
+    white-space: nowrap;
+  }
+}
+
+/* A cloned SVG path carries this effect, leaving Leaflet's original geometry intact. */
+@keyframes mapSearchScanPulse {
+  0% {
+    stroke-width: 0;
+    stroke-opacity: 0;
+    opacity: 0;
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+
+  14% {
+    stroke-width: 3px;
+    stroke-opacity: 1;
+    opacity: 1;
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, .95)) drop-shadow(0 0 10px rgba(255, 255, 255, .7));
+  }
+
+  100% {
+    stroke-width: 25px;
+    stroke-opacity: 0;
+    opacity: 0;
+    filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0));
+  }
+}
+
+.map-search-scan-overlay {
+  pointer-events: none !important;
+  stroke: #fff !important;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+  animation: mapSearchScanPulse .85s cubic-bezier(.22, 1, .36, 1) forwards !important;
+}
+
+/* Floating Compare button on Map Canvas */
+.map-floating-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.map-floating-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 4px 10px !important;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 12px !important;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.map-floating-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  border-color: var(--pine);
+}
+
+.mode-experiences .map-floating-btn {
+  background: white !important;
+  color: #2a1f3d !important;
+  border: 1px solid #ddd4e8 !important;
+}
+
+.mode-experiences .map-floating-btn span,
+.mode-experiences .map-floating-btn .diff-toggle-icon {
+  color: #2a1f3d !important;
+}
+
+.mode-countries .map-floating-btn:hover,
+.mode-experiences .map-floating-btn:hover {
+  border-color: #9570c7 !important;
+  color: #2a1f3d !important;
+  background: white !important;
+}
+
+.mode-countries .map-floating-btn:hover span,
+.mode-countries .map-floating-btn:hover .diff-toggle-icon,
+.mode-experiences .map-floating-btn:hover span,
+.mode-experiences .map-floating-btn:hover .diff-toggle-icon {
+  color: #2a1f3d !important;
+}
+
+.map-floating-btn--active {
+  background: var(--pine);
+  color: white;
+  border-color: var(--pine);
+  box-shadow: 0 2px 10px rgba(36, 95, 82, 0.3);
+}
+
+.mode-countries .map-floating-btn--active,
+.mode-experiences .map-floating-btn--active {
+  background: #2a1f3d !important;
+  border-color: #2a1f3d !important;
+  box-shadow: 0 2px 10px rgba(42, 31, 61, 0.3) !important;
+  color: white !important;
+}
+
+.mode-countries .map-floating-btn--active span,
+.mode-countries .map-floating-btn--active .diff-toggle-icon,
+.mode-experiences .map-floating-btn--active span,
+.mode-experiences .map-floating-btn--active .diff-toggle-icon {
+  color: white !important;
+}
+
+.mode-countries .map-floating-btn--active:hover,
+.mode-experiences .map-floating-btn--active:hover {
+  background: #5b3a8c !important;
+  border-color: #5b3a8c !important;
+  color: white !important;
+}
+
+.mode-countries .map-floating-btn--active:hover span,
+.mode-countries .map-floating-btn--active:hover .diff-toggle-icon,
+.mode-experiences .map-floating-btn--active:hover span,
+.mode-experiences .map-floating-btn--active:hover .diff-toggle-icon {
+  color: white !important;
+}
+
+/* Floating Search button (Lupa) on Map Canvas */
+.map-search-control {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1001;
+  font-family: var(--font-sans);
+}
+
+.map-search-control.map-search-control--offset {
+  top: 48px;
+}
+
+@media (max-width: 768px) {
+  .map-floating-controls {
+    top: 8px;
+    right: 8px;
+  }
+
+  .map-floating-btn {
+    padding: 3px 8px !important;
+    font-size: 11px !important;
+  }
+
+  .map-search-control {
+    top: 8px !important;
+    right: 8px !important;
+  }
+
+  .map-search-control.map-search-control--offset {
+    top: 44px !important;
+    right: 8px !important;
+  }
+}
+
+/* ── Map Legend Centering & Spacing ── */
+.diff-toggle-wrap:empty {
+  display: none;
+}
+
+.map-section {
+  padding-top: 14px !important;
+  padding-bottom: 24px !important;
+}
+
+.map-heading-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  min-height: 32px !important;
+  margin-bottom: 12px !important;
+  width: 100% !important;
+}
+
+.map-legend-area {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+  gap: 12px !important;
+  margin: 0 !important;
+}
+
+.map-legend {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 16px !important;
+  margin: 0 !important;
+  flex-shrink: 1 !important;
+}
+
+.diff-toggle-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  margin-left: auto !important;
+  flex-shrink: 0 !important;
+  gap: 10px !important;
+}
+
+.diff-toggle--compact {
+  height: 31px !important;
+  box-sizing: border-box !important;
+  padding: 5px 12px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  border-radius: 999px !important;
+  font-family: var(--font-sans) !important;
+}
+
+.diff-toggle--compact .diff-toggle-icon {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+@media (max-width: 768px) {
+  .map-section {
+    padding-top: 8px !important;
+    padding-bottom: 14px !important;
+  }
+
+  .map-heading-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    min-height: 28px !important;
+    gap: 8px !important;
+    margin-bottom: 10px !important;
+    width: 100% !important;
+  }
+
+  .map-legend-area {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+    gap: 10px !important;
+    margin: 0 !important;
+  }
+
+  .map-legend-area > .map-legend {
+    order: 0 !important;
+  }
+
+  .map-legend-area--diff,
+  .map-legend-area:has(> .diff-legend) {
+    justify-content: center !important;
+  }
+
+  .map-legend-area--diff > .diff-legend,
+  .map-legend-area > .diff-legend,
+  .diff-legend {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    margin: 0 auto !important;
+    gap: 12px !important;
+    text-align: center !important;
+    flex-wrap: wrap !important;
+    order: 0 !important;
+  }
+
+  .diff-legend span {
+    white-space: nowrap !important;
+  }
+
+  .map-legend-area--diff > .diff-toggle-wrap,
+  .map-legend-area:has(> .diff-legend) > .diff-toggle-wrap {
+    display: none !important;
+  }
+
+  .map-legend-area > .diff-toggle-wrap {
+    order: 2 !important;
+    margin-left: auto !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .map-legend {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: auto !important;
+    gap: 10px !important;
+    margin: 0 !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .map-legend-area {
+    gap: 8px !important;
+  }
+
+  .diff-legend {
+    gap: 8px !important;
+  }
+
+  .diff-legend span {
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .map-legend {
+    gap: 8px !important;
+    font-size: 11px !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    width: auto !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    padding-bottom: 2px !important;
+    scrollbar-width: none !important;
+  }
+
+  .map-legend::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .map-legend span {
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .diff-toggle-wrap {
+    gap: 6px !important;
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+  }
+
+  .diff-toggle--compact {
+    height: 29px !important;
+    padding: 4px 9px !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+    border-radius: 999px !important;
+    flex-shrink: 0 !important;
+  }
+}

@@ -1,0 +1,713 @@
+/* Atlas Dialogs, Auth/Record Modals, Forms, Toasts & Install Prompt */
+
+.mode-experiences .record-dialog,
+.mode-experiences .info-panel {
+  background: #11111b;
+  color: #f0f0f0;
+}
+
+.mode-experiences .record-dialog::before {
+  background: linear-gradient(to bottom, #181825 0%, transparent 100%);
+}
+
+.mode-experiences .record-dialog>p,
+.mode-experiences .info-panel>p {
+  color: #bac2de;
+}
+
+/* ── Configuration note ─────────────────── */
+.configuration-note {
+  margin: 22px auto 0;
+  max-width: 1050px;
+  padding: 13px 17px;
+  background: #fff4d9;
+  border: 1px solid #ecd9a5;
+  color: #705b24;
+  font-size: 13px;
+  animation: fadeUp 0.4s ease;
+}
+
+.configuration-note code {
+  font-family: var(--font-mono);
+}
+
+/* ── Modal backdrop ─────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  z-index: 300;
+  inset: 0;
+  background: rgba(20, 52, 42, 0.53);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  animation: fadeIn 0.2s ease;
+  overscroll-behavior: contain;
+}
+
+/* ── Auth dialog ────────────────────────── */
+.auth-dialog,
+.record-dialog {
+  background: #fffdf9;
+  max-width: 420px;
+  width: 100%;
+  position: relative;
+  padding: 42px 38px 31px;
+  box-shadow: 0 24px 48px rgba(16, 45, 36, 0.15);
+  border-radius: 16px;
+  animation: fadeScale 0.25s ease;
+  overflow: hidden;
+}
+
+.auth-dialog {
+  --ink: #18342d;
+  --pine: #245f52;
+  --sage: #5c9b7d;
+  --paper: #faf8f1;
+  --sand: #f0eadc;
+  --line: #dce4da;
+  --muted: #62716b;
+  --amber: #d2a54b;
+  --amber-bg: #fff8e7;
+  color: var(--ink);
+  padding: 34px 34px 28px;
+}
+
+.auth-dialog .icon-button {
+  top: 20px;
+  right: 20px;
+}
+
+/* Header background for record dialog */
+.record-dialog::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(to bottom, var(--sand) 0%, transparent 100%);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.mode-countries .record-dialog::before {
+  background: linear-gradient(to bottom, #f0e8f4 0%, transparent 100%);
+}
+
+.record-dialog>*:not(.icon-button) {
+  position: relative;
+  z-index: 1;
+}
+
+.record-dialog .icon-button {
+  z-index: 2;
+}
+
+.record-dialog h2 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.auth-dialog h2 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.auth-dialog .eyebrow + h2 {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.auth-dialog>p,
+.record-dialog>p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 19px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-form label,
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3c5148;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+input[type="text"],
+input[type="url"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  transition: all var(--transition);
+}
+
+/* ── Modern Date Picker ────────────────── */
+input[type="date"] {
+  position: relative;
+  padding-right: 40px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  opacity: 0.5;
+  filter: invert(0.2);
+  transition: opacity var(--transition);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+input[type="text"]:focus,
+input[type="url"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="date"]:focus,
+textarea:focus {
+  outline: 2px solid #9fc5b1;
+  border-color: var(--sage);
+}
+
+.form-message {
+  font-size: 12px;
+  color: var(--danger);
+  margin: 0;
+  animation: fadeUp 0.2s ease;
+}
+
+.link-button {
+  border: 0;
+  background: transparent;
+  color: var(--pine);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-top: 18px;
+  padding: 0;
+  transition: opacity var(--transition);
+}
+
+.link-button:hover {
+  opacity: 0.65;
+}
+
+/* ── Record dialog ──────────────────────── */
+.record-dialog {
+  max-width: 455px;
+  max-height: calc(100vh - 36px);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px 32px 22px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(35, 78, 82, 0.2) transparent;
+}
+
+.record-dialog .icon-button {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 10;
+}
+
+.record-dialog h2 {
+  margin-bottom: 4px;
+}
+
+.record-dialog>p {
+  margin-bottom: 12px;
+}
+
+.record-dialog .field-label {
+  margin-bottom: 11px;
+}
+
+.record-dialog .file-dropzone {
+  padding: 12px 14px;
+  gap: 4px;
+}
+
+.record-dialog .file-dropzone svg {
+  width: 20px;
+  height: 20px;
+}
+
+.record-dialog .file-dropzone-text {
+  font-size: 12px;
+}
+
+.record-dialog textarea {
+  min-height: 50px;
+  padding: 8px 10px;
+}
+
+.field-label textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.input-help {
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.file-count {
+  font-size: 13px;
+  color: var(--pine) !important;
+  margin-top: -4px !important;
+  font-weight: 500;
+}
+
+/* ── Modern File Dropzone ──────────────── */
+.file-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  border: 1.5px dashed var(--sage);
+  border-radius: 8px;
+  background: rgba(92, 155, 125, 0.04);
+  color: var(--pine);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: center;
+}
+
+.file-dropzone:hover {
+  background: rgba(92, 155, 125, 0.08);
+  border-color: var(--pine);
+}
+
+.mode-countries .file-dropzone {
+  border-color: var(--sage);
+  background: rgba(149, 112, 199, 0.04);
+  color: var(--pine);
+}
+
+.mode-countries .file-dropzone:hover {
+  background: rgba(149, 112, 199, 0.08);
+  border-color: var(--pine);
+}
+
+.file-dropzone svg {
+  width: 24px;
+  height: 24px;
+  opacity: 0.8;
+}
+
+.file-dropzone-text {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.file-dropzone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-dropzone.file-dropzone--disabled,
+.file-dropzone:has(input:disabled) {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  border-color: var(--muted) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+.file-dropzone.file-dropzone--disabled input[type="file"],
+.file-dropzone:has(input:disabled) input[type="file"] {
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+/* ── Custom Toggle ─────────────────────── */
+.custom-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  user-select: none;
+}
+
+.custom-toggle input {
+  display: none;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: var(--line);
+  border-radius: 20px;
+  transition: background 0.3s;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.custom-toggle input:checked+.toggle-switch {
+  background: var(--pine);
+}
+
+.custom-toggle input:checked+.toggle-switch::after {
+  transform: translateX(16px);
+}
+
+/* ── Toast ──────────────────────────────── */
+.toast {
+  position: fixed;
+  z-index: 9999;
+  left: 50%;
+  bottom: 85px;
+  transform: translateX(-50%);
+  background: #183b31;
+  color: white;
+  padding: 12px 22px;
+  font-size: 13px;
+  box-shadow: 0 4px 15px rgba(22, 59, 48, 0.5);
+  animation: toastFadeUp 0.3s ease;
+  border-radius: 2px;
+  max-width: min(92vw, 480px);
+  text-align: center;
+}
+
+.toast--hiding {
+  animation: fadeOut 0.3s ease forwards;
+}
+
+@keyframes toastFadeUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+}
+
+@media (max-width: 700px) {
+  .auth-dialog,
+  .record-dialog {
+    padding: 32px 22px 24px;
+    max-width: 100%;
+  }
+
+  .auth-dialog {
+    padding: 26px 20px 22px;
+  }
+
+  .auth-dialog .icon-button {
+    top: 16px;
+    right: 16px;
+  }
+
+  .auth-dialog h2 {
+    font-size: 24px;
+    margin-bottom: 18px;
+  }
+
+  .configuration-note {
+    margin: 12px 16px 0;
+  }
+
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .toast {
+    font-size: 12px;
+    padding: 10px 18px;
+    bottom: 85px;
+  }
+}
+
+.mode-countries .toast {
+  background: #352551;
+}
+
+.mode-countries .modal-backdrop {
+  background: rgba(42, 31, 61, 0.53);
+}
+
+/* ── PWA Install Prompt ────────────────── */
+@keyframes installSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes installSlideDown {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes installOverlayIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes installOverlayOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+.install-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(20, 40, 35, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  animation: installOverlayIn 0.3s ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.install-prompt-overlay--closing {
+  animation: installOverlayOut 0.28s ease forwards;
+}
+
+.install-prompt-dialog {
+  background: #fffdf8;
+  width: 100%;
+  max-width: 480px;
+  padding: 28px 24px 22px;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(16, 45, 36, 0.25);
+  position: relative;
+  animation: installSlideUp 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.install-prompt-dialog--closing {
+  animation: installSlideDown 0.28s ease forwards;
+}
+
+.install-prompt-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.install-prompt-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--ink);
+}
+
+.install-prompt-icon {
+  width: 56px;
+  height: 56px;
+  background: transparent;
+  border-radius: 0;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  box-shadow: none;
+}
+
+.install-prompt-icon svg {
+  width: 34px;
+  height: 34px;
+}
+
+.install-prompt-title {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px;
+  letter-spacing: 0.13em;
+}
+
+.install-prompt-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 18px;
+  max-width: 300px;
+}
+
+.install-prompt-btn {
+  margin-bottom: 14px;
+  font-size: 15px !important;
+  padding: 13px 20px !important;
+  border-radius: 12px !important;
+  gap: 10px !important;
+}
+
+.install-prompt-ios-steps {
+  background: #f0f6f2;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #3c5148;
+}
+
+.install-prompt-ios-steps p {
+  margin: 0;
+}
+
+.install-prompt-share-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  color: #245f52;
+}
+
+.install-prompt-dismiss {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+  transition: color var(--transition);
+}
+
+.install-prompt-dismiss:hover {
+  color: var(--ink);
+}
+
+.install-prompt-dismiss input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--pine);
+  cursor: pointer;
+}
+
+@media (min-width: 701px) {
+  .install-prompt-overlay {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .toast {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* QR Modal Dark Theme */
+.mode-experiences .qr-modal-card {
+  background: #181825 !important;
+  border-color: #313244 !important;
+  color: #f0f0f0 !important;
+}
+
+.mode-experiences .qr-modal-card h2 {
+  color: #ffffff !important;
+}
+
+.mode-experiences .qr-modal-card p {
+  color: #a6adc8 !important;
+}
+
+.mode-experiences .qr-modal-card .button--secondary {
+  background: #1e1e2e !important;
+  border-color: #313244 !important;
+  color: #f0f0f0 !important;
+}

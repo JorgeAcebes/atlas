@@ -1,141 +1,177 @@
-const CACHE_NAME = 'atlas-cache-v12';
+const CACHE_VERSION = "v13";
+const CACHE_NAME = "atlas-cache-v13";
+const PHOTOS_CACHE = `atlas-photos-${CACHE_VERSION}`;
+const TILES_CACHE = `atlas-tiles-${CACHE_VERSION}`;
 
-// Recursos estáticos iniciales a cachear durante instalación.
-// Solo archivos PNG que existen en /public y son esenciales para la PWA.
-// NO precacheamos '/' para que el HTML nunca quede congelado.
-// Los SVGs servidos por Next.js (app/icon.svg) pueden devolver redirects
-// o headers especiales que rompen cache.addAll() — los excluimos del precache.
-const PRECACHE_URLS = [
+const MAX_PHOTO_CACHE_ENTRIES = 150;
+const MAX_TILE_CACHE_ENTRIES = 250;
+
+const STATIC_ASSETS = [
   '/manifest.json',
+  '/world-countries.topo.json',
+  '/provincias_spain.topo.json',
   '/icon-1024.png',
   '/icon-512.png',
   '/icon-192.png',
   '/icon-maskable-1024.png',
   '/icon-maskable-512.png',
   '/icon-maskable-192.png',
-  '/apple-touch-icon.png'
+  '/apple-touch-icon.png',
 ];
 
-self.addEventListener('install', (event) => {
+async function trimCache(cacheName, maxEntries) {
+  try {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    if (keys.length <= maxEntries) return;
+    const excess = keys.length - maxEntries;
+    for (let i = 0; i < excess; i++) {
+      await cache.delete(keys[i]);
+    }
+  } catch {
+    /* ignore cache trim errors */
+  }
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).catch(() => {})
+  );
   self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  const validCaches = new Set([CACHE_NAME, PHOTOS_CACHE, TILES_CACHE]);
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS);
-    })
+    (async () => {
+      if (self.registration && self.registration.navigationPreload) {
+        await self.registration.navigationPreload.enable().catch(() => {});
+      }
+      const names = await caches.keys();
+      await Promise.all(names.filter((n) => !validCaches.has(n)).map((n) => caches.delete(n)));
+      await self.clients.claim();
+    })()
   );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+function isPhotoUrl(url) {
+  if (url.origin === self.location.origin && url.pathname.startsWith("/api/photos/view/")) {
+    return true;
+  }
+  return url.hostname.endsWith(".r2.dev") || url.pathname.startsWith("/photos/");
+}
+
+function isImmutableAsset(url) {
+  return (
+    url.origin === self.location.origin &&
+    (url.pathname.startsWith("/_next/static/") || url.pathname.endsWith(".topo.json"))
   );
-});
+}
 
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
 
-  // 1. Cache First para tiles de OpenStreetMap y CDN assets
-  if (
-    url.hostname.endsWith('tile.openstreetmap.org') ||
-    url.hostname === 'cdn.jsdelivr.net' ||
-    url.hostname === 'gist.githubusercontent.com' ||
-    url.hostname === 'fonts.googleapis.com' ||
-    url.hostname === 'fonts.gstatic.com'
-  ) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) return cachedResponse;
-        return fetch(event.request).then((networkResponse) => {
-          // Cache the response if successful
-          if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        });
-      })
-    );
+  const url = new URL(req.url);
+
+  // Never intercept Supabase auth/data or mutating API calls
+  if (url.hostname.includes("supabase.co") || url.hostname.includes("supabase.in")) {
     return;
   }
 
-  // 2. Network First (con fallback a Cache) para llamadas a Supabase API 
-  if (url.hostname.endsWith('supabase.co')) {
+  // 1. Photos (/api/photos/view/* & optional R2 CDN): Cache-First + LRU bounded cache
+  if (isPhotoUrl(url)) {
     event.respondWith(
-      fetch(event.request).catch(async () => {
-        const cached = await caches.match(event.request);
+      caches.open(PHOTOS_CACHE).then(async (cache) => {
+        const cached = await cache.match(req);
         if (cached) return cached;
-        return new Response(JSON.stringify({ error: 'offline' }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      })
-    );
-    return;
-  }
-
-  // 3. Network First con fallback a Cache para navegaciones HTML (evita páginas desactualizadas tras despliegues o cambios de dominio)
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cached = await caches.match(event.request);
-          if (cached) return cached;
-          const cachedRoot = await caches.match('/');
-          if (cachedRoot) return cachedRoot;
-          return new Response('Sin conexión', {
-            status: 503,
-            statusText: 'Service Unavailable',
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-          });
-        })
-    );
-    return;
-  }
-
-  // 4. Stale-While-Revalidate para recursos estáticos (JS, CSS, imágenes)
-  if (event.request.method === 'GET' && !url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        const fetchPromise = fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        });
-
-        // Devolver lo que haya en caché inmediatamente y revalidar en segundo plano
-        if (cachedResponse) {
-          fetchPromise.catch(() => {});
-          return cachedResponse;
+        const response = await fetch(req);
+        if (response && response.ok && response.status === 200) {
+          cache.put(req, response.clone()).then(() => trimCache(PHOTOS_CACHE, MAX_PHOTO_CACHE_ENTRIES));
         }
-
-        // Si no está en caché, esperar a la red directamente
-        return fetchPromise;
+        return response;
       })
     );
     return;
+  }
+
+  // Skip all other /api/ calls
+  if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) {
+    return;
+  }
+
+  // 2. OpenStreetMap Tiles: Cache-First + LRU bounded cache
+  if (url.hostname.endsWith("tile.openstreetmap.org")) {
+    event.respondWith(
+      caches.open(TILES_CACHE).then(async (cache) => {
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        const response = await fetch(req);
+        if (response && response.ok) {
+          cache.put(req, response.clone()).then(() => trimCache(TILES_CACHE, MAX_TILE_CACHE_ENTRIES));
+        }
+        return response;
+      })
+    );
+    return;
+  }
+
+  // 3. Immutable hashed Next static bundles & TopoJSON: strict Cache-First (no re-fetch on every load)
+  if (isImmutableAsset(url)) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        const response = await fetch(req);
+        if (response && response.ok) {
+          cache.put(req, response.clone());
+        }
+        return response;
+      })
+    );
+    return;
+  }
+
+  // 4. HTML navigations: navigationPreload -> network-first with cache fallback
+  if (req.mode === "navigate") {
+    event.respondWith(
+      (async () => {
+        try {
+          const preloadResp = await event.preloadResponse;
+          if (preloadResp && preloadResp.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(req, preloadResp.clone());
+            return preloadResp;
+          }
+          const networkResp = await fetch(req);
+          if (networkResp && networkResp.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(req, networkResp.clone());
+          }
+          return networkResp;
+        } catch {
+          const cached = await caches.match(req);
+          return cached || Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
+  // 5. Same-origin public static icons/assets: Stale-While-Revalidate
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        const networkFetch = fetch(req)
+          .then((res) => {
+            if (res && res.ok) {
+              caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
+            }
+            return res;
+          })
+          .catch(() => cached || Response.error());
+        return cached || networkFetch;
+      })
+    );
   }
 });

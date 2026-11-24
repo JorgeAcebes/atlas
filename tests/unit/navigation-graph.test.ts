@@ -1,11 +1,9 @@
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
+import { readFile, readTrackerSources } from "@/tests/utils/source-reader";
 
 describe("Navigation Graph & History Stack Invariants (Opciones A y B)", () => {
-  const rootDir = process.cwd();
-  const shellFile = fs.readFileSync(path.join(rootDir, "components/app-tabs-shell.tsx"), "utf-8");
-  const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+  const shellFile = readFile("components/app-tabs-shell.tsx");
+  const trackerFile = readTrackerSources();
 
   describe("Opción A: Limpieza de subniveles al navegar entre pestañas principales", () => {
     it("should clean existing hash with replaceState before pushing a new tab route", () => {
@@ -40,13 +38,16 @@ describe("Navigation Graph & History Stack Invariants (Opciones A y B)", () => {
 
     it("should use replaceState in scrollToMap instead of pushState to prevent ghost back-steps", () => {
       expect(trackerFile).toMatch(
-        /scrollToMap\s*=\s*useCallback\([\s\S]*?window\.history\.replaceState\(null,\s*"",\s*"#mapa"\);/
+        /function scrollToMap[\s\S]*?window\.history\.replaceState\(null,\s*"",\s*"#mapa"\);/
       );
     });
 
     it("should use replaceState on Atlas brand click instead of pushState", () => {
       expect(trackerFile).toMatch(
-        /className="brand"[\s\S]*?if\s*\(window\.location\.hash\)\s*\{[\s\S]*?window\.history\.replaceState\(null,\s*"",/
+        /className="brand"[\s\S]*?scrollToTopSmooth\(\)/
+      );
+      expect(trackerFile).toMatch(
+        /function scrollToTopSmooth[\s\S]*?if\s*\(window\.location\.hash\)\s*\{[\s\S]*?window\.history\.replaceState\(null,\s*"",/
       );
     });
   });

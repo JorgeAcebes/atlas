@@ -58,9 +58,14 @@ export function ProfileView({
     router.push(path);
   };
 
+  const sessionUserId = session?.user?.id || null;
+
   useEffect(() => {
     if (!supabase) return;
+    let cancelled = false;
     async function loadData() {
+      setError("");
+      setLoading(true);
       // 1. Fetch profile by username
       const { data: profileData, error: profileError } = await supabase!
         .from("profiles")
@@ -68,7 +73,9 @@ export function ProfileView({
         .eq("username", username)
         .single();
 
-      if (profileError || !profileData || (profileData.is_test && (!session || session.user.id !== profileData.id))) {
+      if (cancelled) return;
+
+      if (profileError || !profileData || (profileData.is_test && (!sessionUserId || sessionUserId !== profileData.id))) {
         setError("Usuario no encontrado.");
         setLoading(false);
         return;
@@ -79,13 +86,15 @@ export function ProfileView({
 
       // 2. Fetch connection status before revealing SummitTracker so follow state is instantaneous
       let connStatus: "pending" | "accepted" | null = null;
-      if (session?.user?.id && session.user.id !== profileData.id) {
+      if (sessionUserId && sessionUserId !== profileData.id) {
         const { data: connData } = await supabase!
           .from("connections")
           .select("status")
-          .eq("follower_id", session.user.id)
+          .eq("follower_id", sessionUserId)
           .eq("following_id", profileData.id)
           .maybeSingle();
+
+        if (cancelled) return;
 
         if (connData) {
           connStatus = connData.status as "pending" | "accepted";
@@ -97,7 +106,10 @@ export function ProfileView({
       setLoading(false);
     }
     loadData();
-  }, [username, session]);
+    return () => {
+      cancelled = true;
+    };
+  }, [username, sessionUserId]);
 
   if (loading) {
     const initial = username ? username.charAt(0).toUpperCase() : "?";

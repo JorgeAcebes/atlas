@@ -147,12 +147,22 @@ export async function acceptTripInvitation(
         effectiveTripGroupId = inviterAscent.trip_group_id;
       }
     } else {
-      const { data: inviterExp } = await supabase
+      let inviterExpQuery = supabase
         .from("experience_records")
         .select("trip_group_id")
         .eq("user_id", invitation.inviter_id)
         .eq("experience_id", invitation.item_id)
-        .eq("achieved_on", invitation.start_date)
+        .eq("achieved_on", invitation.start_date);
+
+      if (invitation.sub_item_id) {
+        inviterExpQuery = inviterExpQuery.eq("sub_item_id", invitation.sub_item_id);
+      } else {
+        inviterExpQuery = inviterExpQuery.is("sub_item_id", null);
+      }
+
+      const { data: inviterExp } = await inviterExpQuery
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
       if (inviterExp?.trip_group_id) {
         effectiveTripGroupId = inviterExp.trip_group_id;
@@ -305,7 +315,7 @@ export async function acceptTripInvitation(
             .from("experience_records")
             .update({
               achieved_on: invitation.start_date,
-              trip_group_id: invitation.trip_group_id,
+              trip_group_id: effectiveTripGroupId,
               location_name: invitation.location_name || null,
               lat: invitation.lat ?? null,
               lng: invitation.lng ?? null,
@@ -364,7 +374,7 @@ export async function acceptTripInvitation(
       .eq("id", invitation.id);
 
     // Clean up any stale duplicate invitations between this inviter and companion for this item and date
-    await supabase
+    let dupCleanupQuery = supabase
       .from("record_companions")
       .delete()
       .eq("companion_id", currentUserId)
@@ -372,6 +382,16 @@ export async function acceptTripInvitation(
       .eq("item_id", invitation.item_id)
       .eq("start_date", invitation.start_date)
       .neq("id", invitation.id);
+
+    if (invitation.record_type === "experience") {
+      if (invitation.sub_item_id) {
+        dupCleanupQuery = dupCleanupQuery.eq("sub_item_id", invitation.sub_item_id);
+      } else {
+        dupCleanupQuery = dupCleanupQuery.is("sub_item_id", null);
+      }
+    }
+
+    await dupCleanupQuery;
 
     if (updErr) {
       return { success: false, error: updErr.message };

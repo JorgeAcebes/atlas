@@ -24,7 +24,11 @@ export function MarqueeText({
     const track = trackRef.current;
     if (!container || !track) return;
 
+    let rafId: number | null = null;
+    let cancelled = false;
+
     const measure = () => {
+      if (cancelled) return;
       const containerWidth = container.clientWidth;
       if (containerWidth === 0) return;
 
@@ -51,18 +55,33 @@ export function MarqueeText({
       }
     };
 
-    measure();
+    const scheduleMeasure = () => {
+      if (cancelled) return;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        measure();
+      });
+    };
+
+    scheduleMeasure();
 
     const ro = new ResizeObserver(() => {
-      measure();
+      scheduleMeasure();
     });
     ro.observe(container);
 
     if (typeof document !== "undefined" && document.fonts?.ready) {
-      document.fonts.ready.then(measure);
+      document.fonts.ready.then(scheduleMeasure);
     }
 
     return () => {
+      cancelled = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
       ro.disconnect();
     };
   }, [text, active]);

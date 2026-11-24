@@ -1,13 +1,19 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import {
+  readAllStyles,
+  readSocialSources,
+  readStatsSources,
+  readTrackerSources,
+} from "@/tests/utils/source-reader";
 
 describe("Seamless Navigation from Stats/Gallery to Record & Mobile Social Hero Share/QR", () => {
   const rootDir = path.resolve(__dirname, "../..");
 
   it("1. Stats and Gallery seamless transition: Keeps stats open under panel, preserves gallery state, replaces lightbox history, and displays Atlas loading indicator on delay", () => {
-    const statsModalFile = fs.readFileSync(path.join(rootDir, "components/stats-modal.tsx"), "utf-8");
-    const trackerFile = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
+    const statsModalFile = readStatsSources();
+    const trackerFile = readTrackerSources();
 
     // In stats-modal.tsx, handleGoToRecord replaces #lightbox with #galeria so history back returns straight to gallery
     expect(statsModalFile).toContain('window.history.replaceState({ statsGallery: true }, "", "#galeria");');
@@ -34,14 +40,14 @@ describe("Seamless Navigation from Stats/Gallery to Record & Mobile Social Hero 
     expect(trackerFile).toContain("zIndex: 10200");
 
     // handleHashChange protects statsOpen while panel is open from stats
-    expect(trackerFile).toMatch(/if\s*\(!panelOpenedFromStatsRef\.current\)\s*\{\s*setStatsOpen\(false\);\s*\}/);
+    expect(trackerFile).toMatch(/if\s*\(!panelOpenedFromStatsRef\.current\)\s*setStatsOpen\(false\);/);
   });
 
   it("2. Mobile Social hero layout: Preserves exact hero-stat typography, shifts ratio, and stacks Share & QR buttons", () => {
-    const socialFile = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-    const cssFile = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+    const socialFile = readSocialSources();
+    const cssFile = readAllStyles();
 
-    // SocialTab contains hero-stat-wrap, keeping strong and span as direct children of hero-stat
+    // SocialTab / SocialHero contains hero-stat-wrap, keeping strong and span as direct children of hero-stat
     expect(socialFile).toContain("hero-stat-wrap");
     expect(socialFile).toMatch(/<aside className="hero-stat"[^>]*>\s*<strong/);
     expect(socialFile).toMatch(/<\/strong>\s*<span suppressHydrationWarning>\{activeUnit\}<\/span>/);

@@ -1,7 +1,37 @@
 import type { Metadata, Viewport } from "next";
+import { DM_Sans, DM_Mono, Fraunces, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppTabsShell } from "@/components/app-tabs-shell";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-dm-sans",
+  display: "swap",
+});
+
+const dmMono = DM_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-dm-mono",
+  display: "swap",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-fraunces",
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-playfair",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://atlas-log.vercel.app"),
@@ -47,9 +77,6 @@ export const metadata: Metadata = {
   },
 };
 
-import { cookies } from "next/headers";
-import type { UserProfile } from "@/components/auth-context";
-
 export const viewport: Viewport = {
   themeColor: "#245f52",
   width: "device-width",
@@ -58,24 +85,80 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  let initialProfile: UserProfile | null = null;
+const BOOTSTRAP_SCRIPT = `
+(function() {
+  if (typeof window === 'undefined') return;
   try {
-    const cookieStore = await cookies();
-    const rawProfile = cookieStore.get("app_user_profile")?.value;
-    if (rawProfile) {
-      initialProfile = JSON.parse(decodeURIComponent(rawProfile));
-    }
-  } catch {
-    // Ignore cookie read error (e.g. during static build)
-  }
+    var isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches ||
+      window.matchMedia('(display-mode: minimal-ui)').matches ||
+      window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+      ('standalone' in navigator && navigator.standalone === true) ||
+      (document.referrer && document.referrer.indexOf('android-app://') !== -1) ||
+      (typeof localStorage !== 'undefined' && localStorage.getItem('pwa_app_installed') === 'true') ||
+      window.location.search.indexOf('mode=pwa') !== -1 ||
+      window.location.search.indexOf('source=pwa') !== -1;
 
+    if (isStandalone && typeof document !== 'undefined') {
+      document.documentElement.classList.add('is-pwa');
+      try { localStorage.setItem('pwa_app_installed', 'true'); } catch(e) {}
+    }
+
+    if (window.location.hostname === '196-paises.vercel.app' && !isStandalone) {
+      window.location.replace('https://atlas-log.vercel.app' + window.location.pathname + window.location.search + window.location.hash);
+      return;
+    }
+
+    window.__atlasInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      window.__atlasInstallPrompt = e;
+      window.dispatchEvent(new CustomEvent('atlas-install-prompt-ready'));
+    });
+    window.addEventListener('appinstalled', function() {
+      try { localStorage.setItem('pwa_app_installed', 'true'); } catch(e) {}
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.add('is-pwa');
+      }
+      window.__atlasInstallPrompt = null;
+      window.dispatchEvent(new CustomEvent('atlas-app-installed'));
+    });
+
+    if ('serviceWorker' in navigator) {
+      var hadController = !!navigator.serviceWorker.controller;
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (hadController && !refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+      var registerSW = function() {
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+          reg.update();
+        }).catch(function(err) {
+          console.warn('SW registration failed:', err);
+        });
+      };
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW, { once: true });
+      }
+    }
+  } catch(e) {}
+})();
+`;
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es">
+    <html
+      lang="es"
+      className={`${dmSans.variable} ${dmMono.variable} ${fraunces.variable} ${playfair.variable}`}
+      suppressHydrationWarning
+    >
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&display=swap" rel="stylesheet" />
         <link rel="preload" href="/world-countries.topo.json" as="fetch" crossOrigin="anonymous" />
         <link rel="prefetch" href="/provincias_spain.topo.json" as="fetch" crossOrigin="anonymous" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -83,135 +166,14 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="application-name" content="Atlas" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var isStandalone = 
-                    window.matchMedia('(display-mode: standalone)').matches ||
-                    window.matchMedia('(display-mode: fullscreen)').matches ||
-                    window.matchMedia('(display-mode: minimal-ui)').matches ||
-                    window.matchMedia('(display-mode: window-controls-overlay)').matches ||
-                    (typeof navigator !== 'undefined' && 'standalone' in navigator && navigator.standalone === true) ||
-                    (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('android-app://') !== -1) ||
-                    (typeof localStorage !== 'undefined' && localStorage.getItem('pwa_app_installed') === 'true') ||
-                    window.location.search.indexOf('mode=pwa') !== -1 ||
-                    window.location.search.indexOf('source=pwa') !== -1;
-                  if (isStandalone && typeof document !== 'undefined') {
-                    document.documentElement.classList.add('is-pwa');
-                    try { localStorage.setItem('pwa_app_installed', 'true'); } catch(e) {}
-                  }
-                } catch(e) {}
-              })();
-              window.__atlasInstallPrompt = null;
-              window.addEventListener('beforeinstallprompt', function(e) {
-                e.preventDefault();
-                window.__atlasInstallPrompt = e;
-                window.dispatchEvent(new CustomEvent('atlas-install-prompt-ready'));
-              });
-              window.addEventListener('appinstalled', function() {
-                try { localStorage.setItem('pwa_app_installed', 'true'); } catch(e) {}
-                if (typeof document !== 'undefined') {
-                  document.documentElement.classList.add('is-pwa');
-                }
-                window.__atlasInstallPrompt = null;
-                window.dispatchEvent(new CustomEvent('atlas-app-installed'));
-              });
-            `,
-          }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: BOOTSTRAP_SCRIPT }} />
       </head>
       <body>
-        <Providers initialProfile={initialProfile}>
+        <Providers>
           <AppTabsShell>
             {children}
           </AppTabsShell>
         </Providers>
-        <svg
-          width="0"
-          height="0"
-          style={{ position: "absolute", width: 0, height: 0, pointerEvents: "none" }}
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id="logoGradGreen" x1="8" y1="12" x2="44" y2="52">
-              <stop stopColor="#5c9b7d" />
-              <stop offset="1" stopColor="#245f52" />
-            </linearGradient>
-            <linearGradient id="logoGradPurple" x1="20" y1="26" x2="56" y2="60">
-              <stop stopColor="#9570c7" />
-              <stop offset="1" stopColor="#5b3a8c" />
-            </linearGradient>
-          </defs>
-        </svg>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if (typeof window !== 'undefined') {
-                var isStandalone = 
-                  window.matchMedia('(display-mode: standalone)').matches ||
-                  window.matchMedia('(display-mode: fullscreen)').matches ||
-                  window.matchMedia('(display-mode: minimal-ui)').matches ||
-                  window.matchMedia('(display-mode: window-controls-overlay)').matches ||
-                  (typeof navigator !== 'undefined' && 'standalone' in navigator && navigator.standalone === true) ||
-                  (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('android-app://') !== -1) ||
-                  (typeof localStorage !== 'undefined' && localStorage.getItem('pwa_app_installed') === 'true') ||
-                  window.location.search.indexOf('mode=pwa') !== -1;
-
-                if (isStandalone && typeof document !== 'undefined') {
-                  document.documentElement.classList.add('is-pwa');
-                }
-
-                function registerAtlasSW() {
-                  if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                      reg.update();
-                    }).catch(function(err) {
-                      console.warn('SW registration failed:', err);
-                    });
-                  }
-                }
-
-                if (window.location.hostname === '196-paises.vercel.app') {
-                  if (isStandalone) {
-                    // Si el usuario lo tiene instalado como PWA antigua, permanece en este origen para evitar la barra verde "fuera de alcance"
-                    if (document.readyState === 'complete') {
-                      registerAtlasSW();
-                    } else {
-                      window.addEventListener('load', registerAtlasSW);
-                    }
-                    var hadControllerStandalone = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
-                    var refreshingStandalone = false;
-                    if ('serviceWorker' in navigator) {
-                      navigator.serviceWorker.addEventListener('controllerchange', function() {
-                        if (hadControllerStandalone && !refreshingStandalone) {
-                          refreshingStandalone = true;
-                          window.location.reload();
-                        }
-                      });
-                    }
-                  } else {
-                    // Si entra desde navegador web normal, redirige limpiamente al nuevo dominio
-                    window.location.replace('https://atlas-log.vercel.app' + window.location.pathname + window.location.search + window.location.hash);
-                  }
-                } else {
-                  registerAtlasSW();
-                  var hadController = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
-                  var refreshing = false;
-                  if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.addEventListener('controllerchange', function() {
-                      if (hadController && !refreshing) {
-                        refreshing = true;
-                        window.location.reload();
-                      }
-                    });
-                  }
-                }
-              }
-            `,
-          }}
-        />
       </body>
     </html>
   );

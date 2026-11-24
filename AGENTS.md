@@ -40,15 +40,17 @@ Una tarea sólo se considera concluida cuando:
 
 ```text
 ├── .agents/              # Configuración de agentes: rules/, skills/, workflows/, eval/
-├── app/                  # Next.js 15 App Router (páginas, layouts, APIs /api/keepalive)
-├── components/           # Componentes UI (mapas Leaflet, feeds, ranking, modal de fotos)
-├── data/                 # Datasets estáticos: peaks.ts (52/47), countries.ts (196), experiences.ts, regions.ts
+├── app/                  # Next.js 15 App Router (páginas, layouts, fuentes next/font, APIs /api/keepalive y /api/photos/*)
+├── components/           # Componentes UI modulares: tracker/, stats/, feed/, social/, ranking/, maps/, layout/, shared/
+├── data/                 # Datasets estáticos: peaks.ts (52/47), countries.ts (196), experiences.ts
 ├── docs/                 # Memoria persistente: architecture.md, decisions/ (ADR), plans/
-├── lib/                  # Clientes e utilidades: supabase.ts, image-utils.ts
-├── public/               # Cartografía TopoJSON/GeoJSON y assets estáticos
+├── hooks/                # Custom hooks compartidos (use-ranking-data, use-social-connections, use-pwa-install, etc.)
+├── lib/                  # Clientes, cachés y utilidades (supabase.ts, r2-storage.ts, photo-security.ts, leaflet-canvas-patch.ts, stats-calculations.ts, image-preloader.ts)
+├── public/               # Cartografía TopoJSON optimizada, iconos PWA y Service Worker (v13)
 ├── scripts/              # Herramientas: verify.sh, verify.mjs, protect-files.mjs, compress-photos
-├── supabase/migrations/  # Migraciones SQL contiguas (001 a 021+) con RLS obligatorio
-└── tests/                # Oráculos de prueba automáticos y mocks en memoria (@/tests/mocks)
+├── styles/               # Hojas CSS modulares importadas por app/globals.css (tokens, base, navigation, hero, maps, item-list, detail-panel, media-viewer, modals, social-feed)
+├── supabase/migrations/  # Migraciones SQL contiguas (001 a 034+; 001 a 021 congeladas) con RLS obligatorio
+└── tests/                # Suites Vitest (unit, integration, deep), source-reader y mocks (@/tests/mocks)
 ```
 
 ---
@@ -79,12 +81,13 @@ Una tarea sólo se considera concluida cuando:
 ### 4.4 Hidratación SSR y Mapas Leaflet
 - Mapas (`spain-map.tsx`, `world-map.tsx`) dependen de `window`: cargar siempre mediante `dynamic(() => import(...), { ssr: false })`.
 - Flag de perfil (`enable_experiences`) debe protegerse con estado `mounted` (`useEffect(() => setMounted(true), [])`) para evitar mismatch de hidratación.
-- **Blindaje de Sincronización de Canvas Vectorial y Zoom en Mapas Leaflet (`world-map.tsx`, `collective-map.tsx`, `spain-map.tsx`)**:
-  1. **Instancia Dedicada de Renderer por Mapa (`renderer={canvasRenderer}`)**: Cada mapa debe instanciar y pasar su propio renderizador Canvas a `<MapContainer renderer={canvasRenderer}>` (`padding: 3.5` en mapa mundial y colectivo —cubriendo 7 veces el viewport en todas las direcciones—, y `padding: 2.0` en España). Está terminantemente prohibido que los mapas compartan o dependan del prototipo global `L.Canvas.prototype.options.padding`, eliminando la contaminación de prototipo (race condition) donde el padding menor de España degradaba el mapamundi y provocaba que, al hacer zoom out rápido manteniendo los dedos sobre la pantalla, los países coloreados quedasen recortados a una pequeña caja rectangular centrada con grandes vacíos alrededor.
-  2. **Inicialización Obligatoria de Coordenadas en `<MapContainer>`**: Todo contenedor `<MapContainer>` debe declarar obligatoriamente sus propiedades `center` y `zoom` iniciales (`center={[20, 0]}` y `zoom={2}` en mundial, `center={[40.4168, -3.7038]}` y `zoom={5}` en España, condicional en colectivo). Esto erradica el salto o desaparición de la capa vectorial hacia el fondo de la pantalla durante el primer gesto de zoom nada más entrar o refrescar la página, garantizando que `_updateTransform` y los orígenes geométricos de Leaflet no se evalúen con matrices indefinidas.
-  3. **`animate: false` en Encuadre Inicial (`FitWorld`, `FitSpain`)**: El ajuste inicial de encuadre en `map.fitBounds` debe ejecutarse estrictamente con `{ animate: false }` para posicionar la cámara instantáneamente sin desencadenar transiciones CSS que choquen con la interacción táctil inmediata del usuario.
-  4. **Protección en `MapInvalidator` en el Montaje**: `MapInvalidator` debe invalidar las dimensiones (`map.invalidateSize({ animate: false, pan: false })`) de forma directa y única en el montaje inicial, reservando el bucle de sincronización RAF de 350ms exclusivamente para cuando el panel de detalles (`panelOpen`) cambie realmente de estado.
-  5. **Suspensión de Repintado Dinámico durante el Gesto de Zoom (`_atlasMovePatched`)**: El re-renderizado en tiempo real (`_onCanvasMove`) debe suspenderse estrictamente durante cualquier gesto o animación de zoom (`this._isZooming`, `_animatingZoom`, `touchZoom._zooming`, `zoomstart`/`zoomend`, o `!(this._map.dragging && this._map.dragging.moving())`). Debe cancelarse cualquier RAF pendiente en `zoomstart` y forzarse `this._update()` al concluir `zoomend`, garantizando que la capa vectorial nunca se desincronice respecto a las teselas cartográficas base.
+- **Blindaje de Sincronización de Canvas Vectorial, Cero-Island y Zoom en Mapas Leaflet (`world-map.tsx`, `collective-map.tsx`, `spain-map.tsx`, `lib/leaflet-canvas-patch.ts`)**:
+  1. **Instancia Adaptativa de Renderer por Mapa (`createAdaptiveCanvasRenderer`)**: Cada mapa instancia y pasa su propio renderizador Canvas (`L.canvas({ padding })`) sin mutar nunca `L.Canvas.prototype.options.padding`: `0.5` en escritorio (evita framebuffers HiDPI masivos), y `1.0` mundial/colectivo o `0.8` España en móvil/tableta, junto con `getAdaptiveKeepBuffer()` (`3` escritorio / `4` táctil).
+  2. **Inicialización Obligatoria de Coordenadas en `<MapContainer>`**: Todo contenedor `<MapContainer>` debe declarar obligatoriamente sus propiedades `center` y `zoom` iniciales (`center={[20, 0]}` y `zoom={2}` en mundial, `center={[40.4168, -3.7038]}` y `zoom={5}` en España, condicional en colectivo).
+  3. **`animate: false` en Encuadre Inicial y Protección Zero-Island (`FitWorld`, `FitSpain`, `MapActiveSynchronizer`)**: El ajuste inicial de encuadre en `map.fitBounds` se ejecuta con `{ animate: false }`. En España (`kind="spain"`), `MapActiveSynchronizer` y `MapZoomListener` (`mapState_spain`) validan los límites de España al reactivar la pestaña para erradicar saltos a `(0, 0)`.
+  4. **Protección en `MapInvalidator` en el Montaje**: `MapInvalidator` invalida las dimensiones (`map.invalidateSize({ animate: false, pan: false })`) de forma directa en montaje/activación de pestaña, reservando el bucle RAF de 350ms exclusivamente para cambios de `panelOpen`.
+  5. **Suspensión de Repintado Dinámico durante el Gesto de Zoom (`_atlasMovePatched`)**: El re-renderizado en tiempo real (`_onCanvasMove`) se suspende durante cualquier gesto o animación de zoom (`this._isZooming`, `_animatingZoom`, `touchZoom._zooming`, `zoomstart`/`zoomend`, o `!(this._map.dragging && this._map.dragging.moving())`), fijando además `smoothFactor = 1.2`.
+  6. **Prevención Pasiva de Zoom en UI (`components/pwa-zoom-lock.tsx`)**: Bloquea el zoom accidental de interfaz mediante CSS `touch-action` pasivo y listeners WebKit (`gesturestart`/`gesturechange`), sin interceptar listeners `touchstart`/`touchmove` globales sobre los mapas.
 
 ### 4.5 Ranking e Inmutabilidad de Layout (`components/ranking.css`, `app/globals.css`, `components/ranking-tab.tsx`)
 - Columnas del ranking inmutables independientemente de la longitud de textos o filtros.
@@ -197,20 +200,18 @@ Una tarea sólo se considera concluida cuando:
   - Purgado automático de claves antiguas de descarte en `localStorage` (`pwa_install_dismissed`) para permitir que la sugerencia de instalación vuelva a estar activa tras una desinstalación.
   - Detección preventiva con `navigator.getInstalledRelatedApps()` para no mostrar el botón de descarga en la cabecera si la app ya se encuentra instalada.
 
-### 4.21 Sincronización y Renderizado Continuo de Capa Vectorial en Mapas Leaflet (`components/world-map.tsx`, `components/spain-map.tsx`, `components/collective-map.tsx`)
-- **Prevención de Cortes Rectos de Lienzo (Padding Expandido)**: El renderizador `L.Canvas` de Leaflet utiliza `options.padding = 2.5` en el mapa mundial (`world-map.tsx`) y mapa colectivo (`collective-map.tsx`), manteniendo `0.5` en el mapa de España (`spain-map.tsx`), para disponer de un buffer de renderizado 6x del tamaño de la ventana gráfica en memoria y evitar bordes vacíos durante el desplazamiento.
-- **Hook Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`) y Protección contra Zoom**: Se engancha el manejador `_onCanvasMove` al evento continuo `events.move`. Al aproximarse la vista a menos de 60px del borde del canvas (`pxBounds`), se dispara un repintado fluido mediante `requestAnimationFrame(() => this._update())`. Durante cualquier gesto o animación de zoom (`_animatingZoom`, `touchZoom._zooming`, cambio de nivel de zoom o cuando no se esté arrastrando activamente), la función se interrumpe inmediatamente para impedir desplazamientos indeseados del lienzo mientras el contenedor tiene transformaciones CSS activas. Esto garantiza que los países y demarcaciones poligonales se expandan y actualicen dinámicamente al ritmo del mapa base durante el arrastre con el dedo o ratón, eliminando por completo cualquier corte recto sin descolocar el lienzo durante el zoom.
-- **Suavizado y Optimización de Polilíneas Vectoriales**: Se fija `L.Polyline.prototype.options.smoothFactor = 1.2;` de manera canónica para simplificar y optimizar el cómputo de trazado de fronteras y polígonos sin degradar la precisión geográfica.
+### 4.21 Sincronización y Renderizado Continuo de Capa Vectorial en Mapas Leaflet (`components/world-map.tsx`, `components/spain-map.tsx`, `components/collective-map.tsx`, `lib/leaflet-canvas-patch.ts`)
+- **Instancia Adaptativa de Renderer (`createAdaptiveCanvasRenderer`) y `keepBuffer`**: Cada mapa usa una instancia propia pasada a `<MapContainer renderer={canvasRenderer}>` (`padding: 0.5` en escritorio HiDPI; `1.0` mundial/colectivo y `0.8` España en móvil/tableta) junto con `getAdaptiveKeepBuffer()` (`3` escritorio / `4` táctil), sin mutar nunca `L.Canvas.prototype.options.padding`.
+- **Hook Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`) y Protección contra Zoom**: `ensureLeafletCanvasPatched()` engancha `_onCanvasMove` al evento continuo `events.move`, actualizando con `requestAnimationFrame(() => this._update())` al acercarse al borde del canvas y suspendiéndose estrictamente durante cualquier gesto o animación de zoom (`_isZooming`, `_animatingZoom`, `touchZoom._zooming`, cambio de zoom o `!dragging.moving()`).
+- **Suavizado y Bloqueo Táctil Pasivo**: Se fija `L.Polyline.prototype.options.smoothFactor = 1.2;` y `components/pwa-zoom-lock.tsx` + `styles/maps.css` protegen contra zoom accidental mediante CSS `touch-action` pasivo y listeners WebKit (`gesturestart`/`gesturechange`).
 
-### 4.22 Precarga en Segundo Plano Escalonada (Social, Ranking y Fotos) (`components/feed-tab.tsx`, `components/social-tab.tsx`, `components/ranking-tab.tsx`, `components/summit-tracker.tsx`)
-- **Eliminación de Bloqueos Estrictos por Inactividad**: Queda estrictamente prohibido bloquear la descarga de datos mediante `if (!isActive) return;` en pestañas que ya están montadas en memoria dentro de `app-tabs-shell.tsx`. La navegación entre pestañas (Mapa, Social, Ranking) debe ser instantánea y sin pantallas de carga ni spinners perceptibles.
-- **Escalonamiento Diferido de Prioridad Cero sobre el Mapa Inicial**:
-  - Para garantizar que el mapa inicial cargue con máxima prioridad, las peticiones en segundo plano se posponen de forma escalonada:
-    - **800ms - 1000ms**: `social-tab.tsx` precarga el progreso del usuario (`fetchUserProgress`) y sus conexiones (`fetchConnections`).
-    - **1100ms**: `feed-tab.tsx` precarga el feed social (`fetchFeed(true)`) y realiza la precarga en caché de las **primeras 30 fotos tanto para países como para picos** (`countryPhotosToPreload` y `peakPhotosToPreload`) utilizando `new Image()` y `img.decoding = "async"`.
-    - **1300ms**: `ranking-tab.tsx` precarga el ranking (`fetchRanking(true)`) en **ambas modalidades** (países y picos) en `globalRankingCache` y precarga las imágenes de perfil/avatares del top 30 de exploradores.
-    - **1500ms**: `summit-tracker.tsx` precarga en segundo plano las primeras 30 fotos de ascensiones o países del usuario.
-- **Invarianza de Experiencia de Usuario sin Esperas**: Al pulsar en las pestañas «Social» o «Ranking», o al conmutar modalidades, todos los datos, recuentos e imágenes deben encontrarse ya en memoria caché, asegurando una experiencia completamente instantánea y fluida.
+### 4.22 Carga Perezosa de Pestañas, Precarga Regulada y Arquitectura de Activos (`components/app-tabs-shell.tsx`, `lib/image-preloader.ts`, `styles/`, `lib/r2-storage.ts`, `public/sw.js`)
+- **Pestañas Inactivas Montadas Bajo Demanda + Warmup Inactivo**: `AppTabsShell` monta inicialmente solo la pestaña activa (`visitedTabs`) preservándola en memoria al visitarla, mientras precalienta los bundles JS inactivos vía `requestIdleCallback` (`warmChunks`).
+- **Precarga y Caché Reguladas en Segundo Plano**:
+  - `hooks/use-social-connections.ts` precarga progreso y conexiones (800ms) apoyado en `localStorage` (`app_social_data_${userId}`).
+  - `components/feed-tab.tsx` (`lib/feed-fetcher.ts`) precarga el feed (1100ms si inactiva) y emplea `preloadImages(result.preloadUrls, { maxConcurrent: 3, maxCount: 9 })` con `img.decoding = "async"`.
+  - `hooks/use-ranking-data.ts` precarga el ranking (1300ms) en **ambas modalidades** (países y picos) en `globalRankingCache`.
+- **Tipografía Autoalojada (`next/font`), CSS Modular y Almacenamiento R2 Env-Only**: Fuentes servidas vía `next/font/google` en `styles/tokens.css` (`--font-sans`, `--font-mono`, `--font-serif`, `--font-display`), CSS modular en `styles/`, credenciales Cloudflare R2 exclusivas de variables de entorno (`CLOUDFLARE_R2_*`), validación mágica (`lib/photo-security.ts`) y streaming `/api/photos/view/[...key]` cacheado en Service Worker (`atlas-photos-v13`).
 
 ---
 

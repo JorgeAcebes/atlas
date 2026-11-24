@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
+import {
+  readAllStyles,
+  readFile,
+  readRankingSources,
+  readSocialSources,
+  readTrackerSources,
+} from "@/tests/utils/source-reader";
 
 describe("Mobile Bottom Navigation (Tab Bar)", () => {
-  const rootDir = path.resolve(__dirname, "../..");
-
   it("1. Component structure: MobileBottomNav has 3 tabs (Mapa, Social, Ranking) with icons and labels", () => {
-    const navFile = fs.readFileSync(path.join(rootDir, "components/mobile-bottom-nav.tsx"), "utf-8");
+    const navFile = readFile("components/mobile-bottom-nav.tsx");
 
     // Has Map, Users, Trophy icons
     expect(navFile).toContain("Map");
@@ -31,7 +34,7 @@ describe("Mobile Bottom Navigation (Tab Bar)", () => {
   });
 
   it("2. AppTabsShell integration: AppTabsShell renders MobileBottomNav", () => {
-    const shellFile = fs.readFileSync(path.join(rootDir, "components/app-tabs-shell.tsx"), "utf-8");
+    const shellFile = readFile("components/app-tabs-shell.tsx");
 
     expect(shellFile).toContain('import { MobileBottomNav } from "@/components/mobile-bottom-nav";');
     expect(shellFile).toContain("<MobileBottomNav");
@@ -42,7 +45,7 @@ describe("Mobile Bottom Navigation (Tab Bar)", () => {
   });
 
   it("3. CSS Rules: Mobile only display (<=768px), desktop hidden, topbar uncluttered", () => {
-    const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
+    const globalsCss = readAllStyles();
 
     // Hidden on desktop by default
     expect(globalsCss).toMatch(/\.mobile-bottom-nav\s*\{[^}]*display:\s*none;/);
@@ -72,15 +75,17 @@ describe("Mobile Bottom Navigation (Tab Bar)", () => {
   });
 
   it("4. Option 1B: Compact mode switch in sticky topbar on mobile and elimination of redundant hero switch on mobile", () => {
-    const globalsCss = fs.readFileSync(path.join(rootDir, "app/globals.css"), "utf-8");
-    const trackerContent = fs.readFileSync(path.join(rootDir, "components/summit-tracker.tsx"), "utf-8");
-    const socialContent = fs.readFileSync(path.join(rootDir, "components/social-tab.tsx"), "utf-8");
-    const rankingContent = fs.readFileSync(path.join(rootDir, "components/ranking-tab.tsx"), "utf-8");
+    const globalsCss = readAllStyles();
+    const topbarContent = readFile("components/layout/app-topbar.tsx");
+    const trackerContent = readTrackerSources();
+    const socialContent = readSocialSources();
+    const rankingContent = readRankingSources();
 
-    // Topbar mode switch is available on mobile in all three components (no hide-on-mobile in topbar)
-    expect(trackerContent).toMatch(/<div className=\{`app-mode-switch \$\{isPeaks \? "app-mode-switch--peaks"/);
-    expect(socialContent).toMatch(/<div className=\{`app-mode-switch \$\{currentMode === "peaks"/);
-    expect(rankingContent).toMatch(/<div className=\{`app-mode-switch \$\{mode === "peaks"/);
+    // Topbar mode switch is unified in AppTopbar and rendered across all three components (no hide-on-mobile in topbar)
+    expect(topbarContent).toMatch(/<div[\s\S]*?className=\{`app-mode-switch \$\{[\s\S]*?isPeaks \? "app-mode-switch--peaks"/);
+    expect(trackerContent).toContain("<AppTopbar");
+    expect(socialContent).toContain("<AppTopbar");
+    expect(rankingContent).toContain("<AppTopbar");
 
     // CSS maintains balanced, refined pill styling on mobile
     expect(globalsCss).toMatch(/@media\s*\(max-width:\s*768px\)[\s\S]*?\.topbar\s+\.app-mode-switch\s+\.app-mode-btn\s*\{[^}]*font-size:\s*12px\s*!important;/);
@@ -95,7 +100,7 @@ describe("Mobile Bottom Navigation (Tab Bar)", () => {
   });
 
   it("5. Ranking Tab Theming: Bottom nav stays in standard color on ranking tab unless viewing another user's experiences", () => {
-    const navFile = fs.readFileSync(path.join(rootDir, "components/mobile-bottom-nav.tsx"), "utf-8");
+    const navFile = readFile("components/mobile-bottom-nav.tsx");
 
     // Tracks bodyHasExperiences with MutationObserver
     expect(navFile).toContain("bodyHasExperiences");

@@ -1,0 +1,382 @@
+/* Atlas Base Reset, Typography, Buttons & Shared Utilities */
+
+/* ── Reset ──────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 1.5s cubic-bezier(0.4, 0, 0.2, 1), color 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/* ── Text Selection & Interaction Rules ── */
+/* Inputs and user-generated text are explicitly selectable */
+input,
+textarea,
+select,
+[contenteditable="true"],
+.user-written-text,
+.record-notes,
+.feed-item-notes,
+.wishlist-note-display,
+.lightbox-caption,
+figcaption {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
+}
+
+/* Map and Lightbox retain full gesture freedom */
+.leaflet-container,
+.lightbox-stage,
+.lightbox-backdrop,
+.lightbox-img-wrapper {
+  touch-action: none !important;
+}
+
+button {
+  cursor: pointer;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+main {
+  animation: pageFadeIn 0.2s ease-out;
+}
+
+/* ── Keyframes ──────────────────────────── */
+@keyframes pageFadeIn {
+  from {
+    opacity: 0.88;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeScale {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseOnce {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.12);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+@keyframes progressGrow {
+  from {
+    width: 0;
+  }
+}
+
+/* ── Buttons ────────────────────────────── */
+.button {
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 11px 17px;
+  color: var(--ink);
+  font-weight: 600;
+  background: white;
+  font-size: 14px;
+  display: inline-flex;
+  justify-content: center;
+  gap: 13px;
+  align-items: center;
+  text-decoration: none;
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(0);
+}
+
+.button--green {
+  background: var(--pine);
+  color: white;
+}
+
+.button--green:hover {
+  background: #184a3f;
+  box-shadow: 0 4px 14px rgba(36, 95, 82, 0.3);
+}
+
+.button--purple {
+  background: #5b3a8c;
+  color: white;
+}
+
+.button--purple:hover {
+  background: #4a2d73;
+  box-shadow: 0 4px 14px rgba(91, 58, 140, 0.35);
+}
+
+.button--quiet {
+  border-color: #b8c8bd;
+  background: transparent;
+}
+
+.button--quiet:hover {
+  background: var(--sand);
+}
+
+.button--outline {
+  border-color: var(--pine);
+  color: var(--pine);
+  background: transparent;
+}
+
+.button--outline:hover {
+  background: var(--pine);
+  color: white;
+}
+
+.button--wide {
+  width: 100%;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.eyebrow {
+  display: block;
+  font-family: var(--font-mono);
+  letter-spacing: 0.13em;
+  font-size: 10px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.hero h1,
+.section-heading h2,
+.challenge-summary h2,
+.info-panel h2,
+.auth-dialog h2,
+.record-dialog h2 {
+  font-family: var(--font-display);
+  margin: 8px 0 12px;
+  letter-spacing: -0.035em;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  margin-bottom: 23px;
+}
+
+.section-heading h2 {
+  font-size: 38px;
+  line-height: 1;
+  margin-bottom: 7px;
+}
+
+.section-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (min-width: 1000px) {
+  main {
+    transition: padding-right 0.3s ease;
+  }
+
+  main.panel-open {
+    padding-right: 420px;
+  }
+}
+
+.show-on-mobile {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .hide-on-mobile {
+    display: none;
+  }
+
+  .show-on-mobile {
+    display: inline;
+  }
+}
+
+@media (max-width: 1024px) and (min-width: 701px) {
+  .section-heading h2 {
+    font-size: 32px;
+  }
+}
+
+@media (max-width: 700px) {
+  .button--outline {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .section-heading h2 {
+    font-size: 28px;
+  }
+
+  .section-heading p {
+    font-size: 13px;
+  }
+}
+
+.mode-countries .button--outline {
+  border-color: #5b3a8c;
+  color: #5b3a8c;
+}
+
+.mode-countries .button--outline:hover {
+  background: #5b3a8c;
+  color: white;
+}
+
+@keyframes gentle-shake { 
+  0% { transform: translateX(0); } 
+  25% { transform: translateX(-4px); } 
+  50% { transform: translateX(4px); } 
+  75% { transform: translateX(-4px); } 
+  100% { transform: translateX(0); } 
+}
+
+.shake-once { 
+  animation: gentle-shake 0.4s ease-in-out; 
+}
+
+@media (min-width: 1024px) {
+  .hide-on-desktop { display: none !important; }
+}
+
+@media (max-width: 1023px) {
+  .hide-on-mobile { display: none !important; }
+}
+
+@media (min-width: 1024px) {
+  .hide-on-desktop { display: none !important; }
+}
+
+/* ── Experiences Mode Full Theme Integration (Social & Feed) ── */
+main.mode-experiences {
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+}

@@ -5,9 +5,27 @@ import {
   checkStorageLimit,
   uploadR2Object,
 } from "@/lib/r2-storage";
+import { detectSafeImageMime } from "@/lib/photo-security";
+import { uploadRateLimiter, getClientIp } from "@/lib/rate-limit";
+
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const rateCheck = uploadRateLimiter.check(ip);
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Demasiadas subidas en poco tiempo. Espera unos segundos." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.max(1, Math.ceil(rateCheck.resetMs / 1000)).toString(),
+          },
+        }
+      );
+    }
+
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -51,10 +69,25 @@ export async function POST(request: Request) {
     if (fileSize <= 0) {
       return NextResponse.json({ error: "Archivo vacío" }, { status: 400 });
     }
+    if (fileSize > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: "La imagen supera el tamaño máximo permitido (15 MB)." },
+        { status: 413 }
+      );
+    }
 
-    // =========================================================================
-    // BLOQUEO ESTRICTO A LOS 9.5 GB (VERIFICACIÓN FUNDAMENTAL)
-    // =========================================================================
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const detectedMime = detectSafeImageMime(buffer);
+    if (!detectedMime) {
+      return NextResponse.json(
+        { error: "Formato de imagen no permitido. Solo se aceptan JPEG, PNG, WebP, GIF o AVIF." },
+        { status: 400 }
+      );
+    }
+
+    // Strict 9.5 GB cap verification
     const storageCheck = await checkStorageLimit(fileSize, supabaseAdmin);
 
     if (!storageCheck.allowed) {
@@ -71,9 +104,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // =========================================================================
-    // EXCLUSIVIDAD CLOUDFLARE R2 (NUNCA USAR SUPABASE STORAGE PARA SUBIDAS)
-    // =========================================================================
     if (!isR2Configured()) {
       return NextResponse.json(
         { error: "El almacenamiento Cloudflare R2 no está configurado en las variables de entorno." },
@@ -85,10 +115,7 @@ export async function POST(request: Request) {
     const uniqueId = crypto.randomUUID();
     const folder = summitId ? String(summitId).replace(/[^a-zA-Z0-9._-]/g, "-") : "general";
     const storagePath = `${user.id}/${folder}/${uniqueId}-${cleanFileName}`;
-    const contentType = file.type || "image/webp";
-
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const contentType = detectedMime;
 
     let uploadSuccess = false;
     let r2Result = null;
@@ -115,7 +142,7 @@ export async function POST(request: Request) {
     if (!uploadSuccess || !r2Result) {
       console.error("Error al subir imagen a Cloudflare R2 tras 3 intentos:", lastError);
       return NextResponse.json(
-        { error: `Error al subir la imagen a Cloudflare R2: ${lastError?.message || "Fallo en el servicio"}` },
+        { error: "Error al subir la imagen a Cloudflare R2." },
         { status: 500 }
       );
     }
