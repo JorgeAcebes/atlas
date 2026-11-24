@@ -171,6 +171,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="application-name" content="Atlas" />
+        <meta name="is-agentic-site-type" content="app" />
+        <link rel="alternate" type="text/markdown" href="/llms.txt" title="Atlas LLM & Agent Documentation" />
         <script dangerouslySetInnerHTML={{ __html: BOOTSTRAP_SCRIPT }} />
       </head>
       <body>

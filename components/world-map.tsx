@@ -340,6 +340,10 @@ export const WorldMap = memo(function WorldMap({
   const keepBuffer = useMemo(() => getAdaptiveKeepBuffer(), []);
   const inertiaOptions = useMemo(() => getAdaptiveInertiaOptions(), []);
   const tileEventHandlers = useMemo(() => createTileRetryHandlers(), []);
+  const isCompactMobile = useMemo(
+    () => typeof window !== "undefined" && window.innerWidth <= 700,
+    []
+  );
   const [geo, setGeo] = useState<FeatureCollection | null>(() => getCachedWorldGeo());
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -651,15 +655,15 @@ export const WorldMap = memo(function WorldMap({
       renderer={canvasRenderer}
       preferCanvas={true}
       scrollWheelZoom={true}
-      zoomSnap={1}
-      zoomDelta={1}
+      zoomSnap={isCompactMobile ? 0.5 : 1}
+      zoomDelta={isCompactMobile ? 0.5 : 1}
       wheelPxPerZoomLevel={60}
       wheelDebounceTime={25}
       inertia={inertiaOptions.inertia}
       inertiaDeceleration={inertiaOptions.inertiaDeceleration}
       inertiaMaxSpeed={inertiaOptions.inertiaMaxSpeed}
       easeLinearity={inertiaOptions.easeLinearity}
-      minZoom={2}
+      minZoom={isCompactMobile ? 1.5 : 2}
       maxZoom={12}
       maxBounds={[
         [-60, -180],
@@ -835,7 +839,7 @@ export const WorldMap = memo(function WorldMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         crossOrigin="anonymous"
-        minZoom={2}
+        minZoom={1}
         maxZoom={12}
         keepBuffer={keepBuffer}
         updateWhenIdle={false}

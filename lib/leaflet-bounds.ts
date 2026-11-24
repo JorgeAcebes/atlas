@@ -61,10 +61,16 @@ export function FitWorld({
         }
         const fittedZoom = map.getZoom();
         if (Number.isFinite(fittedZoom)) {
+          const isCompactMobile =
+            typeof window !== "undefined" &&
+            window.innerWidth <= 700 &&
+            container.clientHeight <= 470;
           const targetZoom =
             aspectRatio > 1
               ? Math.min(3, Math.max(2, Math.floor(fittedZoom) + 1))
-              : 2;
+              : isCompactMobile
+                ? 1.5
+                : 2;
           const targetLat = targetZoom >= 3 ? 24 : 26;
           map.setView([targetLat, 0], targetZoom, { animate: false });
         }
@@ -132,8 +138,8 @@ export function FitSpain({
 
         map.fitBounds(
           [
-            [27.55, -18.65],
-            [43.95, 4.95],
+            [35.8, -9.5],
+            [43.9, 4.35],
           ],
           { padding: [12, 12], animate: false }
         );

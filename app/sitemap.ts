@@ -44,6 +44,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.4,
     },
+    {
+      url: `${baseUrl}/developers`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
   ];
 
   let profileEntries: MetadataRoute.Sitemap = [];

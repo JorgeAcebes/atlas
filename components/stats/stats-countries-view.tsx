@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check, Globe2, Sparkles } from "lucide-react";
+import { Check } from "lucide-react";
 import type { Country } from "@/data/countries";
 import {
   CONTINENT_COLOR_MAP,
@@ -44,49 +44,6 @@ export function StatsCountriesView({
 }: StatsCountriesViewProps) {
   return (
     <>
-      <div className="stats-kpi-grid">
-        <div className="stats-kpi-card">
-          <div className="stats-kpi-header">
-            <span className="stats-kpi-label">Países Explorados</span>
-            <Globe2 size={16} className="stats-kpi-icon" />
-          </div>
-          <div className="stats-kpi-value">
-            {metrics.completedCountriesCount} <small>/ 196</small>
-          </div>
-          <span className="stats-kpi-sub">{metrics.countriesPct}% del planeta visitado</span>
-          <div className="stats-kpi-progress stats-kpi-progress--continents">
-            {metrics.continentsBreakdown
-              .filter((c) => c.done > 0)
-              .map((cont) => {
-                const color = CONTINENT_COLOR_MAP[cont.continent]?.dot || "#0081C8";
-                const segWidthPct = (cont.done / 196) * 100;
-                return (
-                  <div
-                    key={cont.continent}
-                    className="stats-kpi-progress-segment"
-                    style={{
-                      width: `${segWidthPct}%`,
-                      backgroundColor: color,
-                    }}
-                    title={`${cont.continent}: ${cont.done} países`}
-                  />
-                );
-              })}
-          </div>
-        </div>
-
-        <div className="stats-kpi-card">
-          <div className="stats-kpi-header">
-            <span className="stats-kpi-label">Por Descubrir</span>
-            <Sparkles size={16} className="stats-kpi-icon" />
-          </div>
-          <div className="stats-kpi-value">
-            {196 - metrics.completedCountriesCount} <small>países</small>
-          </div>
-          <span className="stats-kpi-sub">Resto del atlas mundial</span>
-        </div>
-      </div>
-
       <div className="stats-gallery-btn-wrap">
         <button type="button" className="stats-open-gallery-action-btn" onClick={onOpenGallery}>
           Ver galería

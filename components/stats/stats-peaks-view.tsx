@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check, ChevronDown, ChevronUp, Flame, Mountain, TrendingUp, Trophy } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Flame, Trophy } from "lucide-react";
 import type { Peak } from "@/data/peaks";
 import type { YearMonthTimelineResult } from "@/lib/stats-calculations";
 import { StatsTimeline } from "./stats-timeline";
@@ -61,33 +61,6 @@ export function StatsPeaksView({
 }: StatsPeaksViewProps) {
   return (
     <>
-      <div className="stats-kpi-grid">
-        <div className="stats-kpi-card">
-          <div className="stats-kpi-header">
-            <span className="stats-kpi-label">Picos Provinciales</span>
-            <Mountain size={16} className="stats-kpi-icon" />
-          </div>
-          <div className="stats-kpi-value">
-            {metrics.completedPeaksCount} <small>/ 47</small>
-          </div>
-          <span className="stats-kpi-sub">{metrics.peaksPct}% completado</span>
-          <div className="stats-kpi-progress">
-            <div className="stats-kpi-progress-bar" style={{ width: `${metrics.peaksPct}%` }} />
-          </div>
-        </div>
-
-        <div className="stats-kpi-card">
-          <div className="stats-kpi-header">
-            <span className="stats-kpi-label">Altitud Total</span>
-            <TrendingUp size={16} className="stats-kpi-icon" />
-          </div>
-          <div className="stats-kpi-value">
-            {metrics.totalAltitudeAscended.toLocaleString("es-ES")} <small>m</small>
-          </div>
-          <span className="stats-kpi-sub">Desnivel acumulado</span>
-        </div>
-      </div>
-
       <div className="stats-gallery-btn-wrap">
         <button type="button" className="stats-open-gallery-action-btn" onClick={onOpenGallery}>
           Ver galería

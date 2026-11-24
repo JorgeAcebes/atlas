@@ -14,7 +14,8 @@ import {
 import { peaks } from "@/data/peaks";
 import { countries } from "@/data/countries";
 import { predefinedCategories } from "@/data/experiences";
-import { X, Check, Inbox, Users, AlertCircle } from "lucide-react";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { X, Check, Inbox, Users, AlertCircle, Bell } from "lucide-react";
 
 export interface FollowRequest {
   id: string;
@@ -50,7 +51,17 @@ export function InboxModal({
   onPendingChanged,
 }: InboxModalProps) {
   const { session } = useAuth();
-  const [activeTab, setActiveTab] = useState<"requests" | "shared">("requests");
+  const [activeTab, setActiveTab] = useState<"requests" | "shared">(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("inbox") === "shared") return "shared";
+      } catch {
+        /* ignore */
+      }
+    }
+    return "requests";
+  });
   const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
   const [tripInvitations, setTripInvitations] = useState<RecordCompanion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,7 +69,25 @@ export function InboxModal({
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [pushBannerDismissed, setPushBannerDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("atlas_push_banner_dismissed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const {
+    supported: pushSupported,
+    needsIosInstall: pushNeedsIosInstall,
+    permission: pushPermission,
+    subscribed: pushSubscribed,
+    busy: pushBusy,
+    error: pushError,
+    enablePush,
+  } = usePushNotifications();
 
   const showTemporaryNotice = useCallback((message: string, durationMs = 3000) => {
     if (noticeTimerRef.current) {
@@ -456,6 +485,78 @@ export function InboxModal({
             <span style={{ flex: 1 }}>{notice}</span>
           </div>
         )}
+
+        {/* Compact Web Push Opt-In Banner */}
+        {!pushSubscribed &&
+          !pushBannerDismissed &&
+          pushPermission !== "denied" &&
+          (pushSupported || pushNeedsIosInstall) && (
+            <div
+              style={{
+                padding: "9px 16px",
+                backgroundColor: "rgba(36, 95, 82, 0.06)",
+                borderBottom: "1px solid var(--border, #e5e7eb)",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                fontSize: "12px",
+              }}
+            >
+              <Bell size={15} style={{ color: "var(--pine, #245f52)", flexShrink: 0 }} />
+              <span style={{ flex: 1, color: "var(--ink, #18342d)", lineHeight: 1.3 }}>
+                {pushNeedsIosInstall
+                  ? "Añade Atlas a tu pantalla de inicio para recibir notificaciones en iPhone."
+                  : pushError || "Activa avisos cuando publiquen a quienes sigues o compartan un registro."}
+              </span>
+              {!pushNeedsIosInstall && (
+                <button
+                  type="button"
+                  disabled={pushBusy}
+                  onClick={() => {
+                    void enablePush().then((ok) => {
+                      if (ok) showTemporaryNotice("Notificaciones activadas.");
+                    });
+                  }}
+                  style={{
+                    backgroundColor: "var(--pine, #245f52)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "999px",
+                    padding: "4px 10px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    cursor: pushBusy ? "not-allowed" : "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {pushBusy ? "Activando..." : "Activar"}
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label="Ocultar aviso de notificaciones"
+                onClick={() => {
+                  setPushBannerDismissed(true);
+                  try {
+                    localStorage.setItem("atlas_push_banner_dismissed", "true");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--muted, #6b7280)",
+                  cursor: "pointer",
+                  padding: "2px",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
         {/* Tabs */}
         <div

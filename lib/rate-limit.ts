@@ -108,6 +108,16 @@ export const uploadRateLimiter = new RateLimiter({
   max: 30,
 });
 
+export const apiRateLimiter = new RateLimiter({
+  windowMs: 60 * 1000,
+  max: 120,
+});
+
+export const mcpRateLimiter = new RateLimiter({
+  windowMs: 60 * 1000,
+  max: 120,
+});
+
 export const geocodingClientRateLimiter = new RateLimiter({
   windowMs: 1000,
   max: 1,

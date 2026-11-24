@@ -114,7 +114,7 @@ describe("Desktop Map Rendering Optimization & Spain Map 0,0 Zero-Island Prevent
       expect(worldMapContent).toContain("updateInterval={50}");
       expect(worldMapContent).toContain("updateWhenIdle={false}");
       expect(worldMapContent).toContain("scrollWheelZoom={true}");
-      expect(worldMapContent).toContain("zoomSnap={1}");
+      expect(worldMapContent).toContain("zoomSnap={isCompactMobile ? 0.5 : 1}");
       expect(worldMapContent).toContain("updateWhenZooming={isMobileOrTablet() ? undefined : false}");
       expect(worldMapContent).not.toContain("if (!isMobileOrTablet()) return;");
     });

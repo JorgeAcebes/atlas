@@ -211,17 +211,21 @@ describe("Limites de zoom en móvil, sin animación inicial, Stats, swipe en lis
     else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = prevAnon;
   });
 
-  it("WorldMap y CollectiveMap bloquean zoom-out en móvil por debajo de zoom 2 y eliminan la franja superior", () => {
+  it("WorldMap permite zoom-out 1.5 en móvil compacto manteniendo zoom 2 en escritorio y sin franja superior", () => {
     const world = readFile("components/world-map.tsx");
     const collective = readFile("components/collective-map.tsx");
     const bounds = readFile("lib/leaflet-bounds.ts");
     const mapsCss = readFile("styles/maps.css");
 
-    expect(world).toContain("minZoom={2}");
+    expect(world).toContain("minZoom={isCompactMobile ? 1.5 : 2}");
+    expect(world).toContain("zoomSnap={isCompactMobile ? 0.5 : 1}");
+    expect(world).toContain("minZoom={1}");
     expect(world).toContain("maxBoundsViscosity={1.0}");
     expect(collective).toContain("minZoom={isPeaks ? 5 : 2}");
     expect(collective).toContain("maxBoundsViscosity={isPeaks ? 0.5 : 1.0}");
     expect(bounds).toContain("aspectRatio > 1");
+    expect(bounds).toContain("isCompactMobile");
+    expect(bounds).toContain("? 1.5");
     expect(mapsCss).toContain("background: #aad3df;");
     expect(mapsCss).toContain("background-color: #aad3df;");
   });
@@ -464,5 +468,25 @@ describe("Fricción adaptativa móvil, carga fiable de tiles, transición instan
     expect(shell).toContain("closingStatsOnSameTab");
     expect(shell).toContain("`${newPath}${statsHash}`");
     expect(shell).toContain("url.hash = statsHash;");
+  });
+
+  it("FitSpain y MapActiveSynchronizer centran inicialmente en la península ibérica sin empujar al sur por maxBounds", () => {
+    const bounds = readFile("lib/leaflet-bounds.ts");
+    const lifecycle = readFile("components/maps/map-lifecycle.tsx");
+    const spain = readFile("components/spain-map.tsx");
+    const collective = readFile("components/collective-map.tsx");
+
+    expect(bounds).toContain("[35.8, -9.5]");
+    expect(bounds).toContain("[43.9, 4.35]");
+    expect(bounds).not.toContain("[27.55, -18.65]");
+
+    expect(lifecycle).toContain("[35.8, -9.5]");
+    expect(lifecycle).toContain("[43.9, 4.35]");
+    expect(lifecycle).not.toContain("[27.55, -18.65]");
+
+    expect(spain).toContain("[26.0, -19.8]");
+    expect(spain).toContain("[47.5, 11.0]");
+    expect(collective).toContain("[26.0, -19.8]");
+    expect(collective).toContain("[47.5, 11.0]");
   });
 });

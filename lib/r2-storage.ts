@@ -1,4 +1,11 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
  * Strict free-tier storage cap (9.5 GiB = 10,200,547,328 bytes),
@@ -272,5 +279,85 @@ export async function deleteR2Objects(keys: string[]): Promise<boolean> {
   } catch (err) {
     console.error("Error batch deleting objects from Cloudflare R2:", err);
     return false;
+  }
+}
+
+/**
+ * Generates a short-lived presigned PUT URL so external agents can upload large photos (>4 MB up to 15 MB)
+ * directly to Cloudflare R2 without hitting Vercel's 4.5 MB serverless body limit.
+ */
+export async function createPresignedR2UploadUrl(options: {
+  key: string;
+  contentType: string;
+  contentLength: number;
+  expiresInSeconds?: number;
+}): Promise<{
+  uploadUrl: string;
+  publicUrl: string;
+  storagePath: string;
+  expiresAt: string;
+}> {
+  if (!isR2Configured()) {
+    throw new Error("Cloudflare R2 credentials are not configured.");
+  }
+
+  const { key, contentType, contentLength, expiresInSeconds = 600 } = options;
+  const { bucket, publicUrl } = getSanitizedR2Credentials();
+  const publicBase = publicUrl.replace(/\/$/, "");
+  const client = getR2Client();
+
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: contentType,
+    ContentLength: contentLength,
+    CacheControl: "public, max-age=31536000, immutable",
+  });
+
+  const uploadUrl = await getSignedUrl(client, command, {
+    expiresIn: expiresInSeconds,
+  });
+
+  return {
+    uploadUrl,
+    publicUrl: `${publicBase}/${key}`,
+    storagePath: key,
+    expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+  };
+}
+
+/**
+ * Downloads an object from Cloudflare R2 as a Buffer, or returns null when not found.
+ */
+export async function getR2ObjectBuffer(
+  key: string
+): Promise<{ buffer: Buffer; contentType: string | null; contentLength: number } | null> {
+  if (!isR2Configured()) {
+    throw new Error("Cloudflare R2 credentials are not configured.");
+  }
+
+  const { bucket } = getSanitizedR2Credentials();
+  const client = getR2Client();
+
+  try {
+    const res = await client.send(
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      })
+    );
+    if (!res.Body) return null;
+    const bytes = await res.Body.transformToByteArray();
+    const buffer = Buffer.from(bytes);
+    return {
+      buffer,
+      contentType: res.ContentType || null,
+      contentLength: typeof res.ContentLength === "number" ? res.ContentLength : buffer.length,
+    };
+  } catch (err: any) {
+    if (err?.name === "NoSuchKey" || err?.$metadata?.httpStatusCode === 404) {
+      return null;
+    }
+    throw err;
   }
 }

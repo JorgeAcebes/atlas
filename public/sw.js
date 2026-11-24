@@ -95,8 +95,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Skip all other /api/ calls
-  if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) {
+  // Skip all other /api/ calls, MCP, and agent discovery endpoints
+  if (
+    url.origin === self.location.origin &&
+    (url.pathname.startsWith("/api/") ||
+      url.pathname === "/mcp" ||
+      url.pathname.startsWith("/mcp/") ||
+      url.pathname.startsWith("/.well-known/") ||
+      url.pathname === "/openapi.json" ||
+      url.pathname === "/llms.txt" ||
+      url.pathname === "/llms-full.txt")
+  ) {
     return;
   }
 
@@ -212,4 +221,55 @@ self.addEventListener("fetch", (event) => {
       })
     );
   }
+});
+
+// 6. Web Push Notifications (PWA mobile & desktop)
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let payload = {};
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: "Atlas", body: event.data.text() };
+  }
+
+  const title = payload.title || "Atlas";
+  const options = {
+    body: payload.body || "Tienes una nueva actividad en Atlas.",
+    icon: payload.icon || "/icon-192.png",
+    badge: payload.badge || "/icon-192.png",
+    tag: payload.tag || "atlas-notification",
+    renotify: true,
+    data: {
+      url: payload.url || "/social",
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl =
+    (event.notification && event.notification.data && event.notification.data.url) || "/social";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) {
+          return client.focus().then((focusedClient) => {
+            if (focusedClient && "navigate" in focusedClient) {
+              return focusedClient.navigate(targetUrl).catch(() => focusedClient);
+            }
+            return focusedClient;
+          });
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+      return undefined;
+    })
+  );
 });

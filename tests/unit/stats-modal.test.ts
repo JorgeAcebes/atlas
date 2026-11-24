@@ -144,16 +144,23 @@ describe("Mobile-only Stats Button & Modal (Mis Estadísticas)", () => {
     expect(content).not.toContain("stats-timeline-year-header-btn");
     expect(content).not.toContain("toggleTimelineYear");
 
-    // Progress bar for countries using continent colors
-    expect(content).toContain("stats-kpi-progress--continents");
+    // Progress bar for countries using continent colors & KPI cards removed for countries/peaks
     expect(content).toContain("stats-continent-progress-fill");
+
+    const countriesView = readFile("components/stats/stats-countries-view.tsx");
+    const peaksView = readFile("components/stats/stats-peaks-view.tsx");
+    expect(countriesView).not.toContain("stats-kpi-grid");
+    expect(countriesView).not.toContain("Países Explorados");
+    expect(countriesView).not.toContain("Por Descubrir");
+    expect(peaksView).not.toContain("stats-kpi-grid");
+    expect(peaksView).not.toContain("Picos Provinciales");
+    expect(peaksView).not.toContain("Altitud Total");
 
     // Inverted months: months sorted descending (b - a) inside each year
     expect(content).toContain(".sort((a, b) => b[0] - a[0])");
 
     // Has updated phrases
     expect(content).toContain("picos provinciales");
-    expect(content).toContain("Desnivel acumulado");
     expect(content).not.toContain("cumbres provinciales");
     expect(content).not.toContain("Desnivel coronado en España");
 

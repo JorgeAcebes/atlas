@@ -254,6 +254,15 @@ export function AppTopbar({
             aria-label="Mi Perfil"
             title="Mi Perfil"
             onClick={onOpenProfile}
+            onMouseEnter={() => {
+              void import("@/components/profile-settings").catch(() => {});
+            }}
+            onPointerDown={() => {
+              void import("@/components/profile-settings").catch(() => {});
+            }}
+            onFocus={() => {
+              void import("@/components/profile-settings").catch(() => {});
+            }}
           >
             {myProfile?.avatar_url ? (
               <img

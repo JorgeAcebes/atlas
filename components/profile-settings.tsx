@@ -6,6 +6,8 @@ import type { Session } from "@supabase/supabase-js";
 import { compressImage } from "@/lib/image-utils";
 import { uploadPhotoBlob, deleteStoragePhotos, getPhotoDisplayUrl } from "@/lib/photo-client";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
+import { useAuth } from "./auth-context";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { DeleteAccountModal } from "./delete-account-modal";
 
 type Profile = {
@@ -29,22 +31,40 @@ export function ProfileSettings({
   onClose: () => void;
   onProfileUpdate?: (profile: any) => void;
 }) {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [username, setUsername] = useState("");
-  const [isPublic, setIsPublic] = useState(true);
-  const [enablePeaks, setEnablePeaks] = useState(true);
-  const [enableCountries, setEnableCountries] = useState(true);
-  const [enableExperiences, setEnableExperiences] = useState(false);
-  const [sharePhotos, setSharePhotos] = useState(true);
-  const [shareNotes, setShareNotes] = useState(true);
+  const { profile: cachedProfile } = useAuth();
+  const initialProfile =
+    cachedProfile && cachedProfile.id === session.user.id ? (cachedProfile as Profile) : null;
+  const hasInitialProfileRef = useRef(Boolean(initialProfile));
+  const userEditedRef = useRef(false);
+
+  const [profile, setProfile] = useState<Profile | null>(initialProfile);
+  const [username, setUsername] = useState(initialProfile?.username || "");
+  const [isPublic, setIsPublic] = useState(initialProfile?.is_public ?? true);
+  const [enablePeaks, setEnablePeaks] = useState(initialProfile?.enable_peaks ?? true);
+  const [enableCountries, setEnableCountries] = useState(initialProfile?.enable_countries ?? true);
+  const [enableExperiences, setEnableExperiences] = useState(initialProfile?.enable_experiences ?? false);
+  const [sharePhotos, setSharePhotos] = useState(initialProfile?.share_photos ?? true);
+  const [shareNotes, setShareNotes] = useState(initialProfile?.share_notes ?? true);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(
+    initialProfile?.avatar_url ? getPhotoDisplayUrl(initialProfile.avatar_url) : null
+  );
+  const [loading, setLoading] = useState(!initialProfile);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const avatarObjectUrlRef = useRef<string | null>(null);
+
+  const {
+    supported: pushSupported,
+    needsIosInstall: pushNeedsIosInstall,
+    permission: pushPermission,
+    subscribed: pushSubscribed,
+    busy: pushBusy,
+    error: pushError,
+    togglePush,
+  } = usePushNotifications();
 
   useEffect(() => {
     return () => {
@@ -56,9 +76,10 @@ export function ProfileSettings({
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadProfile() {
       if (!supabase) {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
         return;
       }
       const { data, error } = await supabase
@@ -67,28 +88,36 @@ export function ProfileSettings({
         .eq("id", session.user.id)
         .single();
 
+      if (cancelled) return;
       if (error) {
-        setError("No se pudieron cargar tus datos de perfil.");
+        if (!hasInitialProfileRef.current) {
+          setError("No se pudieron cargar tus datos de perfil.");
+        }
       } else if (data) {
         setProfile(data);
-        setUsername(data.username);
-        setIsPublic(data.is_public);
-        setEnablePeaks(data.enable_peaks ?? true);
-        setEnableCountries(data.enable_countries ?? true);
-        setEnableExperiences(data.enable_experiences ?? false);
-        setSharePhotos(data.share_photos ?? true);
-        setShareNotes(data.share_notes ?? true);
-        if (data.avatar_url) {
-          if (avatarObjectUrlRef.current) {
-            URL.revokeObjectURL(avatarObjectUrlRef.current);
-            avatarObjectUrlRef.current = null;
+        if (!userEditedRef.current) {
+          setUsername(data.username);
+          setIsPublic(data.is_public);
+          setEnablePeaks(data.enable_peaks ?? true);
+          setEnableCountries(data.enable_countries ?? true);
+          setEnableExperiences(data.enable_experiences ?? false);
+          setSharePhotos(data.share_photos ?? true);
+          setShareNotes(data.share_notes ?? true);
+          if (data.avatar_url) {
+            if (avatarObjectUrlRef.current) {
+              URL.revokeObjectURL(avatarObjectUrlRef.current);
+              avatarObjectUrlRef.current = null;
+            }
+            setAvatarPreview(getPhotoDisplayUrl(data.avatar_url));
           }
-          setAvatarPreview(getPhotoDisplayUrl(data.avatar_url));
         }
       }
       setLoading(false);
     }
     loadProfile();
+    return () => {
+      cancelled = true;
+    };
   }, [session.user.id]);
 
   useEffect(() => {
@@ -115,6 +144,7 @@ export function ProfileSettings({
       setError("Debes mantener activa al menos una modalidad (Picos o Países).");
       return;
     }
+    userEditedRef.current = true;
     setError("");
     setEnablePeaks(checked);
   };
@@ -124,6 +154,7 @@ export function ProfileSettings({
       setError("Debes mantener activa al menos una modalidad (Picos o Países).");
       return;
     }
+    userEditedRef.current = true;
     setError("");
     setEnableCountries(checked);
     if (!checked) {
@@ -253,7 +284,7 @@ export function ProfileSettings({
           overflowY: "auto",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
-          padding: "20px 20px 16px",
+          padding: "16px 18px 14px",
           maxWidth: "420px",
         }}
       >
@@ -276,7 +307,7 @@ export function ProfileSettings({
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
-        <h2 style={{ margin: "0 0 0.6rem", textAlign: "center", fontSize: "1.25rem" }}>
+        <h2 style={{ margin: "0 0 0.45rem", textAlign: "center", fontSize: "1.2rem" }}>
           Perfil
         </h2>
 
@@ -285,7 +316,7 @@ export function ProfileSettings({
         ) : (
           <form
             onSubmit={saveProfile}
-            style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}
+            style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}
           >
             {/* Avatar & Username in compact horizontal row */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
@@ -324,6 +355,7 @@ export function ProfileSettings({
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
+                        userEditedRef.current = true;
                         if (avatarObjectUrlRef.current) {
                           URL.revokeObjectURL(avatarObjectUrlRef.current);
                         }
@@ -372,9 +404,10 @@ export function ProfileSettings({
                   <input
                     type="text"
                     value={username}
-                    onChange={(e) =>
-                      setUsername(e.target.value.replace(/^@/, ""))
-                    }
+                    onChange={(e) => {
+                      userEditedRef.current = true;
+                      setUsername(e.target.value.replace(/^@/, ""));
+                    }}
                     placeholder="tu_usuario"
                     style={{
                       width: "100%",
@@ -393,14 +426,14 @@ export function ProfileSettings({
             <div
               style={{
                 background: "#f5f5f5",
-                padding: "0.45rem 0.7rem",
+                padding: "0.4rem 0.65rem",
                 borderRadius: "8px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.35rem",
+                gap: "0.28rem",
               }}
             >
-              <span style={{ fontWeight: "bold", fontSize: "0.82rem" }}>
+              <span style={{ fontWeight: "bold", fontSize: "0.8rem" }}>
                 Privacidad
               </span>
 
@@ -418,7 +451,10 @@ export function ProfileSettings({
                       type="checkbox"
                       aria-label="Perfil público"
                       checked={isPublic}
-                      onChange={(e) => setIsPublic(e.target.checked)}
+                      onChange={(e) => {
+                        userEditedRef.current = true;
+                        setIsPublic(e.target.checked);
+                      }}
                     />
                     <div className="toggle-switch"></div>
                   </label>
@@ -450,7 +486,10 @@ export function ProfileSettings({
                     type="checkbox"
                     aria-label="Mostrar mis fotos"
                     checked={sharePhotos}
-                    onChange={(e) => setSharePhotos(e.target.checked)}
+                    onChange={(e) => {
+                      userEditedRef.current = true;
+                      setSharePhotos(e.target.checked);
+                    }}
                   />
                   <div className="toggle-switch"></div>
                 </label>
@@ -469,22 +508,68 @@ export function ProfileSettings({
                     type="checkbox"
                     aria-label="Mostrar mis notas"
                     checked={shareNotes}
-                    onChange={(e) => setShareNotes(e.target.checked)}
+                    onChange={(e) => {
+                      userEditedRef.current = true;
+                      setShareNotes(e.target.checked);
+                    }}
                   />
                   <div className="toggle-switch"></div>
                 </label>
               </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span style={{ fontSize: "0.82rem" }}>Notificaciones push</span>
+                <label
+                  className="custom-toggle"
+                  style={{
+                    cursor:
+                      pushBusy || (!pushSupported && !pushNeedsIosInstall)
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity: !pushSupported && !pushNeedsIosInstall ? 0.55 : 1,
+                  }}
+                  title={
+                    pushNeedsIosInstall
+                      ? "Instala Atlas en la pantalla de inicio para activar notificaciones"
+                      : pushPermission === "denied"
+                        ? "Permiso bloqueado en ajustes del navegador"
+                        : "Recibir avisos de publicaciones y registros compartidos"
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    aria-label="Notificaciones push"
+                    checked={pushSubscribed}
+                    disabled={pushBusy || (!pushSupported && !pushNeedsIosInstall)}
+                    onChange={(e) => {
+                      void togglePush(e.target.checked);
+                    }}
+                  />
+                  <div className="toggle-switch"></div>
+                </label>
+              </div>
+              {pushError && (
+                <p style={{ fontSize: "0.68rem", color: "#b91c1c", margin: 0, lineHeight: 1.15 }}>
+                  {pushError}
+                </p>
+              )}
             </div>
 
             {/* Modalidades y modos de la app */}
             <div
               style={{
                 background: "#f5f5f5",
-                padding: "0.45rem 0.7rem",
+                padding: "0.4rem 0.65rem",
                 borderRadius: "8px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.35rem",
+                gap: "0.28rem",
               }}
             >
               <span style={{ fontWeight: "bold", fontSize: "0.82rem" }}>
@@ -587,7 +672,12 @@ export function ProfileSettings({
                       aria-label="Modo Experiencias"
                       checked={enableCountries && enableExperiences}
                       disabled={!enableCountries}
-                      onChange={(e) => enableCountries && setEnableExperiences(e.target.checked)}
+                      onChange={(e) => {
+                        if (enableCountries) {
+                          userEditedRef.current = true;
+                          setEnableExperiences(e.target.checked);
+                        }
+                      }}
                     />
                     <div className="toggle-switch"></div>
                   </label>

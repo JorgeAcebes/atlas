@@ -13,8 +13,24 @@ function safeTime(value?: string | null): number {
 }
 
 export function compareFeedRecords(
-  a: { record_date: string; end_date?: string | null; created_at?: string; trip_group_id?: string | null; user_id?: string },
-  b: { record_date: string; end_date?: string | null; created_at?: string; trip_group_id?: string | null; user_id?: string }
+  a: {
+    record_date: string;
+    end_date?: string | null;
+    created_at?: string;
+    trip_group_id?: string | null;
+    trip_is_inviter?: boolean;
+    trip_joined_at?: string | null;
+    user_id?: string;
+  },
+  b: {
+    record_date: string;
+    end_date?: string | null;
+    created_at?: string;
+    trip_group_id?: string | null;
+    trip_is_inviter?: boolean;
+    trip_joined_at?: string | null;
+    user_id?: string;
+  }
 ): number {
   const timeA = safeTime(a.record_date);
   const timeB = safeTime(b.record_date);
@@ -42,6 +58,27 @@ export function compareFeedRecords(
   // Si ambos o alguno pertenece a un viaje compartido en la misma fecha, agrupar por trip_group_id
   if (a.trip_group_id || b.trip_group_id) {
     if (a.trip_group_id && b.trip_group_id && a.trip_group_id === b.trip_group_id) {
+      // Dentro de un mismo hilo: primero el creador/inviter, luego compañeros por orden de aceptación
+      const rankA = a.trip_is_inviter ? 0 : 1;
+      const rankB = b.trip_is_inviter ? 0 : 1;
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+
+      const joinedA = safeTime(a.trip_joined_at);
+      const joinedB = safeTime(b.trip_joined_at);
+      if (joinedA !== joinedB) {
+        if (joinedA === 0) return 1;
+        if (joinedB === 0) return -1;
+        return joinedA - joinedB;
+      }
+
+      const createdA = safeTime(a.created_at);
+      const createdB = safeTime(b.created_at);
+      if (createdA !== createdB) {
+        return createdA - createdB;
+      }
+
       return (a.user_id || "").localeCompare(b.user_id || "");
     }
     const groupCompare = (b.trip_group_id || "").localeCompare(a.trip_group_id || "");

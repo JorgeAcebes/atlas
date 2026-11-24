@@ -497,7 +497,7 @@ export const SpainMap = memo(function SpainMap({
       maxZoom={10}
       maxBounds={[
         [26.0, -19.8],
-        [45.0, 6.0],
+        [47.5, 11.0],
       ]}
       maxBoundsViscosity={0.5}
     >

@@ -84,6 +84,10 @@ export function TrackerFooter({ isPeaks }: { isPeaks: boolean }) {
             Privacidad y Cookies
           </a>
           <span style={{ color: "var(--line)", opacity: 0.8 }}>•</span>
+          <a href="/developers" style={{ color: "var(--muted)", textDecoration: "underline" }}>
+            API &amp; MCP
+          </a>
+          <span style={{ color: "var(--line)", opacity: 0.8 }}>•</span>
           <a
             href="mailto:atlas.maplog@gmail.com"
             style={{ color: "var(--muted)", textDecoration: "underline" }}

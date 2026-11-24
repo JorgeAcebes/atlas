@@ -125,6 +125,8 @@ export async function fetchCombinedFeed(limit = 200): Promise<FetchFeedResult> {
             item_id,
             start_date,
             end_date,
+            created_at,
+            updated_at,
             companion_profile:profiles!record_companions_companion_id_fkey(id, username, avatar_url, is_public),
             inviter_profile:profiles!record_companions_inviter_id_fkey(id, username, avatar_url, is_public)
           `
@@ -148,15 +150,58 @@ export async function fetchCombinedFeed(limit = 200): Promise<FetchFeedResult> {
 
   const companionsByTripGroup: Record<string, any[]> = {};
   const canonicalTripGroupMap = new Map<string, string>();
+  const tripGroupOrderMeta = new Map<
+    string,
+    { inviterId: string | null; joinedAtByUserId: Map<string, string> }
+  >();
+
   if (companionsRes?.data) {
     const tripKeyToCanonicalGid = new Map<string, string>();
+    const rowsByCanonicalGid = new Map<string, any[]>();
+
     for (const row of companionsRes.data as any[]) {
       const participants = [row.inviter_id, row.companion_id].sort().join(":");
       const tripKey = `${row.item_id || ""}:${row.start_date || ""}:${participants}`;
       if (!tripKeyToCanonicalGid.has(tripKey)) {
         tripKeyToCanonicalGid.set(tripKey, row.trip_group_id);
       }
-      canonicalTripGroupMap.set(row.trip_group_id, tripKeyToCanonicalGid.get(tripKey)!);
+      const canonicalGid = tripKeyToCanonicalGid.get(tripKey)!;
+      canonicalTripGroupMap.set(row.trip_group_id, canonicalGid);
+
+      const groupRows = rowsByCanonicalGid.get(canonicalGid) || [];
+      groupRows.push(row);
+      rowsByCanonicalGid.set(canonicalGid, groupRows);
+    }
+
+    for (const [gid, groupRows] of rowsByCanonicalGid.entries()) {
+      const sortedRows = [...groupRows].sort((a, b) => {
+        const tsA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tsB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return tsA - tsB;
+      });
+
+      const seenCompanions = new Set<string>();
+      let inviterId: string | null = null;
+      const joinedAtByUserId = new Map<string, string>();
+
+      for (const row of sortedRows) {
+        if (!inviterId && row.inviter_id && !seenCompanions.has(row.inviter_id)) {
+          inviterId = row.inviter_id;
+        }
+        if (row.companion_id) {
+          seenCompanions.add(row.companion_id);
+          const acceptedTs = row.updated_at || row.created_at || null;
+          if (acceptedTs && !joinedAtByUserId.has(row.companion_id)) {
+            joinedAtByUserId.set(row.companion_id, acceptedTs);
+          }
+        }
+      }
+
+      if (!inviterId && sortedRows[0]?.inviter_id) {
+        inviterId = sortedRows[0].inviter_id;
+      }
+
+      tripGroupOrderMeta.set(gid, { inviterId, joinedAtByUserId });
     }
 
     for (const row of companionsRes.data as any[]) {
@@ -186,44 +231,52 @@ export async function fetchCombinedFeed(limit = 200): Promise<FetchFeedResult> {
     photosMapBySummit.set(summitKey, sList);
   }
 
-  const combined = combinedBase.map((item) => {
-    let enriched = item;
-    if (item.type === "experience") {
-      const entry = predefinedExpIndex.get(item.experience_id);
-      const title = entry
-        ? entry.title
-        : customExperiences[item.experience_id] || item.location_name || "Experiencia";
-      const subTitle =
-        entry && item.sub_item_id ? entry.subTitleById.get(item.sub_item_id) || "" : "";
-      enriched = { ...item, experience_title: title, sub_item_title: subTitle };
-    }
+  const combined = combinedBase
+    .map((item) => {
+      let enriched = item;
+      if (item.type === "experience") {
+        const entry = predefinedExpIndex.get(item.experience_id);
+        const title = entry
+          ? entry.title
+          : customExperiences[item.experience_id] || item.location_name || "Experiencia";
+        const subTitle =
+          entry && item.sub_item_id ? entry.subTitleById.get(item.sub_item_id) || "" : "";
+        enriched = { ...item, experience_title: title, sub_item_title: subTitle };
+      }
 
-    if (enriched.trip_group_id && canonicalTripGroupMap.has(enriched.trip_group_id)) {
-      enriched.trip_group_id = canonicalTripGroupMap.get(enriched.trip_group_id);
-    }
-    enriched.companions = enriched.trip_group_id
-      ? companionsByTripGroup[enriched.trip_group_id] || []
-      : [];
+      if (enriched.trip_group_id && canonicalTripGroupMap.has(enriched.trip_group_id)) {
+        enriched.trip_group_id = canonicalTripGroupMap.get(enriched.trip_group_id);
+      }
+      enriched.companions = enriched.trip_group_id
+        ? companionsByTripGroup[enriched.trip_group_id] || []
+        : [];
 
-    const baseId = enriched.summit_id || enriched.experience_id;
-    const targetId = enriched.sub_item_id ? `${baseId}::${enriched.sub_item_id}` : baseId;
-    const recordDate = enriched.achieved_on || "";
+      if (enriched.trip_group_id && tripGroupOrderMeta.has(enriched.trip_group_id)) {
+        const meta = tripGroupOrderMeta.get(enriched.trip_group_id)!;
+        enriched.trip_is_inviter = enriched.user_id === meta.inviterId;
+        enriched.trip_joined_at = meta.joinedAtByUserId.get(enriched.user_id) || null;
+      }
 
-    let matched =
-      targetId && recordDate ? photosMap.get(`${enriched.user_id}_${targetId}_${recordDate}`) : null;
-    if ((!matched || matched.length === 0) && baseId && baseId !== targetId && recordDate) {
-      matched = photosMap.get(`${enriched.user_id}_${baseId}_${recordDate}`);
-    }
-    if ((!matched || matched.length === 0) && targetId) {
-      matched = photosMapBySummit.get(`${enriched.user_id}_${targetId}`);
-    }
-    if ((!matched || matched.length === 0) && baseId) {
-      matched = photosMapBySummit.get(`${enriched.user_id}_${baseId}`);
-    }
+      const baseId = enriched.summit_id || enriched.experience_id;
+      const targetId = enriched.sub_item_id ? `${baseId}::${enriched.sub_item_id}` : baseId;
+      const recordDate = enriched.achieved_on || "";
 
-    enriched.photos = sortPhotosByTime(matched || []);
-    return enriched;
-  });
+      let matched =
+        targetId && recordDate ? photosMap.get(`${enriched.user_id}_${targetId}_${recordDate}`) : null;
+      if ((!matched || matched.length === 0) && baseId && baseId !== targetId && recordDate) {
+        matched = photosMap.get(`${enriched.user_id}_${baseId}_${recordDate}`);
+      }
+      if ((!matched || matched.length === 0) && targetId) {
+        matched = photosMapBySummit.get(`${enriched.user_id}_${targetId}`);
+      }
+      if ((!matched || matched.length === 0) && baseId) {
+        matched = photosMapBySummit.get(`${enriched.user_id}_${baseId}`);
+      }
+
+      enriched.photos = sortPhotosByTime(matched || []);
+      return enriched;
+    })
+    .sort(compareFeedRecords);
 
   // Collect initial grid thumbnails + author avatars for throttled idle warmup
   const preloadSet = new Set<string>();

@@ -232,8 +232,8 @@ export function MapActiveSynchronizer({
             } else {
               map.fitBounds(
                 [
-                  [27.55, -18.65],
-                  [43.95, 4.95],
+                  [35.8, -9.5],
+                  [43.9, 4.35],
                 ],
                 { padding: [12, 12], animate: false }
               );

@@ -207,6 +207,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           void import("@/lib/geo-loader").then((m) => m.fetchWorldGeo().catch(() => {}));
         }
       }
+      void import("@/components/profile-settings").catch(() => {});
     };
     if (typeof window.requestIdleCallback === "function") {
       const id = window.requestIdleCallback(warmChunks, { timeout: 1200 });
@@ -686,7 +687,8 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       {!(
         pathname.startsWith("/reset-password") ||
         pathname.startsWith("/privacidad") ||
-        pathname.startsWith("/terminos")
+        pathname.startsWith("/terminos") ||
+        pathname.startsWith("/developers")
       ) && (
         <MobileBottomNav
           activeTab={activeTab}

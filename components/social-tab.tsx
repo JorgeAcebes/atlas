@@ -181,6 +181,18 @@ export function SocialTab({
   }, [session]);
 
   useEffect(() => {
+    if (!session || typeof window === "undefined") return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("inbox") === "shared") {
+        setInboxOpen(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [session]);
+
+  useEffect(() => {
     if (controlledMode && controlledMode !== prevControlledModeRef.current) {
       prevControlledModeRef.current = controlledMode;
       if (controlledMode === "peaks" && enablePeaks) setCurrentMode("peaks");

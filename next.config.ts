@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["sharp", "web-push"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
@@ -23,6 +24,16 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: securityHeaders,
+      },
+      {
+        source: "/",
+        headers: [
+          {
+            key: "Link",
+            value:
+              '</openapi.json>; rel="service-desc"; type="application/openapi+json", </llms.txt>; rel="describedby"; type="text/markdown", </.well-known/mcp/server-card.json>; rel="mcp"; type="application/json"',
+          },
+        ],
       },
       {
         source: "/world-countries.topo.json",

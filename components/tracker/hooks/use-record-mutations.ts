@@ -330,6 +330,13 @@ export function useRecordMutations({
       }
     }
 
+    const isNewNonWishlistRecord = isExperience
+      ? !payload.editingExpRecordId
+      : !originalAchievedOn &&
+        !ascents.some(
+          (a) => a.summit_id === selected.id && a.achieved_on === finalDate && !a.is_wishlist
+        );
+
     let dbError: any = null;
     if (isExperience) {
       if (payload.editingExpRecordId) {
@@ -401,6 +408,7 @@ export function useRecordMutations({
       return { saved: false };
     }
 
+    const pendingNotifiedCompanionIds: string[] = [];
     if (isSeparated && payload.currentTripGroupId) {
       await supabase
         .from("record_companions")
@@ -427,10 +435,19 @@ export function useRecordMutations({
 
         const effectiveTripGroupId: string =
           syncResult.resolvedTripGroupId || (tripGroupIdToSave as string);
+        const prevCompStatus = payload.companionStatuses[comp.id];
         const effectiveStatus = syncResult.isMutual
           ? "accepted"
-          : payload.companionStatuses[comp.id] || "pending";
+          : prevCompStatus || "pending";
         tripGroupIdToSave = effectiveTripGroupId;
+
+        if (
+          effectiveStatus === "pending" &&
+          prevCompStatus !== "pending" &&
+          prevCompStatus !== "accepted"
+        ) {
+          pendingNotifiedCompanionIds.push(comp.id);
+        }
 
         if (syncResult.isMutual && !isExperience) {
           await supabase
@@ -631,6 +648,42 @@ export function useRecordMutations({
 
     setSaving(false);
     setRecordOpen(false);
+
+    if (session.access_token) {
+      const pushItemType = isExperience ? "experience" : isPeaks ? "peak" : "country";
+      if (isNewNonWishlistRecord) {
+        void fetch("/api/push/notify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            event: "new_post",
+            item_type: pushItemType,
+            item_id: selected.id,
+            sub_item_id: selected.sub_item_id || null,
+            title: selected.title,
+          }),
+        }).catch(() => {});
+      }
+      if (pendingNotifiedCompanionIds.length > 0) {
+        void fetch("/api/push/notify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            event: "shared_record",
+            companion_ids: pendingNotifiedCompanionIds,
+            item_type: pushItemType,
+            item_id: selected.id,
+            title: selected.title,
+          }),
+        }).catch(() => {});
+      }
+    }
 
     const isEdit = isExperience ? Boolean(payload.editingExpRecordId) : Boolean(originalAchievedOn);
     const hasPrevious = isExperience

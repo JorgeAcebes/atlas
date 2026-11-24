@@ -752,7 +752,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             easeLinearity={inertiaOptions.easeLinearity}
             minZoom={isPeaks ? 5 : 2}
             maxZoom={isPeaks ? 10 : 12}
-            maxBounds={isPeaks ? [[26.0, -19.8], [45.0, 6.0]] : [[-60, -180], [83, 180]]}
+            maxBounds={isPeaks ? [[26.0, -19.8], [47.5, 11.0]] : [[-60, -180], [83, 180]]}
             maxBoundsViscosity={isPeaks ? 0.5 : 1.0}
           >
             <MapZoomListener onInteractionStart={clearHoverState} />

@@ -149,6 +149,40 @@ describe("Companions & Shared Trips Functionality", () => {
       expect(Math.abs(idxAlice - idxBob)).toBe(1);
     });
 
+    it("should place inviter first and sort companions by acceptance time within the same trip_group_id", () => {
+      const companionLater = {
+        record_date: "2026-08-15",
+        created_at: "2026-08-16T09:00:00Z",
+        trip_group_id: "trip-ordered",
+        trip_is_inviter: false,
+        trip_joined_at: "2026-08-18T15:00:00Z",
+        user_id: "0000-companion-b",
+      };
+      const inviter = {
+        record_date: "2026-08-15",
+        created_at: "2026-08-16T10:00:00Z",
+        trip_group_id: "trip-ordered",
+        trip_is_inviter: true,
+        trip_joined_at: null,
+        user_id: "zzzz-inviter",
+      };
+      const companionFirst = {
+        record_date: "2026-08-15",
+        created_at: "2026-08-16T12:00:00Z",
+        trip_group_id: "trip-ordered",
+        trip_is_inviter: false,
+        trip_joined_at: "2026-08-17T10:00:00Z",
+        user_id: "aaaa-companion-a",
+      };
+
+      const feed = [companionLater, companionFirst, inviter].sort(compareFeedRecords);
+      expect(feed.map((f) => f.user_id)).toEqual([
+        "zzzz-inviter",
+        "aaaa-companion-a",
+        "0000-companion-b",
+      ]);
+    });
+
     it("should connect companion posts with the same trip_group_id using areFeedItemsConnected", () => {
       const post1 = {
         user_id: "alice",
