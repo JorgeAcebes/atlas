@@ -53,9 +53,12 @@ export function RankingTab({
   const enableCountries = !myProfile || myProfile.enable_countries !== false;
   const hasBothModes = enablePeaks && enableCountries;
 
-  const [mode, setMode] = useState<ModeFilter>(() =>
-    enableCountries ? "countries" : "peaks"
-  );
+  const [mode, setMode] = useState<ModeFilter>(() => {
+    if (controlledMode === "peaks" && enablePeaks) return "peaks";
+    if (controlledMode === "countries" && enableCountries) return "countries";
+    return enableCountries ? "countries" : "peaks";
+  });
+  const prevControlledModeRef = useRef(controlledMode);
   const [scope, setScope] = useState<ScopeFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -92,7 +95,7 @@ export function RankingTab({
         setMode("peaks");
       } else if (urlChallenge === "countries" && enableCountries) {
         setMode("countries");
-      } else {
+      } else if (controlledMode === undefined) {
         const savedActive = localStorage.getItem("last_active_mode") as ModeFilter | null;
         const saved = localStorage.getItem("ranking_mode") as ModeFilter | null;
         if (savedActive === "peaks" && enablePeaks) setMode("peaks");
@@ -103,14 +106,15 @@ export function RankingTab({
     } catch {
       /* ignore */
     }
-  }, [enablePeaks, enableCountries]);
+  }, [enablePeaks, enableCountries, controlledMode]);
 
   useEffect(() => {
-    if (controlledMode && controlledMode !== mode) {
+    if (controlledMode && controlledMode !== prevControlledModeRef.current) {
+      prevControlledModeRef.current = controlledMode;
       if (controlledMode === "peaks" && enablePeaks) setMode("peaks");
       else if (controlledMode === "countries" && enableCountries) setMode("countries");
     }
-  }, [controlledMode, enablePeaks, enableCountries, mode]);
+  }, [controlledMode, enablePeaks, enableCountries]);
 
   useEffect(() => {
     if (!enablePeaks && mode === "peaks") setMode("countries");
@@ -430,8 +434,13 @@ export function RankingTab({
           myProfile={myProfile}
           initialMode={mode}
           onModeChange={(newMode) => {
-            if (newMode === "peaks" && enablePeaks) setMode("peaks");
-            else if (newMode === "countries" && enableCountries) setMode("countries");
+            if (newMode === "peaks" && enablePeaks) {
+              setMode("peaks");
+              onSwitchMode?.("peaks");
+            } else if ((newMode === "countries" || newMode === "experiences") && enableCountries) {
+              setMode("countries");
+              onSwitchMode?.("countries");
+            }
           }}
           onClose={() => {
             if (

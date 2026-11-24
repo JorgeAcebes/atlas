@@ -107,8 +107,21 @@ self.addEventListener("fetch", (event) => {
         let cached;
         try {
           const cache = await caches.open(TILES_CACHE);
-          cached = await cache.match(req);
-          if (cached) return cached;
+          const isRetryReq = url.searchParams.has("_r");
+          let cacheKey = req;
+          if (isRetryReq) {
+            const cacheUrl = new URL(url.href);
+            cacheUrl.searchParams.delete("_r");
+            cacheKey = new Request(cacheUrl.href, {
+              mode: req.mode,
+              credentials: req.credentials,
+            });
+          }
+
+          if (!isRetryReq) {
+            cached = await cache.match(cacheKey);
+            if (cached) return cached;
+          }
 
           let response;
           try {
@@ -117,7 +130,7 @@ self.addEventListener("fetch", (event) => {
             response = await fetch(req);
           }
 
-          if (response && !response.ok) {
+          if (response && response.type !== "opaque" && !response.ok) {
             try {
               const retryRes = await fetch(req);
               if (retryRes && retryRes.ok) response = retryRes;
@@ -128,7 +141,7 @@ self.addEventListener("fetch", (event) => {
 
           if (response && response.ok) {
             cache
-              .put(req, response.clone())
+              .put(cacheKey, response.clone())
               .then(() => trimCache(TILES_CACHE, MAX_TILE_CACHE_ENTRIES))
               .catch(() => {});
           }

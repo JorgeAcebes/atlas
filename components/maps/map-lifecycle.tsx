@@ -15,6 +15,37 @@ export function safeCloseTooltip(layer: any): void {
   }
 }
 
+function findTileLayer(map: L.Map): L.TileLayer | null {
+  let tileLayer: L.TileLayer | null = null;
+  map.eachLayer((layer) => {
+    if (!tileLayer && typeof (layer as any).getTileUrl === "function") {
+      tileLayer = layer as L.TileLayer;
+    }
+  });
+  return tileLayer;
+}
+
+function revealCompletedTiles(tilePane: HTMLElement | undefined): {
+  total: number;
+  loaded: number;
+} {
+  if (!tilePane) return { total: 0, loaded: 0 };
+  const imgs = Array.from(tilePane.querySelectorAll("img"));
+  let loaded = 0;
+  for (const img of imgs) {
+    if (img.complete && img.naturalWidth > 0) {
+      loaded++;
+      if (!img.classList.contains("leaflet-tile-loaded")) {
+        img.classList.add("leaflet-tile-loaded");
+      }
+      if (img.style.opacity === "0") {
+        img.style.opacity = "1";
+      }
+    }
+  }
+  return { total: imgs.length, loaded };
+}
+
 /**
  * Invalidates Leaflet container dimensions cleanly without triggering a per-frame RAF loop:
  * - once synchronously on mount
@@ -81,12 +112,19 @@ export function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; i
       const nextWidth = container.clientWidth;
       const nextHeight = container.clientHeight;
       if (nextWidth > 0 && nextHeight > 0 && (nextWidth !== lastWidth || nextHeight !== lastHeight)) {
+        const wasZero = lastWidth === 0 || lastHeight === 0;
         lastWidth = nextWidth;
         lastHeight = nextHeight;
         if (rafId !== null) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
           rafId = null;
           map.invalidateSize({ animate: false, pan: false });
+          if (wasZero) {
+            const tilePane = map.getPane("tilePane");
+            if (revealCompletedTiles(tilePane).total === 0) {
+              findTileLayer(map)?.redraw();
+            }
+          }
         });
       }
     });
@@ -103,38 +141,38 @@ export function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; i
 
 /**
  * Ensures OpenStreetMap tiles paint reliably after late container sizing or route mounts.
+ * Never aborts in-flight tiles early; reveals completed tiles stuck hidden and only redraws if stalled.
  */
 export function MapTileWakeup({ isActive }: { isActive?: boolean }) {
   const map = useMap();
 
   useEffect(() => {
     if (isActive === false) return;
-    const timer = setTimeout(() => {
+
+    const ensureTiles = (allowRedrawWhenLoadedZero: boolean) => {
       const container = map.getContainer();
       if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
 
       map.invalidateSize({ animate: false, pan: false });
 
-      let tileLayer: L.TileLayer | null = null;
-      map.eachLayer((layer) => {
-        if (!tileLayer && typeof (layer as any).getTileUrl === "function") {
-          tileLayer = layer as L.TileLayer;
-        }
-      });
+      const tileLayer = findTileLayer(map);
       if (!tileLayer) return;
 
       const tilePane = map.getPane("tilePane");
-      const loadedImgs = tilePane
-        ? Array.from(tilePane.querySelectorAll("img")).filter(
-            (img) => img.complete && img.naturalWidth > 0
-          ).length
-        : 0;
-      if (loadedImgs === 0) {
-        (tileLayer as L.TileLayer).redraw();
-      }
-    }, 180);
+      const { total, loaded } = revealCompletedTiles(tilePane);
 
-    return () => clearTimeout(timer);
+      if (total === 0 || (allowRedrawWhenLoadedZero && loaded === 0)) {
+        tileLayer.redraw();
+      }
+    };
+
+    const earlyTimer = setTimeout(() => ensureTiles(false), 200);
+    const stallTimer = setTimeout(() => ensureTiles(true), 1600);
+
+    return () => {
+      clearTimeout(earlyTimer);
+      clearTimeout(stallTimer);
+    };
   }, [map, isActive]);
 
   return null;
@@ -206,6 +244,10 @@ export function MapActiveSynchronizer({
             Number.isFinite(prevZoom)
           ) {
             map.setView(prevCenter, prevZoom, { animate: false });
+          }
+          const { total } = revealCompletedTiles(map.getPane("tilePane"));
+          if (total === 0) {
+            findTileLayer(map)?.redraw();
           }
         }
       });

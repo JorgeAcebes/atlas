@@ -73,12 +73,16 @@ export function SocialTab({
   const enableExperiences = enableCountries && (!myProfile || myProfile.enable_experiences !== false);
   const hasBothModes = enablePeaks && enableCountries;
 
-  const [currentMode, setCurrentMode] = useState<"countries" | "peaks">(() =>
-    enableCountries ? "countries" : "peaks"
-  );
+  const [currentMode, setCurrentMode] = useState<"countries" | "peaks">(() => {
+    if (controlledMode === "peaks" && enablePeaks) return "peaks";
+    if (controlledMode === "countries" && enableCountries) return "countries";
+    return enableCountries ? "countries" : "peaks";
+  });
   const [experiencesMode, setExperiencesMode] = useState<boolean>(() =>
     controlledExperiencesMode !== undefined ? controlledExperiencesMode : false
   );
+  const prevControlledModeRef = useRef(controlledMode);
+  const prevControlledExpRef = useRef(controlledExperiencesMode);
   const [connectionsModal, setConnectionsModal] = useState<"followers" | "following" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [followingOnly, setFollowingOnly] = useState(false);
@@ -140,7 +144,7 @@ export function SocialTab({
       const urlChallenge = urlParams.get("challenge");
       if (urlChallenge === "peaks" && enablePeaks) setCurrentMode("peaks");
       else if (urlChallenge === "countries" && enableCountries) setCurrentMode("countries");
-      else {
+      else if (controlledMode === undefined) {
         const saved = localStorage.getItem("last_active_mode") as "countries" | "peaks" | null;
         if (saved === "peaks" && enablePeaks) setCurrentMode("peaks");
         else if (saved === "countries" && enableCountries) setCurrentMode("countries");
@@ -154,13 +158,17 @@ export function SocialTab({
     } catch {
       /* ignore */
     }
-  }, [enablePeaks, enableCountries, controlledExperiencesMode]);
+  }, [enablePeaks, enableCountries, controlledMode, controlledExperiencesMode]);
 
   useEffect(() => {
-    if (controlledExperiencesMode !== undefined && controlledExperiencesMode !== experiencesMode) {
+    if (
+      controlledExperiencesMode !== undefined &&
+      controlledExperiencesMode !== prevControlledExpRef.current
+    ) {
+      prevControlledExpRef.current = controlledExperiencesMode;
       setExperiencesMode(controlledExperiencesMode);
     }
-  }, [controlledExperiencesMode, experiencesMode]);
+  }, [controlledExperiencesMode]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -173,11 +181,12 @@ export function SocialTab({
   }, [session]);
 
   useEffect(() => {
-    if (controlledMode && controlledMode !== currentMode) {
+    if (controlledMode && controlledMode !== prevControlledModeRef.current) {
+      prevControlledModeRef.current = controlledMode;
       if (controlledMode === "peaks" && enablePeaks) setCurrentMode("peaks");
       else if (controlledMode === "countries" && enableCountries) setCurrentMode("countries");
     }
-  }, [controlledMode, enablePeaks, enableCountries, currentMode]);
+  }, [controlledMode, enablePeaks, enableCountries]);
 
   useEffect(() => {
     if (!enablePeaks && currentMode === "peaks") setCurrentMode("countries");
@@ -543,12 +552,18 @@ export function SocialTab({
             if (mode === "peaks" && enablePeaks) {
               setCurrentMode("peaks");
               setExperiencesMode(false);
+              onToggleExperiences?.(false);
+              onSwitchMode?.("peaks");
             } else if (mode === "countries" && enableCountries) {
               setCurrentMode("countries");
               setExperiencesMode(false);
+              onToggleExperiences?.(false);
+              onSwitchMode?.("countries");
             } else if (mode === "experiences" && enableCountries) {
               setCurrentMode("countries");
               setExperiencesMode(true);
+              onToggleExperiences?.(true);
+              onSwitchMode?.("countries");
             }
           }}
           onClose={() => {

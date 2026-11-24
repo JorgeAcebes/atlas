@@ -13,7 +13,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import type { FeatureCollection } from "geojson";
 import { countries, resolveCountryFromFeature, type Country } from "@/data/countries";
 import { isMobileOrTablet } from "@/lib/device-utils";
-import { createAdaptiveCanvasRenderer, getAdaptiveKeepBuffer } from "@/lib/leaflet-canvas-patch";
+import {
+  createAdaptiveCanvasRenderer,
+  getAdaptiveInertiaOptions,
+  getAdaptiveKeepBuffer,
+} from "@/lib/leaflet-canvas-patch";
 import { fetchWorldGeo, getCachedWorldGeo, getLargestPolygonBounds } from "@/lib/geo-loader";
 import { FitWorld } from "@/lib/leaflet-bounds";
 import { getExperienceIcon, getWorldMarkerIcons } from "@/lib/leaflet-icons";
@@ -334,6 +338,7 @@ export const WorldMap = memo(function WorldMap({
   void _onComplete;
   const canvasRenderer = useMemo(() => createAdaptiveCanvasRenderer("world"), []);
   const keepBuffer = useMemo(() => getAdaptiveKeepBuffer(), []);
+  const inertiaOptions = useMemo(() => getAdaptiveInertiaOptions(), []);
   const tileEventHandlers = useMemo(() => createTileRetryHandlers(), []);
   const [geo, setGeo] = useState<FeatureCollection | null>(() => getCachedWorldGeo());
   const [searchedId, setSearchedId] = useState<string | null>(null);
@@ -650,8 +655,10 @@ export const WorldMap = memo(function WorldMap({
       zoomDelta={1}
       wheelPxPerZoomLevel={60}
       wheelDebounceTime={25}
-      inertiaDeceleration={2200}
-      easeLinearity={0.2}
+      inertia={inertiaOptions.inertia}
+      inertiaDeceleration={inertiaOptions.inertiaDeceleration}
+      inertiaMaxSpeed={inertiaOptions.inertiaMaxSpeed}
+      easeLinearity={inertiaOptions.easeLinearity}
       minZoom={2}
       maxZoom={12}
       maxBounds={[
@@ -827,6 +834,7 @@ export const WorldMap = memo(function WorldMap({
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        crossOrigin="anonymous"
         minZoom={2}
         maxZoom={12}
         keepBuffer={keepBuffer}

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { feature } from "topojson-client";
 import { resolveCountryFromFeature } from "@/data/countries";
 import { peakByCode } from "@/data/peaks";
@@ -153,13 +153,16 @@ describe("Fluidez de mapas, hover SVG aislado, zoom mundial y TopoJSON", () => {
 
     for (const mapSrc of [world, spain, collective]) {
       expect(mapSrc).toContain("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+      expect(mapSrc).toContain("getAdaptiveInertiaOptions");
+      expect(mapSrc).toContain("inertiaDeceleration={inertiaOptions.inertiaDeceleration}");
+      expect(mapSrc).toContain("inertiaMaxSpeed={inertiaOptions.inertiaMaxSpeed}");
+      expect(mapSrc).toContain("easeLinearity={inertiaOptions.easeLinearity}");
+      expect(mapSrc).toContain('crossOrigin="anonymous"');
     }
     for (const mapSrc of [world, collective]) {
       expect(mapSrc).toContain("wheelDebounceTime={25}");
-      expect(mapSrc).toContain("inertiaDeceleration={2200}");
     }
     expect(spain).toContain("wheelDebounceTime={20}");
-    expect(spain).toContain("inertiaDeceleration={1600}");
     expect(spain).toContain("wheelPxPerZoomLevel={85}");
 
     expect(world).toContain("<HoverHighlightBridge");
@@ -349,5 +352,117 @@ describe("Limites de zoom en móvil, sin animación inicial, Stats, swipe en lis
 
     const sw = readFile("public/sw.js");
     expect(sw).toContain("single transient retry");
+    expect(sw).toContain('response.type !== "opaque"');
+    expect(sw).toContain("isRetryReq");
+  });
+});
+
+describe("Fricción adaptativa móvil, carga fiable de tiles, transición instantánea Social/Ranking y cambio de modo en Stats", () => {
+  const originalWindow = (globalThis as any).window;
+  const originalNavigator = globalThis.navigator;
+
+  afterEach(() => {
+    vi.doUnmock("leaflet");
+    vi.resetModules();
+    if (originalWindow === undefined) delete (globalThis as any).window;
+    else (globalThis as any).window = originalWindow;
+    try {
+      Object.defineProperty(globalThis, "navigator", {
+        value: originalNavigator,
+        configurable: true,
+      });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it("getAdaptiveInertiaOptions aplica mayor fricción y velocidad tope acotada en móvil y escritorio", async () => {
+    vi.doMock("leaflet", () => ({ default: {} }));
+    const { getAdaptiveInertiaOptions } = await import("@/lib/leaflet-canvas-patch");
+
+    (globalThis as any).window = { innerWidth: 1440 };
+    try {
+      Object.defineProperty(navigator, "userAgent", {
+        value:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        configurable: true,
+      });
+      Object.defineProperty(navigator, "maxTouchPoints", {
+        value: 0,
+        configurable: true,
+      });
+    } catch {
+      /* ignore */
+    }
+    const desktopOpts = getAdaptiveInertiaOptions();
+    expect(desktopOpts.inertia).toBe(true);
+    expect(desktopOpts.inertiaDeceleration).toBeGreaterThanOrEqual(4000);
+    expect(desktopOpts.inertiaMaxSpeed).toBeLessThanOrEqual(750);
+
+    (globalThis as any).window = { innerWidth: 390 };
+    const mobileOpts = getAdaptiveInertiaOptions();
+    expect(mobileOpts.inertia).toBe(true);
+    expect(mobileOpts.inertiaDeceleration).toBeGreaterThanOrEqual(6000);
+    expect(mobileOpts.inertiaMaxSpeed).toBeLessThanOrEqual(500);
+  });
+
+  it("MapTileWakeup recupera tiles sin abortar descargas en curso y TrackerMapSection difiere cambios ocultos", () => {
+    const lifecycle = readFile("components/maps/map-lifecycle.tsx");
+    expect(lifecycle).toContain("revealCompletedTiles");
+    expect(lifecycle).toContain("total === 0 || (allowRedrawWhenLoadedZero && loaded === 0)");
+    expect(lifecycle).toContain("earlyTimer");
+    expect(lifecycle).toContain("stallTimer");
+
+    const mapSection = readFile("components/tracker/tracker-map-section.tsx");
+    expect(mapSection).toContain("lastActiveIsPeaksRef");
+    expect(mapSection).toContain("effectiveIsPeaks");
+
+    const sw = readFile("public/sw.js");
+    expect(sw).toContain('response.type !== "opaque" && !response.ok');
+  });
+
+  it("AppTabsShell precarga SocialTab/RankingTab sin fallback en blanco e inicializa modo y caché síncronamente", () => {
+    const shell = readFile("components/app-tabs-shell.tsx");
+    expect(shell).toContain("loadSocialTab");
+    expect(shell).toContain("loadRankingTab");
+    expect(shell).not.toContain('minHeight: "100vh", background: "var(--paper)"');
+
+    const social = readFile("components/social-tab.tsx");
+    expect(social).toMatch(/useState<"countries" \| "peaks">\([\s\S]*?controlledMode === "peaks"/);
+
+    const ranking = readFile("components/ranking-tab.tsx");
+    expect(ranking).toMatch(/useState<ModeFilter>\([\s\S]*?controlledMode === "peaks"/);
+
+    const rankingHook = readFile("hooks/use-ranking-data.ts");
+    expect(rankingHook).toMatch(/useState<RankingEntry\[\]>\([\s\S]*?globalRankingCache\[cacheKey\]/);
+    expect(rankingHook).toMatch(/useState<boolean>\([\s\S]*?globalRankingCache\[cacheKey\]/);
+  });
+
+  it("StatsModal propaga onSwitchMode sin rebotar al modo anterior y AppTabsShell preserva #estadisticas", () => {
+    const statsModal = readFile("components/stats-modal.tsx");
+    expect(statsModal).toContain("prevInitialModeRef");
+    expect(statsModal).toContain("if (initialMode === prevInitialModeRef.current) return;");
+
+    const tracker = readFile("components/summit-tracker.tsx");
+    expect(tracker).toContain("prevInitialModePropRef");
+    expect(tracker).toContain("prevControlledExperiencesRef");
+    expect(tracker).toMatch(/onModeChange=\{\(newMode\)[\s\S]*?onSwitchMode\?\.\("peaks"\)/);
+    expect(tracker).toMatch(/onModeChange=\{\(newMode\)[\s\S]*?onSwitchMode\?\.\("countries"\)/);
+
+    const social = readFile("components/social-tab.tsx");
+    expect(social).toContain("prevControlledModeRef");
+    expect(social).toMatch(/onModeChange=\{\(mode\)[\s\S]*?onSwitchMode\?\.\("peaks"\)/);
+    expect(social).toMatch(/onModeChange=\{\(mode\)[\s\S]*?onSwitchMode\?\.\("countries"\)/);
+
+    const ranking = readFile("components/ranking-tab.tsx");
+    expect(ranking).toContain("prevControlledModeRef");
+    expect(ranking).toMatch(/onModeChange=\{\(newMode\)[\s\S]*?onSwitchMode\?\.\("peaks"\)/);
+    expect(ranking).toMatch(/onModeChange=\{\(newMode\)[\s\S]*?onSwitchMode\?\.\("countries"\)/);
+
+    const shell = readFile("components/app-tabs-shell.tsx");
+    expect(shell).toContain("isStatsHash");
+    expect(shell).toContain("closingStatsOnSameTab");
+    expect(shell).toContain("`${newPath}${statsHash}`");
+    expect(shell).toContain("url.hash = statsHash;");
   });
 });

@@ -131,3 +131,27 @@ export function getAdaptiveKeepBuffer(): number {
   if (typeof window === "undefined") return 3;
   return isMobileOrTablet() ? 4 : 3;
 }
+
+export interface MapInertiaOptions {
+  inertia: boolean;
+  inertiaDeceleration: number;
+  inertiaMaxSpeed: number;
+  easeLinearity: number;
+}
+
+export function getAdaptiveInertiaOptions(): MapInertiaOptions {
+  if (typeof window !== "undefined" && isMobileOrTablet()) {
+    return {
+      inertia: true,
+      inertiaDeceleration: 6500,
+      inertiaMaxSpeed: 420,
+      easeLinearity: 0.28,
+    };
+  }
+  return {
+    inertia: true,
+    inertiaDeceleration: 4500,
+    inertiaMaxSpeed: 650,
+    easeLinearity: 0.25,
+  };
+}

@@ -11,7 +11,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import type { FeatureCollection, Position } from "geojson";
 import { peakByCode, peaks, type Peak } from "@/data/peaks";
 import { isMobileOrTablet } from "@/lib/device-utils";
-import { createAdaptiveCanvasRenderer, getAdaptiveKeepBuffer } from "@/lib/leaflet-canvas-patch";
+import {
+  createAdaptiveCanvasRenderer,
+  getAdaptiveInertiaOptions,
+  getAdaptiveKeepBuffer,
+} from "@/lib/leaflet-canvas-patch";
 import { fetchSpainGeo, getCachedSpainGeo } from "@/lib/geo-loader";
 import { FitSpain } from "@/lib/leaflet-bounds";
 import { getPeakMarkerIcons } from "@/lib/leaflet-icons";
@@ -163,6 +167,7 @@ export const SpainMap = memo(function SpainMap({
   void _onComplete;
   const canvasRenderer = useMemo(() => createAdaptiveCanvasRenderer("spain"), []);
   const keepBuffer = useMemo(() => getAdaptiveKeepBuffer(), []);
+  const inertiaOptions = useMemo(() => getAdaptiveInertiaOptions(), []);
   const tileEventHandlers = useMemo(() => createTileRetryHandlers(), []);
   const [geo, setGeo] = useState<FeatureCollection | null>(() => getCachedSpainGeo());
   const [searchedId, setSearchedId] = useState<string | null>(null);
@@ -484,10 +489,10 @@ export const SpainMap = memo(function SpainMap({
       zoomDelta={1}
       wheelPxPerZoomLevel={85}
       wheelDebounceTime={20}
-      inertia={true}
-      inertiaDeceleration={1600}
-      inertiaMaxSpeed={1800}
-      easeLinearity={0.18}
+      inertia={inertiaOptions.inertia}
+      inertiaDeceleration={inertiaOptions.inertiaDeceleration}
+      inertiaMaxSpeed={inertiaOptions.inertiaMaxSpeed}
+      easeLinearity={inertiaOptions.easeLinearity}
       minZoom={5}
       maxZoom={10}
       maxBounds={[
@@ -516,6 +521,7 @@ export const SpainMap = memo(function SpainMap({
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        crossOrigin="anonymous"
         minZoom={5}
         maxZoom={10}
         keepBuffer={keepBuffer}

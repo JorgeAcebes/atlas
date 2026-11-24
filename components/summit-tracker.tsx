@@ -357,12 +357,14 @@ export function SummitTracker({
     setMyProfile(authProfile);
   }, [authProfile]);
 
+  const prevInitialModePropRef = useRef(initialModeProp);
   useEffect(() => {
-    if (initialModeProp && initialModeProp !== currentMode) {
+    if (initialModeProp && initialModeProp !== prevInitialModePropRef.current) {
+      prevInitialModePropRef.current = initialModeProp;
       if (initialModeProp === "peaks" && canShowPeaks) setCurrentMode("peaks");
       else if (initialModeProp === "countries" && canShowCountries) setCurrentMode("countries");
     }
-  }, [initialModeProp, canShowPeaks, canShowCountries, currentMode]);
+  }, [initialModeProp, canShowPeaks, canShowCountries]);
 
   const switchMode = useCallback(
     (target: ChallengeMode) => {
@@ -405,14 +407,14 @@ export function SummitTracker({
     });
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || onSwitchMode) return;
     const handlePopState = () => {
       if (window.location.pathname === "/picos" && canShowPeaks) setCurrentMode("peaks");
       else if (window.location.pathname === "/" && canShowCountries) setCurrentMode("countries");
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [isActive, canShowPeaks, canShowCountries]);
+  }, [isActive, onSwitchMode, canShowPeaks, canShowCountries]);
 
   useEffect(() => {
     if (selected && !isSelectedValidForCurrentMode) {
@@ -560,11 +562,18 @@ export function SummitTracker({
     }
   }, [selectingLocationForExp, isMobile]);
 
+  const prevControlledExperiencesRef = useRef(controlledExperiencesMode);
   useEffect(() => {
-    if (controlledExperiencesMode !== undefined && !isReadOnly && controlledExperiencesMode !== experiencesMode) {
-      setExperiencesMode(controlledExperiencesMode);
+    if (
+      controlledExperiencesMode !== undefined &&
+      controlledExperiencesMode !== prevControlledExperiencesRef.current
+    ) {
+      prevControlledExperiencesRef.current = controlledExperiencesMode;
+      if (!isReadOnly) {
+        setExperiencesMode(controlledExperiencesMode);
+      }
     }
-  }, [controlledExperiencesMode, isReadOnly, experiencesMode]);
+  }, [controlledExperiencesMode, isReadOnly]);
 
   useEffect(() => {
     if (initialExperiencesMode) {
@@ -1561,14 +1570,17 @@ export function SummitTracker({
               setCurrentMode("peaks");
               setExperiencesMode(false);
               onToggleExperiences?.(false);
+              onSwitchMode?.("peaks");
             } else if (newMode === "countries" && canShowCountries) {
               setCurrentMode("countries");
               setExperiencesMode(false);
               onToggleExperiences?.(false);
+              onSwitchMode?.("countries");
             } else if (newMode === "experiences" && canShowCountries) {
               setCurrentMode("countries");
               setExperiencesMode(true);
               onToggleExperiences?.(true);
+              onSwitchMode?.("countries");
             }
           }}
           onClose={() => {

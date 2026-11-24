@@ -1,28 +1,57 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, Suspense } from "react";
-import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { SummitTracker } from "@/components/summit-tracker";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { isStandalone } from "@/components/install-prompt";
 import { resetScrollLock } from "@/lib/scroll-lock";
+import type { SocialTab as SocialTabType } from "@/components/social-tab";
+import type { RankingTab as RankingTabType } from "@/components/ranking-tab";
 
-const SocialTab = dynamic(
-  () => import("@/components/social-tab").then((mod) => mod.SocialTab),
-  {
-    ssr: false,
-    loading: () => <div style={{ minHeight: "100vh", background: "var(--paper)" }} aria-hidden="true" />,
-  }
-);
+type SocialTabComponent = typeof SocialTabType;
+type RankingTabComponent = typeof RankingTabType;
 
-const RankingTab = dynamic(
-  () => import("@/components/ranking-tab").then((mod) => mod.RankingTab),
-  {
-    ssr: false,
-    loading: () => <div style={{ minHeight: "100vh", background: "var(--paper)" }} aria-hidden="true" />,
+let resolvedSocialTab: SocialTabComponent | null = null;
+let socialTabPromise: Promise<SocialTabComponent> | null = null;
+let resolvedRankingTab: RankingTabComponent | null = null;
+let rankingTabPromise: Promise<RankingTabComponent> | null = null;
+
+function loadSocialTab(): Promise<SocialTabComponent> {
+  if (resolvedSocialTab) return Promise.resolve(resolvedSocialTab);
+  if (!socialTabPromise) {
+    socialTabPromise = import("@/components/social-tab")
+      .then((mod) => {
+        resolvedSocialTab = mod.SocialTab;
+        return mod.SocialTab;
+      })
+      .catch((err) => {
+        socialTabPromise = null;
+        throw err;
+      });
   }
-);
+  return socialTabPromise;
+}
+
+function loadRankingTab(): Promise<RankingTabComponent> {
+  if (resolvedRankingTab) return Promise.resolve(resolvedRankingTab);
+  if (!rankingTabPromise) {
+    rankingTabPromise = import("@/components/ranking-tab")
+      .then((mod) => {
+        resolvedRankingTab = mod.RankingTab;
+        return mod.RankingTab;
+      })
+      .catch((err) => {
+        rankingTabPromise = null;
+        throw err;
+      });
+  }
+  return rankingTabPromise;
+}
+
+function isStatsHash(hash: string): boolean {
+  return hash === "#estadisticas" || hash === "#galeria" || hash === "#lightbox";
+}
 
 type MainTab = "map" | "social" | "ranking";
 type ChallengeMode = "peaks" | "countries";
@@ -84,8 +113,14 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
   const [visitedTabs, setVisitedTabs] = useState<Set<MainTab>>(() => new Set([initialTab]));
   const [sharedMode, setSharedMode] = useState<ChallengeMode>(() => (pathname === "/picos" ? "peaks" : "countries"));
   const [sharedExperiencesMode, setSharedExperiencesMode] = useState<boolean>(false);
+  const [SocialTabComp, setSocialTabComp] = useState<SocialTabComponent | null>(() => resolvedSocialTab);
+  const [RankingTabComp, setRankingTabComp] = useState<RankingTabComponent | null>(() => resolvedRankingTab);
   const sharedModeRef = React.useRef<ChallengeMode>(sharedMode);
   sharedModeRef.current = sharedMode;
+  const sharedExperiencesRef = React.useRef<boolean>(sharedExperiencesMode);
+  sharedExperiencesRef.current = sharedExperiencesMode;
+  const navRequestIdRef = React.useRef(0);
+  const lastHashRef = React.useRef<string>(typeof window !== "undefined" ? window.location.hash : "");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -109,6 +144,36 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
     });
   }, [activeTab]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    lastHashRef.current = window.location.hash;
+    const onHashChange = () => {
+      lastHashRef.current = window.location.hash;
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (activeTab === "social" && !SocialTabComp) {
+      void loadSocialTab()
+        .then((Comp) => {
+          if (!cancelled) setSocialTabComp(() => Comp);
+        })
+        .catch(() => {});
+    } else if (activeTab === "ranking" && !RankingTabComp) {
+      void loadRankingTab()
+        .then((Comp) => {
+          if (!cancelled) setRankingTabComp(() => Comp);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, SocialTabComp, RankingTabComp]);
+
   // Pre-warm lazy tab JS bundles & background caches on idle without mounting hidden component trees
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -116,24 +181,41 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
     const warmChunks = () => {
       if (cancelled) return;
       if (initialTab !== "social") {
-        void import("@/components/social-tab");
+        void loadSocialTab()
+          .then((Comp) => {
+            if (!cancelled) setSocialTabComp(() => Comp);
+          })
+          .catch(() => {});
         void import("@/components/feed-tab").then((m) => m.prefetchFeedInBackground?.());
       }
       if (initialTab !== "ranking") {
-        void import("@/components/ranking-tab");
+        void loadRankingTab()
+          .then((Comp) => {
+            if (!cancelled) setRankingTabComp(() => Comp);
+          })
+          .catch(() => {});
         void import("@/hooks/use-ranking-data").then((m) =>
           m.prefetchRankingInBackground?.(sharedModeRef.current)
         );
       }
+      if (initialTab === "map") {
+        if (sharedModeRef.current === "countries") {
+          void import("@/components/spain-map");
+          void import("@/lib/geo-loader").then((m) => m.fetchSpainGeo().catch(() => {}));
+        } else {
+          void import("@/components/world-map");
+          void import("@/lib/geo-loader").then((m) => m.fetchWorldGeo().catch(() => {}));
+        }
+      }
     };
     if (typeof window.requestIdleCallback === "function") {
-      const id = window.requestIdleCallback(warmChunks, { timeout: 2500 });
+      const id = window.requestIdleCallback(warmChunks, { timeout: 1200 });
       return () => {
         cancelled = true;
         window.cancelIdleCallback(id);
       };
     }
-    const timer = setTimeout(warmChunks, 2500);
+    const timer = setTimeout(warmChunks, 900);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -141,6 +223,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
   }, [initialTab]);
 
   useEffect(() => {
+    if (isPopStateRef.current) return;
     if (getInitialExperiencesMode()) {
       setSharedExperiencesMode(true);
     }
@@ -252,32 +335,60 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
       isPopStateRef.current = true;
       const currentPath = window.location.pathname;
       const currentKey = currentPath + window.location.search;
+      const prevHash = lastHashRef.current;
+      lastHashRef.current = window.location.hash;
       resetScrollLock();
       const tab = getTabFromPath(currentPath);
       if (tab) {
+        const closingStatsOnSameTab =
+          isStatsHash(prevHash) &&
+          !isStatsHash(window.location.hash) &&
+          tab === activeTabRef.current;
         setActiveTab(tab);
         activeTabRef.current = tab;
-        let detectedMode: ChallengeMode | null = null;
-        if (currentPath === "/picos") {
-          detectedMode = "peaks";
-        } else if (currentPath === "/" || currentPath === "/paises") {
-          detectedMode = "countries";
-        } else {
-          const params = new URLSearchParams(window.location.search);
-          const ch = params.get("challenge");
-          if (ch === "peaks" || ch === "countries") {
-            detectedMode = ch;
-          }
-        }
-        if (detectedMode) {
-          setSharedMode(detectedMode);
-        }
 
-        const params = new URLSearchParams(window.location.search);
-        const view = params.get("view");
-        const ch = params.get("challenge");
-        if (view === "experiences" || ch === "experiences") {
-          setSharedExperiencesMode(true);
+        if (closingStatsOnSameTab) {
+          const preservedMode = sharedModeRef.current;
+          if (tab === "map") {
+            const reconciledPath = preservedMode === "peaks" ? "/picos" : "/";
+            if (currentPath !== reconciledPath) {
+              window.history.replaceState(null, "", reconciledPath);
+            }
+            lastPathRef.current = reconciledPath;
+          } else {
+            const url = new URL(window.location.href);
+            url.searchParams.set("challenge", preservedMode);
+            if (tab === "social" && preservedMode === "countries" && sharedExperiencesRef.current) {
+              url.searchParams.set("view", "experiences");
+            } else {
+              url.searchParams.delete("view");
+            }
+            window.history.replaceState(null, "", url.toString());
+            lastPathRef.current = url.pathname;
+          }
+        } else {
+          let detectedMode: ChallengeMode | null = null;
+          if (currentPath === "/picos") {
+            detectedMode = "peaks";
+          } else if (currentPath === "/" || currentPath === "/paises") {
+            detectedMode = "countries";
+          } else {
+            const params = new URLSearchParams(window.location.search);
+            const ch = params.get("challenge");
+            if (ch === "peaks" || ch === "countries") {
+              detectedMode = ch;
+            }
+          }
+          if (detectedMode) {
+            setSharedMode(detectedMode);
+          }
+
+          const params = new URLSearchParams(window.location.search);
+          const view = params.get("view");
+          const ch = params.get("challenge");
+          if (view === "experiences" || ch === "experiences") {
+            setSharedExperiencesMode(true);
+          }
         }
 
         if (tab === "map") {
@@ -341,94 +452,131 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (typeof window !== "undefined") {
-          const currentKey = window.location.pathname + window.location.search;
-          historyScrollPositions.current.set(currentKey, window.scrollY);
+        const commitTabNavigation = () => {
+          if (typeof window !== "undefined") {
+            const currentKey = window.location.pathname + window.location.search;
+            historyScrollPositions.current.set(currentKey, window.scrollY);
 
-          if (window.location.hash && window.location.hash !== "#") {
-            const cleanUrl = window.location.pathname + window.location.search;
-            window.history.replaceState(null, "", cleanUrl);
-          }
-        }
-
-        if (tab !== prevTab) {
-          resetScrollLock();
-        }
-
-        setActiveTab(tab);
-        activeTabRef.current = tab;
-
-        // Determine target mode:
-        // If the link explicitly specifies a challenge or specific map route, adopt it;
-        // otherwise preserve the current sharedMode across all tabs!
-        let targetMode = sharedMode;
-        if (targetPath.includes("challenge=peaks") || targetPath === "/picos") {
-          targetMode = "peaks";
-        } else if (targetPath.includes("challenge=countries") || targetPath === "/" || targetPath === "/paises") {
-          targetMode = "countries";
-        }
-
-        // Build the accurate target path reflecting the active mode
-        let finalPath = targetPath;
-        if (tab === "social") {
-          if (!finalPath.includes("challenge=")) {
-            const separator = finalPath.includes("?") ? "&" : "?";
-            finalPath = `${finalPath}${separator}challenge=${targetMode}`;
-          }
-          if (targetMode === "countries" && sharedExperiencesMode) {
-            if (!finalPath.includes("view=experiences")) {
-              const separator = finalPath.includes("?") ? "&" : "?";
-              finalPath = `${finalPath}${separator}view=experiences`;
-            }
-          } else {
-            try {
-              const url = new URL(finalPath, "https://atlas.local");
-              url.searchParams.delete("view");
-              finalPath = `${url.pathname}${url.search}${url.hash}`;
-            } catch {
-              /* ignore */
+            if (window.location.hash && window.location.hash !== "#") {
+              const cleanUrl = window.location.pathname + window.location.search;
+              window.history.replaceState(null, "", cleanUrl);
             }
           }
-        } else if (tab === "ranking") {
-          if (!finalPath.includes("challenge=")) {
-            const separator = finalPath.includes("?") ? "&" : "?";
-            finalPath = `${finalPath}${separator}challenge=${targetMode}`;
-          }
-          // Ranking does not have experiences view parameter
-        } else if (tab === "map") {
-          const hashIdx = targetPath.indexOf("#");
-          const hashPart = hashIdx >= 0 ? targetPath.slice(hashIdx) : "";
-          const baseMap = targetMode === "peaks" ? "/picos" : "/";
-          finalPath = `${baseMap}${hashPart}`;
-        }
 
-        setSharedMode(targetMode);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("last_active_mode", targetMode);
-          localStorage.setItem("last_map_path", targetMode === "peaks" ? "/picos" : "/");
-          localStorage.setItem("ranking_mode", targetMode);
-        }
-        if (!isMainRoute) {
-          router.push(finalPath);
-        } else {
-          window.history.pushState(null, "", finalPath);
-          lastPathRef.current = finalPath.split("?")[0].split("#")[0];
-
-          if (finalPath.includes("#")) {
-            window.dispatchEvent(new Event("hashchange"));
+          if (tab !== prevTab) {
+            resetScrollLock();
           }
 
-          resetScrollToTop(false);
-          requestAnimationFrame(() => {
-            resetScrollToTop(false);
+          setActiveTab(tab);
+          activeTabRef.current = tab;
+          setVisitedTabs((prev) => {
+            if (prev.has(tab)) return prev;
+            const next = new Set(prev);
+            next.add(tab);
+            return next;
           });
+
+          // Determine target mode:
+          // If the link explicitly specifies a challenge or specific map route, adopt it;
+          // otherwise preserve the current sharedMode across all tabs!
+          let targetMode = sharedMode;
+          if (targetPath.includes("challenge=peaks") || targetPath === "/picos") {
+            targetMode = "peaks";
+          } else if (targetPath.includes("challenge=countries") || targetPath === "/" || targetPath === "/paises") {
+            targetMode = "countries";
+          }
+
+          // Build the accurate target path reflecting the active mode
+          let finalPath = targetPath;
+          if (tab === "social") {
+            if (!finalPath.includes("challenge=")) {
+              const separator = finalPath.includes("?") ? "&" : "?";
+              finalPath = `${finalPath}${separator}challenge=${targetMode}`;
+            }
+            if (targetMode === "countries" && sharedExperiencesMode) {
+              if (!finalPath.includes("view=experiences")) {
+                const separator = finalPath.includes("?") ? "&" : "?";
+                finalPath = `${finalPath}${separator}view=experiences`;
+              }
+            } else {
+              try {
+                const url = new URL(finalPath, "https://atlas.local");
+                url.searchParams.delete("view");
+                finalPath = `${url.pathname}${url.search}${url.hash}`;
+              } catch {
+                /* ignore */
+              }
+            }
+          } else if (tab === "ranking") {
+            if (!finalPath.includes("challenge=")) {
+              const separator = finalPath.includes("?") ? "&" : "?";
+              finalPath = `${finalPath}${separator}challenge=${targetMode}`;
+            }
+            // Ranking does not have experiences view parameter
+          } else if (tab === "map") {
+            const hashIdx = targetPath.indexOf("#");
+            const hashPart = hashIdx >= 0 ? targetPath.slice(hashIdx) : "";
+            const baseMap = targetMode === "peaks" ? "/picos" : "/";
+            finalPath = `${baseMap}${hashPart}`;
+          }
+
+          setSharedMode(targetMode);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("last_active_mode", targetMode);
+            localStorage.setItem("last_map_path", targetMode === "peaks" ? "/picos" : "/");
+            localStorage.setItem("ranking_mode", targetMode);
+          }
+          if (!isMainRoute) {
+            router.push(finalPath);
+          } else {
+            window.history.pushState(null, "", finalPath);
+            lastPathRef.current = finalPath.split("?")[0].split("#")[0];
+            const hashIdx = finalPath.indexOf("#");
+            lastHashRef.current = hashIdx >= 0 ? finalPath.slice(hashIdx) : "";
+
+            if (finalPath.includes("#")) {
+              window.dispatchEvent(new Event("hashchange"));
+            }
+
+            resetScrollToTop(false);
+            requestAnimationFrame(() => {
+              resetScrollToTop(false);
+            });
+          }
+
+          if (tab === "map") {
+            setTimeout(() => {
+              window.dispatchEvent(new Event("resize"));
+            }, 50);
+          }
+        };
+
+        const requestId = ++navRequestIdRef.current;
+        const needsSocialLoad = tab === "social" && !resolvedSocialTab;
+        const needsRankingLoad = tab === "ranking" && !resolvedRankingTab;
+
+        if (isMainRoute && (needsSocialLoad || needsRankingLoad)) {
+          const loader = needsSocialLoad ? loadSocialTab() : loadRankingTab();
+          void loader
+            .then((Comp) => {
+              if (navRequestIdRef.current !== requestId) return;
+              if (needsSocialLoad) {
+                setSocialTabComp(() => Comp as SocialTabComponent);
+              } else {
+                setRankingTabComp(() => Comp as RankingTabComponent);
+              }
+              commitTabNavigation();
+            })
+            .catch(() => {});
+          return;
         }
 
-        if (tab === "map") {
-          setTimeout(() => {
-            window.dispatchEvent(new Event("resize"));
-          }, 50);
+        if (tab === "social" && resolvedSocialTab && !SocialTabComp) {
+          setSocialTabComp(() => resolvedSocialTab);
+        } else if (tab === "ranking" && resolvedRankingTab && !RankingTabComp) {
+          setRankingTabComp(() => resolvedRankingTab);
         }
+        commitTabNavigation();
       } else {
         if (typeof window !== "undefined") {
           const currentKey = window.location.pathname + window.location.search;
@@ -437,7 +585,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         router.push(targetPath);
       }
     },
-    [router, sharedMode, sharedExperiencesMode, isMainRoute, resetScrollToTop]
+    [router, sharedMode, sharedExperiencesMode, isMainRoute, resetScrollToTop, SocialTabComp, RankingTabComp]
   );
 
   const handleSwitchMode = useCallback(
@@ -448,9 +596,11 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         localStorage.setItem("last_map_path", newMode === "peaks" ? "/picos" : "/");
         localStorage.setItem("ranking_mode", newMode);
         const currentTab = activeTabRef.current || getTabFromPath(window.location.pathname) || "map";
+        const statsHash = isStatsHash(window.location.hash) ? window.location.hash : "";
         if (currentTab === "map") {
           const newPath = newMode === "peaks" ? "/picos" : "/";
-          window.history.replaceState(null, "", newPath);
+          window.history.replaceState(null, "", `${newPath}${statsHash}`);
+          lastPathRef.current = newPath;
         } else {
           const url = new URL(window.location.href);
           url.searchParams.set("challenge", newMode);
@@ -459,10 +609,14 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           } else if (newMode === "peaks") {
             url.searchParams.delete("view");
           }
-          url.hash = "";
+          url.hash = statsHash;
           window.history.replaceState(null, "", url.toString());
         }
-        resetScrollToTop(false);
+        if (statsHash) {
+          lastHashRef.current = statsHash;
+        } else {
+          resetScrollToTop(false);
+        }
       }
     },
     [sharedExperiencesMode, resetScrollToTop]
@@ -496,8 +650,8 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           display: isMainRoute && activeTab === "social" ? "block" : "none",
         }}
       >
-        {(visitedTabs.has("social") || (isMainRoute && activeTab === "social")) && (
-          <SocialTab
+        {(visitedTabs.has("social") || (isMainRoute && activeTab === "social")) && SocialTabComp && (
+          <SocialTabComp
             mode={sharedMode}
             experiencesMode={sharedExperiencesMode}
             onToggleExperiences={handleToggleExperiences}
@@ -515,8 +669,8 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
           display: isMainRoute && activeTab === "ranking" ? "block" : "none",
         }}
       >
-        {(visitedTabs.has("ranking") || (isMainRoute && activeTab === "ranking")) && (
-          <RankingTab
+        {(visitedTabs.has("ranking") || (isMainRoute && activeTab === "ranking")) && RankingTabComp && (
+          <RankingTabComp
             mode={sharedMode}
             isActive={isMainRoute && activeTab === "ranking"}
             onSwitchMode={handleSwitchMode}

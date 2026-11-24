@@ -9,7 +9,11 @@ import { countries, resolveCountryFromFeature } from "@/data/countries";
 import { peakByCode } from "@/data/peaks";
 import { predefinedCategories } from "@/data/experiences";
 import { isMobileOrTablet } from "@/lib/device-utils";
-import { createAdaptiveCanvasRenderer, getAdaptiveKeepBuffer } from "@/lib/leaflet-canvas-patch";
+import {
+  createAdaptiveCanvasRenderer,
+  getAdaptiveInertiaOptions,
+  getAdaptiveKeepBuffer,
+} from "@/lib/leaflet-canvas-patch";
 import {
   fetchSpainGeo,
   fetchWorldGeo,
@@ -19,7 +23,7 @@ import {
 } from "@/lib/geo-loader";
 import { FitSpain, FitWorld } from "@/lib/leaflet-bounds";
 import { getCollectivePeakMarkerIcon, getExperienceIcon } from "@/lib/leaflet-icons";
-import { MapZoomListener, safeCloseTooltip } from "./maps/map-lifecycle";
+import { createTileRetryHandlers, MapZoomListener, safeCloseTooltip } from "./maps/map-lifecycle";
 import { CollectiveVisitorsPanel, type SelectedCollectiveSummit } from "./maps/collective-visitors-panel";
 import { ExperiencesToggleControl } from "./maps/experiences-toggle-control";
 import { useAuth } from "./auth-context";
@@ -177,6 +181,8 @@ function CollectiveMarkers({
 export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode = "countries" }: Props) {
   const canvasRenderer = useMemo(() => createAdaptiveCanvasRenderer("collective"), []);
   const keepBuffer = useMemo(() => getAdaptiveKeepBuffer(), []);
+  const inertiaOptions = useMemo(() => getAdaptiveInertiaOptions(), []);
+  const tileEventHandlers = useMemo(() => createTileRetryHandlers(), []);
   const { session } = useAuth();
   const [internalScope, setInternalScope] = useState<"all" | "following">("all");
   const scope = propScope !== undefined ? propScope : internalScope;
@@ -740,8 +746,10 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             zoomDelta={1}
             wheelPxPerZoomLevel={60}
             wheelDebounceTime={25}
-            inertiaDeceleration={2200}
-            easeLinearity={0.2}
+            inertia={inertiaOptions.inertia}
+            inertiaDeceleration={inertiaOptions.inertiaDeceleration}
+            inertiaMaxSpeed={inertiaOptions.inertiaMaxSpeed}
+            easeLinearity={inertiaOptions.easeLinearity}
             minZoom={isPeaks ? 5 : 2}
             maxZoom={isPeaks ? 10 : 12}
             maxBounds={isPeaks ? [[26.0, -19.8], [45.0, 6.0]] : [[-60, -180], [83, 180]]}
@@ -753,6 +761,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              crossOrigin="anonymous"
               minZoom={isPeaks ? 5 : 2}
               maxZoom={isPeaks ? 10 : 12}
               keepBuffer={keepBuffer}
@@ -760,6 +769,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
               updateInterval={50}
               maxNativeZoom={19}
               updateWhenZooming={isMobileOrTablet() ? undefined : false}
+              eventHandlers={tileEventHandlers}
             />
             {isPeaks && spainGeo && (
               <GeoJSON

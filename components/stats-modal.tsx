@@ -99,8 +99,11 @@ export function StatsModal({
     if (canShowCountries) return "countries";
     return canShowPeaks ? "peaks" : "countries";
   });
+  const prevInitialModeRef = useRef(initialMode);
 
   useEffect(() => {
+    if (initialMode === prevInitialModeRef.current) return;
+    prevInitialModeRef.current = initialMode;
     if (initialMode === "peaks" && canShowPeaks) {
       setActiveMode("peaks");
     } else if (initialMode === "experiences") {
@@ -109,6 +112,16 @@ export function StatsModal({
       setActiveMode(canShowCountries ? "countries" : "peaks");
     }
   }, [initialMode, canShowPeaks, canShowCountries, canShowExperiences]);
+
+  useEffect(() => {
+    if (activeMode === "peaks" && !canShowPeaks) {
+      setActiveMode("countries");
+    } else if (activeMode === "countries" && !canShowCountries) {
+      setActiveMode("peaks");
+    } else if (activeMode === "experiences" && !canShowExperiences) {
+      setActiveMode(canShowCountries ? "countries" : "peaks");
+    }
+  }, [activeMode, canShowPeaks, canShowCountries, canShowExperiences]);
 
   const switchStatsMode = useCallback(
     (mode: StatsMode) => {

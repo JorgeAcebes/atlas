@@ -88,8 +88,16 @@ export function useRankingData({
   enableCountries: boolean;
   isActive: boolean;
 }) {
-  const [entries, setEntries] = useState<RankingEntry[]>(() => []);
-  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<RankingEntry[]>(() => {
+    const cacheKey = `${mode}-${scope}-${session?.user?.id || "anon"}`;
+    const sharedAllKey = scope === "all" ? `${mode}-all-anon` : cacheKey;
+    return globalRankingCache[cacheKey] || globalRankingCache[sharedAllKey] || [];
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    const cacheKey = `${mode}-${scope}-${session?.user?.id || "anon"}`;
+    const sharedAllKey = scope === "all" ? `${mode}-all-anon` : cacheKey;
+    return !(globalRankingCache[cacheKey] || globalRankingCache[sharedAllKey]);
+  });
 
   useEffect(() => {
     let ignore = false;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import type { Session } from "@supabase/supabase-js";
 import { Check, Diamond, Star, Triangle } from "lucide-react";
@@ -121,6 +121,12 @@ export function TrackerMapSection({
   const addExperienceHandler =
     !isReadOnly && !selectingLocationForExp ? onOpenExpSelector : undefined;
 
+  const lastActiveIsPeaksRef = useRef(isPeaks);
+  if (isActive) {
+    lastActiveIsPeaksRef.current = isPeaks;
+  }
+  const effectiveIsPeaks = isActive ? isPeaks : lastActiveIsPeaksRef.current;
+
   return (
     <section className="map-section">
       <div id="mapa" className="section-heading map-heading-row">
@@ -231,7 +237,7 @@ export function TrackerMapSection({
           </div>
         )}
 
-        {isPeaks ? (
+        {effectiveIsPeaks ? (
           <SpainMap
             completed={completedPeakCodes}
             wishlist={wishlistPeakCodes}
