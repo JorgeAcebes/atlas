@@ -6,21 +6,21 @@ import {
   TileLayer,
   GeoJSON,
   Marker,
-  useMap,
-  useMapEvents,
 } from "react-leaflet";
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import type { FeatureCollection, Position } from "geojson";
-import { peakByCode, type Peak } from "@/data/peaks";
+import { peakByCode, peaks, type Peak } from "@/data/peaks";
 import { isMobileOrTablet } from "@/lib/device-utils";
 import { createAdaptiveCanvasRenderer, getAdaptiveKeepBuffer } from "@/lib/leaflet-canvas-patch";
 import { fetchSpainGeo, getCachedSpainGeo } from "@/lib/geo-loader";
 import { FitSpain } from "@/lib/leaflet-bounds";
 import { getPeakMarkerIcons } from "@/lib/leaflet-icons";
 import {
+  createTileRetryHandlers,
   HoverHighlightBridge,
   MapActiveSynchronizer,
   MapInvalidator,
+  MapTileWakeup,
   MapZoomListener,
   safeCloseTooltip,
 } from "./maps/map-lifecycle";
@@ -78,6 +78,7 @@ function getFeaturesBounds(features: any[]): L.LatLngBounds | undefined {
 }
 
 const peakEntries = Object.values(peakByCode);
+const uniquePeakEntries = Array.from(new Map(peaks.map((p) => [p.id, p])).values());
 
 const PeakMarker = memo(function PeakMarker({
   peak,
@@ -115,41 +116,13 @@ function SpainPeakMarkersLayer({
   wishlist: Set<string>;
   onPeakClick: (peak: Peak) => void;
 }) {
-  const map = useMap();
-  const [viewportBounds, setViewportBounds] = useState<L.LatLngBounds | null>(() => {
-    try {
-      return map.getBounds();
-    } catch {
-      return null;
-    }
-  });
-
-  const syncBounds = useCallback(() => {
-    try {
-      setViewportBounds(map.getBounds());
-    } catch {
-      /* ignore */
-    }
-  }, [map]);
-
-  useMapEvents({
-    zoomend: syncBounds,
-    moveend: syncBounds,
-  });
-
-  const visiblePeaks = useMemo(() => {
-    if (!viewportBounds) return peakEntries;
-    const padded = viewportBounds.pad(0.25);
-    return peakEntries.filter((p) => padded.contains(p.coordinates));
-  }, [viewportBounds]);
-
   const icons = getPeakMarkerIcons();
 
   return (
     <>
-      {visiblePeaks.map((peak) => (
+      {uniquePeakEntries.map((peak) => (
         <PeakMarker
-          key={peak.code}
+          key={peak.id}
           peak={peak}
           icon={
             diffMode
@@ -190,6 +163,7 @@ export const SpainMap = memo(function SpainMap({
   void _onComplete;
   const canvasRenderer = useMemo(() => createAdaptiveCanvasRenderer("spain"), []);
   const keepBuffer = useMemo(() => getAdaptiveKeepBuffer(), []);
+  const tileEventHandlers = useMemo(() => createTileRetryHandlers(), []);
   const [geo, setGeo] = useState<FeatureCollection | null>(() => getCachedSpainGeo());
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -216,13 +190,12 @@ export const SpainMap = memo(function SpainMap({
   const currentHoveredCodeRef = useRef<string | null>(null);
   const hoverHighlightRef = useRef<L.GeoJSON | null>(null);
 
-  const activeCode = useMemo(() => {
-    if (!activeId) return null;
-    const peak = peakEntries.find((p) => p.id === activeId);
-    return peak ? peak.code : null;
+  const activeCodes = useMemo(() => {
+    if (!activeId) return [] as string[];
+    return peakEntries.filter((p) => p.id === activeId).map((p) => p.code);
   }, [activeId]);
 
-  const activeCodeRef = useRef<string | null>(null);
+  const activeCodesRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (!getCachedSpainGeo()) {
@@ -284,33 +257,35 @@ export const SpainMap = memo(function SpainMap({
     };
   }, []);
 
-  // O(1) activeCode transition update
+  // O(k) activeCodes transition update (highlights all provinces of shared summits)
   useEffect(() => {
-    const oldCode = activeCodeRef.current;
-    if (oldCode && oldCode !== activeCode) {
-      const prevLayer = layerRefs.current.get(oldCode);
-      if (prevLayer) {
-        restoreLayerStyle(oldCode, prevLayer);
-        safeCloseTooltip(prevLayer);
+    const oldCodes = activeCodesRef.current;
+    for (const oldCode of oldCodes) {
+      if (!activeCodes.includes(oldCode)) {
+        const prevLayer = layerRefs.current.get(oldCode);
+        if (prevLayer) {
+          restoreLayerStyle(oldCode, prevLayer);
+          safeCloseTooltip(prevLayer);
+        }
       }
     }
 
-    if (activeCode) {
-      const layer = layerRefs.current.get(activeCode);
+    for (const code of activeCodes) {
+      const layer = layerRefs.current.get(code);
       if (layer) {
         if (diffModeRef.current) {
           layer.setStyle({ weight: 2.5, fillOpacity: 0.9 });
         } else {
-          const isWishlist = wishlistRef.current.has(activeCode);
+          const isWishlist = wishlistRef.current.has(code);
           layer.setStyle({
             weight: 2.5,
-            fillOpacity: completedRef.current.has(activeCode) ? 0.9 : isWishlist ? 0.9 : 0.85,
+            fillOpacity: completedRef.current.has(code) ? 0.9 : isWishlist ? 0.9 : 0.85,
           });
         }
       }
     }
-    activeCodeRef.current = activeCode || null;
-  }, [activeCode, restoreLayerStyle]);
+    activeCodesRef.current = activeCodes;
+  }, [activeCodes, restoreLayerStyle]);
 
   const geoStyle = useCallback(
     (feature: any) => {
@@ -376,7 +351,7 @@ export const SpainMap = memo(function SpainMap({
           }
         }
 
-        if (peak.code === activeCodeRef.current) {
+        if (activeCodesRef.current.includes(peak.code)) {
           return;
         }
 
@@ -507,21 +482,24 @@ export const SpainMap = memo(function SpainMap({
       scrollWheelZoom={true}
       zoomSnap={1}
       zoomDelta={1}
-      wheelPxPerZoomLevel={60}
-      wheelDebounceTime={25}
-      inertiaDeceleration={2200}
-      easeLinearity={0.2}
-      minZoom={4}
+      wheelPxPerZoomLevel={85}
+      wheelDebounceTime={20}
+      inertia={true}
+      inertiaDeceleration={1600}
+      inertiaMaxSpeed={1800}
+      easeLinearity={0.18}
+      minZoom={5}
       maxZoom={10}
       maxBounds={[
-        [18, -28],
-        [52, 18],
+        [26.0, -19.8],
+        [45.0, 6.0],
       ]}
       maxBoundsViscosity={0.5}
     >
       <FitSpain isActive={isActive} />
       <MapInvalidator panelOpen={panelOpen} isActive={isActive} />
       <MapActiveSynchronizer isActive={isActive} kind="spain" />
+      <MapTileWakeup isActive={isActive} />
       <MapZoomListener
         isActive={isActive}
         storageKey="mapState_spain"
@@ -538,11 +516,14 @@ export const SpainMap = memo(function SpainMap({
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        minZoom={5}
+        maxZoom={10}
         keepBuffer={keepBuffer}
         updateWhenIdle={false}
         updateInterval={100}
         maxNativeZoom={19}
         updateWhenZooming={isMobileOrTablet() ? undefined : false}
+        eventHandlers={tileEventHandlers}
       />
       {geo && <GeoJSON key="spain-provinces" data={geo} style={geoStyle} onEachFeature={onEachFeature} />}
       <SpainPeakMarkersLayer

@@ -9,7 +9,7 @@ import type { CompanionProfile } from "@/lib/companions";
 import { preloadImages } from "@/lib/image-preloader";
 import { sortPhotosByTime } from "@/lib/image-utils";
 import { getPhotoDisplayUrl } from "@/lib/photo-client";
-import { getPredefinedExperienceTotalCount } from "@/lib/progress-utils";
+import { getPredefinedExperienceTotalCount, peakCodesById } from "@/lib/progress-utils";
 import { preloadSocialConnections } from "@/lib/social-cache";
 import { supabase } from "@/lib/supabase";
 import { computeRecordsFingerprint, readJsonCache, scheduleLocalCacheWrite } from "@/lib/tracker-cache";
@@ -19,6 +19,7 @@ import {
   type Ascent,
   type ExperienceRecord,
   type HiddenItem,
+  type InitialTrackerData,
   type SelectedItem,
   type SummitPhoto,
   type TargetProfile,
@@ -30,6 +31,7 @@ const cachedExperienceRecordsByUser: Record<string, ExperienceRecord[]> = {};
 const cachedCustomExperiencesByUser: Record<string, any[]> = {};
 const cachedCustomCategoriesByUser: Record<string, any[]> = {};
 const cachedHiddenItemsByUser: Record<string, HiddenItem[]> = {};
+const cachedMyAscentsForComparison: Record<string, Ascent[]> = {};
 const cachedTrackerLastFetched: Record<string, number> = {};
 const TRACKER_CACHE_TTL = 60 * 1000;
 
@@ -89,6 +91,7 @@ interface UseTrackerDataOptions {
   setTargetConnStatus: (s: "pending" | "accepted" | null) => void;
   setMyProfile: (p: any) => void;
   myProfile: any;
+  initialTrackerData?: InitialTrackerData | null;
 }
 
 export function useTrackerData({
@@ -107,8 +110,24 @@ export function useTrackerData({
   setTargetConnStatus,
   setMyProfile,
   myProfile,
+  initialTrackerData,
 }: UseTrackerDataOptions) {
   const targetId = targetProfile ? targetProfile.id : session?.user.id || authProfile?.id;
+
+  if (initialTrackerData && targetId && initialTrackerData.userId === targetId && !cachedTrackerLastFetched[targetId]) {
+    cachedAscentsByUser[targetId] = initialTrackerData.ascents;
+    cachedPhotosByUser[targetId] = sortPhotosByTime(
+      initialTrackerData.photos.map((p) => ({
+        ...p,
+        public_url: getPhotoDisplayUrl(p.public_url, p.storage_path),
+      }))
+    );
+    cachedExperienceRecordsByUser[targetId] = initialTrackerData.experienceRecords;
+    cachedCustomExperiencesByUser[targetId] = initialTrackerData.customExperiences;
+    cachedCustomCategoriesByUser[targetId] = initialTrackerData.customCategories;
+    cachedHiddenItemsByUser[targetId] = initialTrackerData.hiddenItems;
+    cachedTrackerLastFetched[targetId] = Date.now();
+  }
 
   const [ascents, setAscents] = useState<Ascent[]>(() =>
     getInitialTrackerList<Ascent>("ascents", targetId, cachedAscentsByUser)
@@ -128,7 +147,11 @@ export function useTrackerData({
   const [hiddenItems, setHiddenItems] = useState<HiddenItem[]>(() =>
     getInitialTrackerList<HiddenItem>("hidden_items", targetId, cachedHiddenItemsByUser)
   );
-  const [myAscents, setMyAscents] = useState<Ascent[]>([]);
+  const [myAscents, setMyAscents] = useState<Ascent[]>(() =>
+    isReadOnly && session?.user?.id
+      ? cachedAscentsByUser[session.user.id] || cachedMyAscentsForComparison[session.user.id] || []
+      : []
+  );
   const [tripCompanionsMap, setTripCompanionsMap] = useState<Record<string, CompanionProfile[]>>({});
   const [userFollowingSet, setUserFollowingSet] = useState<Set<string>>(new Set());
 
@@ -367,13 +390,35 @@ export function useTrackerData({
         now - (cachedTrackerLastFetched[effectiveTargetId] || 0) < TRACKER_CACHE_TTL;
 
       if (isFresh) {
-        if (!isReadOnly && !profileOpen && session && !myProfile) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("username, avatar_url, enable_experiences, enable_peaks, enable_countries")
-            .eq("id", session.user.id)
-            .single();
-          if (!cancelled && profile) setMyProfile(profile);
+        const [profileRes, myAscentsRes] = await Promise.all([
+          !isReadOnly && !profileOpen && session && !myProfile
+            ? supabase
+                .from("profiles")
+                .select("username, avatar_url, enable_experiences, enable_peaks, enable_countries")
+                .eq("id", session.user.id)
+                .single()
+            : Promise.resolve(null),
+          isReadOnly &&
+          session &&
+          !cachedAscentsByUser[session.user.id] &&
+          !cachedMyAscentsForComparison[session.user.id]
+            ? supabase
+                .from("ascents")
+                .select(
+                  "summit_id, achieved_on, end_date, notes, is_wishlist, link, link_name, link_2, link_name_2"
+                )
+                .eq("user_id", session.user.id)
+            : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+        if (profileRes?.data) setMyProfile(profileRes.data);
+        if (myAscentsRes?.data) {
+          cachedMyAscentsForComparison[session!.user.id] = myAscentsRes.data as Ascent[];
+          setMyAscents(myAscentsRes.data as Ascent[]);
+        } else if (isReadOnly && session) {
+          const cachedCompare =
+            cachedAscentsByUser[session.user.id] || cachedMyAscentsForComparison[session.user.id];
+          if (cachedCompare) setMyAscents(cachedCompare);
         }
         return;
       }
@@ -723,8 +768,7 @@ export function useTrackerData({
       new Set(
         ascents
           .filter((a) => !a.is_wishlist)
-          .map((a) => peaksByIdMap.get(a.summit_id)?.code)
-          .filter((c): c is string => Boolean(c))
+          .flatMap((a) => peakCodesById.get(a.summit_id) || [])
       ),
     [ascents]
   );
@@ -734,8 +778,7 @@ export function useTrackerData({
       new Set(
         ascents
           .filter((a) => a.is_wishlist)
-          .map((a) => peaksByIdMap.get(a.summit_id)?.code)
-          .filter((c): c is string => Boolean(c))
+          .flatMap((a) => peakCodesById.get(a.summit_id) || [])
       ),
     [ascents]
   );
@@ -765,8 +808,7 @@ export function useTrackerData({
       new Set(
         myAscents
           .filter((a) => !a.is_wishlist)
-          .map((a) => peaksByIdMap.get(a.summit_id)?.code)
-          .filter((c): c is string => Boolean(c))
+          .flatMap((a) => peakCodesById.get(a.summit_id) || [])
       ),
     [myAscents]
   );

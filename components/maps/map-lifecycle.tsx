@@ -68,7 +68,94 @@ export function MapInvalidator({ panelOpen, isActive }: { panelOpen?: boolean; i
     };
   }, [map, panelOpen, isActive]);
 
+  useEffect(() => {
+    if (isActive === false || typeof ResizeObserver !== "function") return;
+    const container = map.getContainer();
+    if (!container) return;
+
+    let lastWidth = container.clientWidth;
+    let lastHeight = container.clientHeight;
+    let rafId: number | null = null;
+
+    const observer = new ResizeObserver(() => {
+      const nextWidth = container.clientWidth;
+      const nextHeight = container.clientHeight;
+      if (nextWidth > 0 && nextHeight > 0 && (nextWidth !== lastWidth || nextHeight !== lastHeight)) {
+        lastWidth = nextWidth;
+        lastHeight = nextHeight;
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          map.invalidateSize({ animate: false, pan: false });
+        });
+      }
+    });
+
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [map, isActive]);
+
   return null;
+}
+
+/**
+ * Ensures OpenStreetMap tiles paint reliably after late container sizing or route mounts.
+ */
+export function MapTileWakeup({ isActive }: { isActive?: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (isActive === false) return;
+    const timer = setTimeout(() => {
+      const container = map.getContainer();
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+
+      map.invalidateSize({ animate: false, pan: false });
+
+      let tileLayer: L.TileLayer | null = null;
+      map.eachLayer((layer) => {
+        if (!tileLayer && typeof (layer as any).getTileUrl === "function") {
+          tileLayer = layer as L.TileLayer;
+        }
+      });
+      if (!tileLayer) return;
+
+      const tilePane = map.getPane("tilePane");
+      const loadedImgs = tilePane
+        ? Array.from(tilePane.querySelectorAll("img")).filter(
+            (img) => img.complete && img.naturalWidth > 0
+          ).length
+        : 0;
+      if (loadedImgs === 0) {
+        (tileLayer as L.TileLayer).redraw();
+      }
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [map, isActive]);
+
+  return null;
+}
+
+export function createTileRetryHandlers(): { tileerror: L.LeafletEventHandlerFn } {
+  return {
+    tileerror: (e: any) => {
+      const tile = e?.tile as HTMLImageElement | undefined;
+      if (!tile || !tile.src) return;
+      const attempt = Number(tile.dataset.atlasRetry || "0");
+      if (attempt >= 2) return;
+      tile.dataset.atlasRetry = String(attempt + 1);
+      const delay = attempt === 0 ? 350 : 1000;
+      setTimeout(() => {
+        if (!tile.isConnected) return;
+        const cleanSrc = tile.src.replace(/([?&])_r=\d+/, "");
+        tile.src = `${cleanSrc}${cleanSrc.includes("?") ? "&" : "?"}_r=${attempt + 1}`;
+      }, delay);
+    },
+  };
 }
 
 export function MapActiveSynchronizer({

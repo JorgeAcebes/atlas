@@ -227,7 +227,7 @@ export function StatsPeaksView({
             <div className="stats-progress-row-header">
               <span>Colinas y techos costeros (&lt; 1.000 m)</span>
               <span className="stats-row-num">
-                <strong>{metrics.lowCount}</strong> / <strong>{metrics.lowTotal}</strong>
+                <strong>{metrics.lowCount}</strong> / {metrics.lowTotal}
               </span>
             </div>
             <div className="stats-progress-bar-track">

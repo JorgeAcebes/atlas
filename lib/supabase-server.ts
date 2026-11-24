@@ -13,7 +13,14 @@ export function getSupabaseServerClient(): SupabaseClient | null {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (!url || !key) return null;
+  if (
+    !url ||
+    !key ||
+    url.includes("mock.supabase.co") ||
+    key === "mock-anon-key"
+  ) {
+    return null;
+  }
 
   return createClient(url, key, {
     auth: {

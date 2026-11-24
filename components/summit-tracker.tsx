@@ -117,6 +117,7 @@ export function SummitTracker({
   onToggleExperiences,
   fromTab,
   initialTargetConnStatus,
+  initialTrackerData,
 }: SummitTrackerProps) {
   const { session, profile: authProfile, refreshProfile, loading: authLoading } = useAuth();
   const hasPendingRequests = usePendingRequests();
@@ -252,6 +253,7 @@ export function SummitTracker({
     setTargetConnStatus,
     setMyProfile,
     myProfile,
+    initialTrackerData,
   });
 
   const {
@@ -463,7 +465,13 @@ export function SummitTracker({
 
   useEffect(() => {
     setJustFollowed(false);
-    if (!targetProfile || !session?.user?.id || !supabase || session.user.id === targetProfile.id) {
+    if (
+      initialTargetConnStatus !== undefined ||
+      !targetProfile ||
+      !session?.user?.id ||
+      !supabase ||
+      session.user.id === targetProfile.id
+    ) {
       return;
     }
     supabase
@@ -1546,6 +1554,7 @@ export function SummitTracker({
           experienceRecords={experienceRecords}
           customExperiences={customExperiences}
           customCategories={customCategories}
+          hiddenItems={hiddenItems}
           initialMode={experiencesMode ? "experiences" : currentMode}
           onModeChange={(newMode) => {
             if (newMode === "peaks" && canShowPeaks) {

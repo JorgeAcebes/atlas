@@ -9,6 +9,19 @@ export const peaksById = new Map<string, Peak>(peaks.map((p) => [p.id, p]));
 export const peaksByCode = new Map<string, Peak>(peaks.map((p) => [p.code, p]));
 export const countriesById = new Map<string, Country>(countries.map((c) => [c.id, c]));
 
+// Shared summits (e.g. Peñalara: Madrid/Segovia) share an `id` across two province `code`s.
+export const peakCodesById = new Map<string, string[]>();
+export const peakProvincesById = new Map<string, string[]>();
+for (const p of peaks) {
+  const codes = peakCodesById.get(p.id) || [];
+  if (!codes.includes(p.code)) codes.push(p.code);
+  peakCodesById.set(p.id, codes);
+
+  const provinces = peakProvincesById.get(p.id) || [];
+  if (!provinces.includes(p.province)) provinces.push(p.province);
+  peakProvincesById.set(p.id, provinces);
+}
+
 /**
  * Computes completed physical summits using unique peak names (47 unique summits across 52 demarcations).
  */

@@ -18,9 +18,11 @@ import { fetchWorldGeo, getCachedWorldGeo, getLargestPolygonBounds } from "@/lib
 import { FitWorld } from "@/lib/leaflet-bounds";
 import { getExperienceIcon, getWorldMarkerIcons } from "@/lib/leaflet-icons";
 import {
+  createTileRetryHandlers,
   HoverHighlightBridge,
   MapActiveSynchronizer,
   MapInvalidator,
+  MapTileWakeup,
   MapZoomListener,
   safeCloseTooltip,
 } from "./maps/map-lifecycle";
@@ -332,6 +334,7 @@ export const WorldMap = memo(function WorldMap({
   void _onComplete;
   const canvasRenderer = useMemo(() => createAdaptiveCanvasRenderer("world"), []);
   const keepBuffer = useMemo(() => getAdaptiveKeepBuffer(), []);
+  const tileEventHandlers = useMemo(() => createTileRetryHandlers(), []);
   const [geo, setGeo] = useState<FeatureCollection | null>(() => getCachedWorldGeo());
   const [searchedId, setSearchedId] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -649,17 +652,18 @@ export const WorldMap = memo(function WorldMap({
       wheelDebounceTime={25}
       inertiaDeceleration={2200}
       easeLinearity={0.2}
-      minZoom={1}
+      minZoom={2}
       maxZoom={12}
       maxBounds={[
         [-60, -180],
         [83, 180],
       ]}
-      maxBoundsViscosity={0.5}
+      maxBoundsViscosity={1.0}
     >
       <FitWorld isActive={isActive} />
       <MapInvalidator panelOpen={panelOpen} isActive={isActive} />
       <MapActiveSynchronizer isActive={isActive} />
+      <MapTileWakeup isActive={isActive} />
       <MapZoomListener
         isActive={isActive}
         storageKey="mapState_world"
@@ -823,13 +827,14 @@ export const WorldMap = memo(function WorldMap({
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        minZoom={1}
+        minZoom={2}
         maxZoom={12}
         keepBuffer={keepBuffer}
         updateWhenIdle={false}
         updateInterval={50}
         maxNativeZoom={19}
         updateWhenZooming={isMobileOrTablet() ? undefined : false}
+        eventHandlers={tileEventHandlers}
       />
 
       {geo && <GeoJSON key="countries" data={geo} style={geoStyle} onEachFeature={onEachFeature} />}

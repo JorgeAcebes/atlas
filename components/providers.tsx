@@ -4,7 +4,6 @@ import { AuthProvider, type UserProfile } from "./auth-context";
 import { PendingRequestsProvider } from "./pending-requests-context";
 import { UploadQueueProvider } from "./upload-queue-context";
 import { PwaZoomLock } from "./pwa-zoom-lock";
-import { EntryIntroOverlay } from "./entry-intro-overlay";
 
 export function Providers({
   children,
@@ -17,7 +16,6 @@ export function Providers({
     <AuthProvider initialProfile={initialProfile}>
       <PendingRequestsProvider>
         <UploadQueueProvider>
-          <EntryIntroOverlay />
           <PwaZoomLock />
           {children}
         </UploadQueueProvider>

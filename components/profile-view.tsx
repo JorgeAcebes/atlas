@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getPhotoDisplayUrl } from "@/lib/photo-client";
 import { supabase } from "@/lib/supabase";
 import { SummitTracker } from "./summit-tracker";
+import type { InitialTrackerData } from "./tracker/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./auth-context";
@@ -16,7 +17,13 @@ type Profile = {
   is_public: boolean;
   enable_peaks?: boolean;
   enable_countries?: boolean;
+  enable_experiences?: boolean;
+  is_test?: boolean | null;
 };
+
+const PROFILE_CACHE_TTL_MS = 60 * 1000;
+const profileCacheByUsername: Record<string, { profile: Profile; cachedAt: number }> = {};
+const trackerCacheByUserId: Record<string, InitialTrackerData> = {};
 
 export function ProfileView({
   username,
@@ -24,21 +31,50 @@ export function ProfileView({
   initialExperiences = false,
   fromTab,
   initialRecord,
+  initialProfile = null,
+  initialTrackerData = null,
 }: {
   username: string;
   initialMode?: "peaks" | "countries";
   initialExperiences?: boolean;
   fromTab?: "ranking" | "social" | "mapa";
   initialRecord?: string;
+  initialProfile?: Profile | null;
+  initialTrackerData?: InitialTrackerData | null;
 }) {
   const { session, profile: myProfile } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
+
+  if (initialProfile) {
+    profileCacheByUsername[username] = { profile: initialProfile, cachedAt: Date.now() };
+  }
+  if (initialTrackerData && initialProfile?.id === initialTrackerData.userId) {
+    trackerCacheByUserId[initialTrackerData.userId] = initialTrackerData;
+  }
+
+  const cachedEntry = profileCacheByUsername[username];
+  const hasFreshClientCache =
+    Boolean(cachedEntry) && Date.now() - cachedEntry.cachedAt < PROFILE_CACHE_TTL_MS;
+  const seedProfile = initialProfile ?? (hasFreshClientCache ? cachedEntry.profile : null);
+
+  const [profile, setProfile] = useState<Profile | null>(seedProfile);
+  const [resolvedTrackerData, setResolvedTrackerData] = useState<InitialTrackerData | null>(() =>
+    initialTrackerData ?? (seedProfile ? trackerCacheByUserId[seedProfile.id] ?? null : null)
+  );
   const [initialConnStatus, setInitialConnStatus] = useState<"pending" | "accepted" | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingAvatarUrl, setLoadingAvatarUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(() => !seedProfile);
+  const [loadingAvatarUrl, setLoadingAvatarUrl] = useState<string | null>(() =>
+    seedProfile?.avatar_url ? getPhotoDisplayUrl(seedProfile.avatar_url) : null
+  );
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"peaks" | "countries">(initialMode);
   const router = useRouter();
+
+  // Warm vector TopoJSON lazily without adding Leaflet to the initial route bundle
+  useEffect(() => {
+    void import("@/lib/geo-loader")
+      .then((geo) => (initialMode === "peaks" ? geo.fetchSpainGeo() : geo.fetchWorldGeo()))
+      .catch(() => {});
+  }, [initialMode]);
 
   useEffect(() => {
     if (initialRecord && typeof window !== "undefined") {
@@ -62,11 +98,25 @@ export function ProfileView({
 
   useEffect(() => {
     if (!supabase) return;
+
+    const cached = profileCacheByUsername[username];
+    const cachedValid = cached && Date.now() - cached.cachedAt < PROFILE_CACHE_TTL_MS;
+    const preloaded = initialProfile ?? (cachedValid ? cached.profile : null);
+
+    if (preloaded) {
+      setError("");
+      setProfile(preloaded);
+      setResolvedTrackerData(
+        initialTrackerData ?? trackerCacheByUserId[preloaded.id] ?? null
+      );
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     async function loadData() {
       setError("");
       setLoading(true);
-      // 1. Fetch profile by username
       const { data: profileData, error: profileError } = await supabase!
         .from("profiles")
         .select("*")
@@ -81,27 +131,8 @@ export function ProfileView({
         return;
       }
 
-      // Show avatar immediately while waiting for connection status
+      profileCacheByUsername[username] = { profile: profileData, cachedAt: Date.now() };
       setLoadingAvatarUrl(profileData.avatar_url ? getPhotoDisplayUrl(profileData.avatar_url) : null);
-
-      // 2. Fetch connection status before revealing SummitTracker so follow state is instantaneous
-      let connStatus: "pending" | "accepted" | null = null;
-      if (sessionUserId && sessionUserId !== profileData.id) {
-        const { data: connData } = await supabase!
-          .from("connections")
-          .select("status")
-          .eq("follower_id", sessionUserId)
-          .eq("following_id", profileData.id)
-          .maybeSingle();
-
-        if (cancelled) return;
-
-        if (connData) {
-          connStatus = connData.status as "pending" | "accepted";
-        }
-      }
-
-      setInitialConnStatus(connStatus);
       setProfile(profileData);
       setLoading(false);
     }
@@ -109,7 +140,30 @@ export function ProfileView({
     return () => {
       cancelled = true;
     };
-  }, [username, sessionUserId]);
+  }, [username, sessionUserId, initialProfile, initialTrackerData]);
+
+  // Fetch viewer <-> target follow status without blocking initial profile render
+  const profileId = profile?.id ?? null;
+  useEffect(() => {
+    if (!supabase || !profileId || !sessionUserId || sessionUserId === profileId) {
+      setInitialConnStatus(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("connections")
+      .select("status")
+      .eq("follower_id", sessionUserId)
+      .eq("following_id", profileId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        setInitialConnStatus(data ? (data.status as "pending" | "accepted") : null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, sessionUserId]);
 
   if (loading) {
     const initial = username ? username.charAt(0).toUpperCase() : "?";
@@ -223,6 +277,7 @@ export function ProfileView({
       initialExperiencesMode={initialExperiences}
       fromTab={fromTab}
       initialTargetConnStatus={initialConnStatus}
+      initialTrackerData={resolvedTrackerData}
       targetProfile={
         isMe
           ? undefined

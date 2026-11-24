@@ -242,6 +242,21 @@ export function computePeaksAndCountriesStats(ascents: ReadonlyArray<any>) {
 
   for (const peak of peaks) {
     const isDone = completedPeakIds.has(peak.id);
+    if (isDone && !completedUniquePeakNames.has(peak.name)) {
+      completedUniquePeakNames.add(peak.name);
+      totalAltitudeAscended += peak.altitude;
+      if (!highestPeak || peak.altitude > highestPeak.altitude) {
+        highestPeak = peak;
+      }
+    }
+  }
+
+  // Deduplicate shared provincial peaks by unique physical summit name (47 total)
+  const seenPeakNames = new Set<string>();
+  for (const peak of peaks) {
+    if (seenPeakNames.has(peak.name)) continue;
+    seenPeakNames.add(peak.name);
+    const isDone = completedUniquePeakNames.has(peak.name) || completedPeakIds.has(peak.id);
     if (peak.altitude >= 2000) {
       twoThousandersTotal++;
       if (isDone) twoThousandersCount++;
@@ -251,14 +266,6 @@ export function computePeaksAndCountriesStats(ascents: ReadonlyArray<any>) {
     } else {
       lowTotal++;
       if (isDone) lowCount++;
-    }
-
-    if (isDone && !completedUniquePeakNames.has(peak.name)) {
-      completedUniquePeakNames.add(peak.name);
-      totalAltitudeAscended += peak.altitude;
-      if (!highestPeak || peak.altitude > highestPeak.altitude) {
-        highestPeak = peak;
-      }
     }
   }
 
@@ -386,13 +393,22 @@ export function computeExperienceStats(
   experienceRecords: ReadonlyArray<any>,
   ascents: ReadonlyArray<any>,
   customExperiences: ReadonlyArray<any>,
-  customCategories: ReadonlyArray<any>
+  customCategories: ReadonlyArray<any>,
+  hiddenItems: ReadonlyArray<{ item_id: string; item_type: string }> = []
 ) {
+  const hiddenCategoryIds = new Set(
+    hiddenItems.filter((h) => h.item_type === "category").map((h) => h.item_id)
+  );
+  const hiddenExperienceIds = new Set(
+    hiddenItems.filter((h) => h.item_type === "experience").map((h) => h.item_id)
+  );
+
   const customByStaticCat = new Map<string, any[]>();
   const customByCustomCat = new Map<string, any[]>();
   const orphanedCustom: any[] = [];
 
   for (const ce of customExperiences) {
+    if (hiddenExperienceIds.has(ce.id)) continue;
     const mapped = { id: ce.id, name: ce.name, subItems: ce.sub_items };
     if (ce.static_category_id) {
       const list = customByStaticCat.get(ce.static_category_id) || [];
@@ -407,17 +423,24 @@ export function computeExperienceStats(
     }
   }
 
-  const allPredefined = predefinedCategories.map((cat) => ({
-    ...cat,
-    experiences: [...cat.experiences, ...(customByStaticCat.get(cat.id) || [])],
-  }));
+  const allPredefined = predefinedCategories
+    .filter((cat) => !hiddenCategoryIds.has(cat.id))
+    .map((cat) => ({
+      ...cat,
+      experiences: [
+        ...cat.experiences.filter((exp) => !hiddenExperienceIds.has(exp.id)),
+        ...(customByStaticCat.get(cat.id) || []),
+      ],
+    }));
 
-  const customCats = customCategories.map((cat) => ({
-    id: cat.id,
-    name: cat.name,
-    iconName: cat.icon_name || "star",
-    experiences: customByCustomCat.get(cat.id) || [],
-  }));
+  const customCats = customCategories
+    .filter((cat) => !cat.static_id && !hiddenCategoryIds.has(cat.id))
+    .map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      iconName: cat.icon_name || "star",
+      experiences: customByCustomCat.get(cat.id) || [],
+    }));
 
   const orphanCategories =
     orphanedCustom.length > 0

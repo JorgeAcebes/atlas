@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { ProfileView } from "@/components/profile-view";
 import { resolveRecordMetadata } from "@/lib/record-metadata";
+import { getServerInitialProfileData } from "@/lib/profile-server";
 
 type Props = {
   params: Promise<{ username: string }>;
@@ -58,6 +59,8 @@ export default async function UserProfilePage({ params, searchParams }: Props) {
 
   if (!supabase) return notFound();
 
+  const initialData = await getServerInitialProfileData(username);
+
   return (
     <ProfileView
       username={username}
@@ -65,6 +68,8 @@ export default async function UserProfilePage({ params, searchParams }: Props) {
       initialExperiences={initialExperiences}
       fromTab={from}
       initialRecord={initialRecord}
+      initialProfile={initialData.profile}
+      initialTrackerData={initialData.trackerData}
     />
   );
 }

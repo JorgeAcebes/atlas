@@ -81,6 +81,16 @@ export type TargetProfile = {
   is_public?: boolean;
 };
 
+export type InitialTrackerData = {
+  userId: string;
+  ascents: Ascent[];
+  photos: SummitPhoto[];
+  experienceRecords: ExperienceRecord[];
+  customExperiences: any[];
+  customCategories: any[];
+  hiddenItems: HiddenItem[];
+};
+
 export type SummitTrackerProps = {
   mode: ChallengeMode;
   targetProfile?: TargetProfile;
@@ -92,6 +102,7 @@ export type SummitTrackerProps = {
   onToggleExperiences?: (active: boolean) => void;
   fromTab?: "ranking" | "social" | "mapa";
   initialTargetConnStatus?: "pending" | "accepted" | null;
+  initialTrackerData?: InitialTrackerData | null;
 };
 
 export function peakToItem(peak: Peak): SelectedItem {

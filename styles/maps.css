@@ -156,7 +156,7 @@
 }
 
 .mode-countries .leaflet-container {
-  background-color: #e0dce8;
+  background-color: #aad3df;
 }
 
 .mode-experiences .leaflet-container {
@@ -607,7 +607,7 @@
 
 .mode-countries .map {
   border: none;
-  background: #e0dce8;
+  background: #aad3df;
 }
 
 .mode-countries .map-loading {

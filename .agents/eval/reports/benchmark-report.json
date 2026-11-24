@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-11-24T15:13:02.357Z",
+  "timestamp": "2026-11-24T16:17:34.076Z",
   "totalTasks": 6,
   "passedTasks": 6,
   "failedTasks": 0,
   "averageScore": 100,
-  "totalDurationMs": 49379,
+  "totalDurationMs": 78549,
   "results": [
     {
       "taskId": "eval-01-peaks-integrity",
@@ -26,7 +26,7 @@
       "category": "geodata",
       "pass": true,
       "score": 100,
-      "durationMs": 0,
+      "durationMs": 1,
       "message": "Countries evaluation passed",
       "details": {
         "totalCountries": 196
@@ -38,7 +38,7 @@
       "category": "database",
       "pass": true,
       "score": 100,
-      "durationMs": 32,
+      "durationMs": 31,
       "message": "All migrations sequence and RLS policies verified",
       "details": {
         "totalMigrations": 34,
@@ -51,7 +51,7 @@
       "category": "experiences",
       "pass": true,
       "score": 100,
-      "durationMs": 0,
+      "durationMs": 1,
       "message": "Experience categories schema verified",
       "details": {
         "categoriesCount": 4,
@@ -64,7 +64,7 @@
       "category": "database",
       "pass": true,
       "score": 100,
-      "durationMs": 3,
+      "durationMs": 6,
       "message": "Supabase mock client contracts fully verified",
       "details": {
         "issues": []
@@ -76,7 +76,7 @@
       "category": "quality",
       "pass": true,
       "score": 100,
-      "durationMs": 49340,
+      "durationMs": 78496,
       "message": "Typecheck, ESLint, and Vitest all passed",
       "details": {
         "issues": []

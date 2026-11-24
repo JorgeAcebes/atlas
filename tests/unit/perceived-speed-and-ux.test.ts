@@ -1,7 +1,16 @@
-import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { describe, it, expect, afterEach } from "vitest";
 import { feature } from "topojson-client";
 import { resolveCountryFromFeature } from "@/data/countries";
 import { peakByCode } from "@/data/peaks";
+import { filterFeedItems } from "@/lib/feed-filter";
+import { peakCodesById, peakProvincesById } from "@/lib/progress-utils";
+import {
+  computeExperienceStats,
+  computePeaksAndCountriesStats,
+} from "@/lib/stats-calculations";
+import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { readFile } from "@/tests/utils/source-reader";
 
 describe("Infraestructura, caché CDN y preconnects", () => {
@@ -144,9 +153,14 @@ describe("Fluidez de mapas, hover SVG aislado, zoom mundial y TopoJSON", () => {
 
     for (const mapSrc of [world, spain, collective]) {
       expect(mapSrc).toContain("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+    }
+    for (const mapSrc of [world, collective]) {
       expect(mapSrc).toContain("wheelDebounceTime={25}");
       expect(mapSrc).toContain("inertiaDeceleration={2200}");
     }
+    expect(spain).toContain("wheelDebounceTime={20}");
+    expect(spain).toContain("inertiaDeceleration={1600}");
+    expect(spain).toContain("wheelPxPerZoomLevel={85}");
 
     expect(world).toContain("<HoverHighlightBridge");
     expect(spain).toContain("<HoverHighlightBridge");
@@ -182,25 +196,158 @@ describe("Fluidez de mapas, hover SVG aislado, zoom mundial y TopoJSON", () => {
   });
 });
 
-describe("Animación de entrada inicial con los dos triángulos (Prioridad #100)", () => {
-  it("se reproduce solo en entradas nuevas, respeta reduced-motion y no bloquea interacción", () => {
-    const overlay = readFile("components/entry-intro-overlay.tsx");
-    const baseCss = readFile("styles/base.css");
+describe("Limites de zoom en móvil, sin animación inicial, Stats, swipe en lista y perfil SSR", () => {
+  const prevUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const prevAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  afterEach(() => {
+    if (prevUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = prevUrl;
+
+    if (prevAnon === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = prevAnon;
+  });
+
+  it("WorldMap y CollectiveMap bloquean zoom-out en móvil por debajo de zoom 2 y eliminan la franja superior", () => {
+    const world = readFile("components/world-map.tsx");
+    const collective = readFile("components/collective-map.tsx");
+    const bounds = readFile("lib/leaflet-bounds.ts");
+    const mapsCss = readFile("styles/maps.css");
+
+    expect(world).toContain("minZoom={2}");
+    expect(world).toContain("maxBoundsViscosity={1.0}");
+    expect(collective).toContain("minZoom={isPeaks ? 5 : 2}");
+    expect(collective).toContain("maxBoundsViscosity={isPeaks ? 0.5 : 1.0}");
+    expect(bounds).toContain("aspectRatio > 1");
+    expect(mapsCss).toContain("background: #aad3df;");
+    expect(mapsCss).toContain("background-color: #aad3df;");
+  });
+
+  it("la animación inicial de entrada ha sido eliminada de providers, base.css y disco", () => {
+    expect(fs.existsSync(path.join(process.cwd(), "components/entry-intro-overlay.tsx"))).toBe(false);
     const providers = readFile("components/providers.tsx");
+    const baseCss = readFile("styles/base.css");
+    expect(providers).not.toContain("EntryIntroOverlay");
+    expect(baseCss).not.toContain(".atlas-entry-intro");
+  });
 
-    expect(overlay).toContain("atlas_entry_intro_shown");
-    expect(overlay).toContain("(prefers-reduced-motion: reduce)");
-    expect(overlay).toContain("reload");
-    expect(overlay).toContain("back_forward");
-    expect(overlay).toContain("M4 44 L28 4 L40 24 Z");
-    expect(overlay).toContain("M16 52 L36.4 18 L52 44 Z");
+  it("Stats no entra a Experiencias por swipe/scroll, respeta 47 cimas en altitudes y excluye hiddenItems", () => {
+    const modal = readFile("components/stats-modal.tsx");
+    expect(modal).not.toContain('switchStatsMode("experiences")\n');
+    expect(modal).toMatch(/advanceMode\s*=\s*\(delta:\s*number\)\s*=>\s*\{[\s\S]*?if\s*\(delta\s*>\s*0\)\s*\{\s*if\s*\(activeMode === "peaks" && canShowCountries\) switchStatsMode\("countries"\);/);
+    expect(modal).toContain("canShowExperiences");
+    expect(modal).toContain("fetchedFallbackForUserRef");
+    expect(modal).toContain("hiddenItems");
 
-    expect(baseCss).toContain(".atlas-entry-intro");
-    expect(baseCss).toContain("pointer-events: none");
-    expect(baseCss).toContain("@keyframes atlasTriangleLeft");
-    expect(baseCss).toContain("@keyframes atlasTriangleRight");
-    expect(baseCss).toContain("@keyframes atlasIntroZoomOut");
+    const metrics = computePeaksAndCountriesStats([]);
+    expect(metrics.twoThousandersTotal + metrics.midTotal + metrics.lowTotal).toBe(47);
 
-    expect(providers).toContain("<EntryIntroOverlay />");
+    const allExp = computeExperienceStats([], [], [], []);
+    const oneHidden = computeExperienceStats([], [], [], [], [
+      { item_id: allExp.categoriesStatus[0].id, item_type: "category" },
+    ]);
+    expect(oneHidden.totalCount).toBeLessThan(allExp.totalCount);
+  });
+
+  it("useHorizontalModeSwipe permite deslizar horizontalmente o usar rueda en la lista de países/picos", () => {
+    const swipeHook = readFile("hooks/use-horizontal-mode-swipe.ts");
+    expect(swipeHook).not.toContain(", button, a");
+    expect(swipeHook).toContain(".list-filters");
+    expect(swipeHook).toContain(".stats-overlay");
+    expect(swipeHook).toContain("handleGlobalWheel");
+    expect(swipeHook).toContain('addEventListener("wheel", handleGlobalWheel');
+  });
+
+  it("/perfil/[username] pre-hidrata datos públicos desde SSR sin exponer privados y acelera ProfileView", () => {
+    const serverProfile = readFile("lib/profile-server.ts");
+    const page = readFile("app/perfil/[username]/page.tsx");
+    const view = readFile("components/profile-view.tsx");
+    const tracker = readFile("components/summit-tracker.tsx");
+    const dataHook = readFile("components/tracker/hooks/use-tracker-data.ts");
+
+    expect(serverProfile).toContain("getServerInitialProfileData");
+    expect(serverProfile).toContain("if (profile.is_public === false)");
+    expect(page).toContain("getServerInitialProfileData");
+    expect(page).toContain("initialProfile={initialData.profile}");
+    expect(page).toContain("initialTrackerData={initialData.trackerData}");
+
+    expect(view).toContain("fetchWorldGeo()");
+    expect(view).toContain("fetchSpainGeo()");
+    expect(view).toContain("profileCacheByUsername");
+    expect(view).toContain("initialTrackerData={resolvedTrackerData}");
+
+    expect(tracker).toContain("initialTargetConnStatus !== undefined");
+    expect(tracker).toContain("hiddenItems={hiddenItems}");
+    expect(dataHook).toContain("cachedMyAscentsForComparison");
+    expect(dataHook).toContain("initialTrackerData.userId === targetId");
+  });
+
+  it("getSupabaseServerClient devuelve null con placeholders de CI (mock.supabase.co)", () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://mock.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "mock-anon-key";
+    expect(getSupabaseServerClient()).toBeNull();
+
+    const metaSrc = readFile("lib/record-metadata.ts");
+    expect(metaSrc).toContain("if (profile?.is_test)");
+    expect(metaSrc).toContain("if (profileErr || !profile)");
+  });
+
+  it("picos compartidos marcan ambas provincias (Peñalara Madrid/Segovia, etc.), límites en Canarias y carga fiable de tiles en /picos", () => {
+    expect(peakCodesById.get("penalara")).toEqual(["28", "40"]);
+    expect(peakProvincesById.get("penalara")).toEqual(["Madrid", "Segovia"]);
+    expect(peakCodesById.get("gorbea")).toEqual(["01", "48"]);
+    expect(peakCodesById.get("cerredo")).toEqual(["24", "33"]);
+    expect(peakCodesById.get("trevinca")).toEqual(["32", "49"]);
+    expect(peakCodesById.get("moncayo")).toEqual(["42", "50"]);
+
+    const feedItem = {
+      id: "asc-1",
+      type: "ascent",
+      user_id: "u1",
+      summit_id: "penalara",
+      achieved_on: "2026-06-15",
+    };
+    const madridMatch = filterFeedItems({
+      feedItems: [feedItem],
+      enablePeaks: true,
+      enableCountries: true,
+      enableExperiences: true,
+      mode: "peaks",
+      experiencesMode: false,
+      searchQuery: "Madrid",
+      followingOnly: false,
+      followingUserIdsSet: new Set(),
+    });
+    const segoviaMatch = filterFeedItems({
+      feedItems: [feedItem],
+      enablePeaks: true,
+      enableCountries: true,
+      enableExperiences: true,
+      mode: "peaks",
+      experiencesMode: false,
+      searchQuery: "Segovia",
+      followingOnly: false,
+      followingUserIdsSet: new Set(),
+    });
+    expect(madridMatch).toHaveLength(1);
+    expect(segoviaMatch).toHaveLength(1);
+
+    const dataHook = readFile("components/tracker/hooks/use-tracker-data.ts");
+    expect(dataHook).toContain("peakCodesById.get(a.summit_id)");
+
+    const spain = readFile("components/spain-map.tsx");
+    expect(spain).toContain("activeCodes");
+    expect(spain).toContain("minZoom={5}");
+    expect(spain).toContain("[26.0, -19.8]");
+    expect(spain).toContain("<MapTileWakeup");
+    expect(spain).toContain("createTileRetryHandlers");
+
+    const lifecycle = readFile("components/maps/map-lifecycle.tsx");
+    expect(lifecycle).toContain("ResizeObserver");
+    expect(lifecycle).toContain("export function MapTileWakeup");
+    expect(lifecycle).toContain("export function createTileRetryHandlers");
+
+    const sw = readFile("public/sw.js");
+    expect(sw).toContain("single transient retry");
   });
 });

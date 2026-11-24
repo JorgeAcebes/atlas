@@ -100,18 +100,43 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 2. OpenStreetMap Tiles: Cache-First + LRU bounded cache
+  // 2. OpenStreetMap Tiles: Cache-First + bounded LRU cache + single transient retry
   if (url.hostname.endsWith("tile.openstreetmap.org")) {
     event.respondWith(
-      caches.open(TILES_CACHE).then(async (cache) => {
-        const cached = await cache.match(req);
-        if (cached) return cached;
-        const response = await fetch(req);
-        if (response && response.ok) {
-          cache.put(req, response.clone()).then(() => trimCache(TILES_CACHE, MAX_TILE_CACHE_ENTRIES));
+      (async () => {
+        let cached;
+        try {
+          const cache = await caches.open(TILES_CACHE);
+          cached = await cache.match(req);
+          if (cached) return cached;
+
+          let response;
+          try {
+            response = await fetch(req);
+          } catch {
+            response = await fetch(req);
+          }
+
+          if (response && !response.ok) {
+            try {
+              const retryRes = await fetch(req);
+              if (retryRes && retryRes.ok) response = retryRes;
+            } catch {
+              /* keep original response */
+            }
+          }
+
+          if (response && response.ok) {
+            cache
+              .put(req, response.clone())
+              .then(() => trimCache(TILES_CACHE, MAX_TILE_CACHE_ENTRIES))
+              .catch(() => {});
+          }
+          return response;
+        } catch {
+          return cached || Response.error();
         }
-        return response;
-      })
+      })()
     );
     return;
   }

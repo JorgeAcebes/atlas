@@ -452,7 +452,9 @@ export function RankingTab({
               peaks.some((p) => p.id === cleanId || p.name.toLowerCase() === cleanId.toLowerCase());
             const targetPath = isPeak
               ? `/picos#panel=${encodeURIComponent(cleanId)}`
-              : `/#panel=${encodeURIComponent(cleanId)}`;
+              : loc.type === "experience"
+                ? `/?exp=${encodeURIComponent(cleanId)}#panel=${encodeURIComponent(summitId)}`
+                : `/#panel=${encodeURIComponent(cleanId)}`;
             if (onNavigate) onNavigate(targetPath);
             else window.location.href = targetPath;
           }}

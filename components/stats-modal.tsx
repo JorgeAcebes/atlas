@@ -42,6 +42,7 @@ type Props = {
   experienceRecords?: any[];
   customExperiences?: any[];
   customCategories?: any[];
+  hiddenItems?: any[];
   photos?: any[];
   photosCount?: number;
   initialMode?: StatsMode;
@@ -62,11 +63,13 @@ function readStoredTrackerArray(key: string, enabled: boolean): any[] {
 
 export function StatsModal({
   session,
+  myProfile,
   targetProfile,
   ascents: propAscents,
   experienceRecords: propExperiences,
   customExperiences: propCustomExperiences,
   customCategories: propCustomCategories,
+  hiddenItems: propHiddenItems,
   photos: propPhotos,
   initialMode = "countries",
   onModeChange,
@@ -80,29 +83,39 @@ export function StatsModal({
   const canReadLocal = !isTargetOther && Boolean(session?.user?.id);
   const overlayRef = useRef<HTMLDivElement>(null);
 
+  const canShowPeaks =
+    (!myProfile || myProfile.enable_peaks !== false) &&
+    (!targetProfile || targetProfile.enable_peaks !== false);
+  const canShowCountries =
+    (!myProfile || myProfile.enable_countries !== false) &&
+    (!targetProfile || targetProfile.enable_countries !== false);
+  const canShowExperiences =
+    canShowCountries &&
+    (isTargetOther ? true : Boolean(session?.user?.id) && (!myProfile || myProfile.enable_experiences !== false));
+
   const [activeMode, setActiveMode] = useState<StatsMode>(() => {
-    if (initialMode === "experiences") return "experiences";
-    if (initialMode === "peaks") return "peaks";
-    if (typeof window !== "undefined") {
-      try {
-        const saved = sessionStorage.getItem("stats_active_mode");
-        if (saved === "peaks" || saved === "countries" || saved === "experiences") {
-          return saved;
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-    return "countries";
+    if (initialMode === "peaks" && canShowPeaks) return "peaks";
+    if (initialMode === "experiences" && canShowExperiences) return "experiences";
+    if (canShowCountries) return "countries";
+    return canShowPeaks ? "peaks" : "countries";
   });
 
   useEffect(() => {
-    if (initialMode) setActiveMode(initialMode);
-  }, [initialMode]);
+    if (initialMode === "peaks" && canShowPeaks) {
+      setActiveMode("peaks");
+    } else if (initialMode === "experiences") {
+      setActiveMode(canShowExperiences ? "experiences" : canShowCountries ? "countries" : "peaks");
+    } else if (initialMode === "countries") {
+      setActiveMode(canShowCountries ? "countries" : "peaks");
+    }
+  }, [initialMode, canShowPeaks, canShowCountries, canShowExperiences]);
 
   const switchStatsMode = useCallback(
     (mode: StatsMode) => {
       if (mode === activeMode) return;
+      if (mode === "peaks" && !canShowPeaks) return;
+      if (mode === "countries" && !canShowCountries) return;
+      if (mode === "experiences" && !canShowExperiences) return;
       setActiveMode(mode);
       if (typeof window !== "undefined") {
         try {
@@ -115,12 +128,13 @@ export function StatsModal({
         onModeChange?.(mode);
       });
     },
-    [activeMode, onModeChange]
+    [activeMode, canShowPeaks, canShowCountries, canShowExperiences, onModeChange]
   );
 
   const handleToggleExperiences = useCallback(() => {
+    if (!canShowExperiences) return;
     switchStatsMode(activeMode === "experiences" ? "countries" : "experiences");
-  }, [activeMode, switchStatsMode]);
+  }, [activeMode, canShowExperiences, switchStatsMode]);
 
   const [ascents, setAscents] = useState<any[]>(() =>
     propAscents !== undefined
@@ -147,6 +161,12 @@ export function StatsModal({
       ? propCustomCategories
       : readStoredTrackerArray(`app_tracker_custom_cat_${session?.user?.id}`, canReadLocal)
   );
+  const [hiddenItems, setHiddenItems] = useState<any[]>(() =>
+    propHiddenItems !== undefined
+      ? propHiddenItems
+      : readStoredTrackerArray(`app_tracker_hidden_items_${session?.user?.id}`, canReadLocal)
+  );
+  const fetchedFallbackForUserRef = useRef<string | null>(null);
 
   const [galleryOpen, setGalleryOpen] = useState(() =>
     typeof window !== "undefined"
@@ -248,12 +268,14 @@ export function StatsModal({
     let lastWheelTime = 0;
 
     const advanceMode = (delta: number) => {
+      // Horizontal swipe / scroll switches strictly between 47 Picos and 196 Países;
+      // Experiences is accessible exclusively through the target toggle icon.
       if (delta > 0) {
-        if (activeMode === "peaks") switchStatsMode("countries");
-        else if (activeMode === "countries") switchStatsMode("experiences");
+        if (activeMode === "peaks" && canShowCountries) switchStatsMode("countries");
       } else {
-        if (activeMode === "experiences") switchStatsMode("countries");
-        else if (activeMode === "countries") switchStatsMode("peaks");
+        if ((activeMode === "countries" || activeMode === "experiences") && canShowPeaks) {
+          switchStatsMode("peaks");
+        }
       }
     };
 
@@ -298,7 +320,7 @@ export function StatsModal({
       el.removeEventListener("touchend", handleTouchEnd);
       el.removeEventListener("wheel", handleWheel);
     };
-  }, [activeMode, galleryOpen, lightboxIndex, switchStatsMode]);
+  }, [activeMode, galleryOpen, lightboxIndex, switchStatsMode, canShowCountries, canShowPeaks]);
 
   useEffect(() => {
     lockScroll();
@@ -320,6 +342,9 @@ export function StatsModal({
   useEffect(() => {
     if (propCustomCategories !== undefined) setCustomCategories(propCustomCategories);
   }, [propCustomCategories]);
+  useEffect(() => {
+    if (propHiddenItems !== undefined) setHiddenItems(propHiddenItems);
+  }, [propHiddenItems]);
 
   // Parallel fallback fetch for missing datasets
   useEffect(() => {
@@ -327,8 +352,12 @@ export function StatsModal({
     if (!client || !effectiveUserId) return;
     let cancelled = false;
 
-    const needPhotos = propPhotos === undefined && photos.length === 0;
-    const needExps = propExperiences === undefined && experienceRecords.length === 0;
+    const alreadyFetchedForUser = fetchedFallbackForUserRef.current === effectiveUserId;
+    const needPhotos = !alreadyFetchedForUser && propPhotos === undefined && photos.length === 0;
+    const needExps = !alreadyFetchedForUser && propExperiences === undefined && experienceRecords.length === 0;
+    const needCustomExps = !alreadyFetchedForUser && propCustomExperiences === undefined && customExperiences.length === 0;
+    const needCustomCats = !alreadyFetchedForUser && propCustomCategories === undefined && customCategories.length === 0;
+    const needHiddenItems = !alreadyFetchedForUser && propHiddenItems === undefined && hiddenItems.length === 0;
     const isMissingDates =
       !isTargetOther &&
       Boolean(session?.user?.id) &&
@@ -337,9 +366,13 @@ export function StatsModal({
     const needAscents =
       !isTargetOther &&
       Boolean(session?.user?.id) &&
-      (isMissingDates || (ascents.length === 0 && propAscents === undefined));
+      (isMissingDates || (!alreadyFetchedForUser && ascents.length === 0 && propAscents === undefined));
 
-    if (!needPhotos && !needExps && !needAscents) return;
+    if (!needPhotos && !needExps && !needCustomExps && !needCustomCats && !needHiddenItems && !needAscents) {
+      return;
+    }
+
+    fetchedFallbackForUserRef.current = effectiveUserId;
 
     Promise.all([
       needPhotos
@@ -353,13 +386,25 @@ export function StatsModal({
       needExps
         ? client.from("experience_records").select("*").eq("user_id", effectiveUserId)
         : Promise.resolve(null),
+      needCustomExps
+        ? client.from("custom_experiences").select("*").eq("user_id", effectiveUserId)
+        : Promise.resolve(null),
+      needCustomCats
+        ? client.from("custom_experience_categories").select("*").eq("user_id", effectiveUserId)
+        : Promise.resolve(null),
+      needHiddenItems
+        ? client.from("hidden_items").select("*").eq("user_id", effectiveUserId)
+        : Promise.resolve(null),
       needAscents && session?.user?.id
         ? client.from("ascents").select("*").eq("user_id", session.user.id)
         : Promise.resolve(null),
-    ]).then(([photosRes, expRes, ascentsRes]) => {
+    ]).then(([photosRes, expRes, customExpRes, customCatRes, hiddenRes, ascentsRes]) => {
       if (cancelled) return;
       if (photosRes?.data) setPhotos(photosRes.data);
       if (expRes?.data && expRes.data.length > 0) setExperienceRecords(expRes.data);
+      if (customExpRes?.data && customExpRes.data.length > 0) setCustomExperiences(customExpRes.data);
+      if (customCatRes?.data && customCatRes.data.length > 0) setCustomCategories(customCatRes.data);
+      if (hiddenRes?.data && hiddenRes.data.length > 0) setHiddenItems(hiddenRes.data);
       if (ascentsRes?.data && ascentsRes.data.length > 0) {
         setAscents(ascentsRes.data);
         try {
@@ -382,9 +427,15 @@ export function StatsModal({
     session,
     propPhotos,
     propExperiences,
+    propCustomExperiences,
+    propCustomCategories,
+    propHiddenItems,
     propAscents,
     photos.length,
     experienceRecords.length,
+    customExperiences.length,
+    customCategories.length,
+    hiddenItems.length,
     ascents,
   ]);
 
@@ -428,8 +479,8 @@ export function StatsModal({
   const metrics = useMemo(() => computePeaksAndCountriesStats(ascents), [ascents]);
   const expMetrics = useMemo(
     () =>
-      computeExperienceStats(experienceRecords, ascents, customExperiences, customCategories),
-    [experienceRecords, ascents, customExperiences, customCategories]
+      computeExperienceStats(experienceRecords, ascents, customExperiences, customCategories, hiddenItems),
+    [experienceRecords, ascents, customExperiences, customCategories, hiddenItems]
   );
   const { visitsTimeline, peaksTimeline, experiencesTimeline } = useMemo(
     () => buildAllTimelines(ascents, experienceRecords),
@@ -489,7 +540,7 @@ export function StatsModal({
       <div className="stats-sticky-top">
         <header className="stats-header stats-header--centered">
           <div className="stats-header-left">
-            {activeMode !== "peaks" ? (
+            {activeMode !== "peaks" && canShowExperiences ? (
               <button
                 type="button"
                 className={`stats-exp-toggle-btn ${
@@ -533,24 +584,28 @@ export function StatsModal({
             role="tablist"
           >
             <div className="app-mode-switch__indicator" />
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeMode === "peaks"}
-              className={`app-mode-btn ${activeMode === "peaks" ? "active" : ""}`}
-              onClick={() => switchStatsMode("peaks")}
-            >
-              47 Picos
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeMode === "countries"}
-              className={`app-mode-btn ${activeMode === "countries" ? "active" : ""}`}
-              onClick={() => switchStatsMode("countries")}
-            >
-              196 Países
-            </button>
+            {canShowPeaks && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeMode === "peaks"}
+                className={`app-mode-btn ${activeMode === "peaks" ? "active" : ""}`}
+                onClick={() => switchStatsMode("peaks")}
+              >
+                47 Picos
+              </button>
+            )}
+            {canShowCountries && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeMode !== "peaks"}
+                className={`app-mode-btn ${activeMode !== "peaks" ? "active" : ""}`}
+                onClick={() => switchStatsMode("countries")}
+              >
+                196 Países
+              </button>
+            )}
           </div>
 
           <button

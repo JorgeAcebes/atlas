@@ -61,7 +61,10 @@ export function FitWorld({
         }
         const fittedZoom = map.getZoom();
         if (Number.isFinite(fittedZoom)) {
-          const targetZoom = Math.min(3, Math.max(2, Math.floor(fittedZoom) + 1));
+          const targetZoom =
+            aspectRatio > 1
+              ? Math.min(3, Math.max(2, Math.floor(fittedZoom) + 1))
+              : 2;
           const targetLat = targetZoom >= 3 ? 24 : 26;
           map.setView([targetLat, 0], targetZoom, { animate: false });
         }

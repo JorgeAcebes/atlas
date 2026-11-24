@@ -742,10 +742,10 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             wheelDebounceTime={25}
             inertiaDeceleration={2200}
             easeLinearity={0.2}
-            minZoom={isPeaks ? 4 : 1}
+            minZoom={isPeaks ? 5 : 2}
             maxZoom={isPeaks ? 10 : 12}
-            maxBounds={isPeaks ? [[24, -22], [46, 8]] : [[-60, -180], [83, 180]]}
-            maxBoundsViscosity={0.5}
+            maxBounds={isPeaks ? [[26.0, -19.8], [45.0, 6.0]] : [[-60, -180], [83, 180]]}
+            maxBoundsViscosity={isPeaks ? 0.5 : 1.0}
           >
             <MapZoomListener onInteractionStart={clearHoverState} />
             <SweepOverlay searchedId={searchedId} layerRefs={layerRefs} />
@@ -753,7 +753,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              minZoom={isPeaks ? 4 : 1}
+              minZoom={isPeaks ? 5 : 2}
               maxZoom={isPeaks ? 10 : 12}
               keepBuffer={keepBuffer}
               updateWhenIdle={false}

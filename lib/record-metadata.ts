@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getSupabaseServerClient } from "./supabase-server";
+import { getServerProfileByUsername } from "./profile-server";
 import { getPhotoDisplayUrl } from "./photo-client";
 import { peaks } from "@/data/peaks";
 import { countries } from "@/data/countries";
@@ -135,13 +136,9 @@ export async function resolveRecordMetadata(
   if (!supabase) return fallbackMetadata;
 
   try {
-    const { data: profile, error: profileErr } = await supabase
-      .from("profiles")
-      .select("id, username, avatar_url, is_public, share_photos, share_notes, is_test")
-      .eq("username", username)
-      .maybeSingle();
+    const { profile, error: profileErr } = await getServerProfileByUsername(username);
 
-    if (profileErr || !profile || profile.is_test) {
+    if (profile?.is_test) {
       return {
         title: genericTitle,
         description: genericDesc,
@@ -161,6 +158,10 @@ export async function resolveRecordMetadata(
           images: [defaultImage],
         },
       };
+    }
+
+    if (profileErr || !profile) {
+      return fallbackMetadata;
     }
 
     // Strictly enforce privacy: never expose custom experiences, notes, dates, or photos for private profiles

@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatRecordDateRange, isUnknownDate, parseLocalNoonDate } from "@/lib/date-utils";
-import { countriesById, peaksById } from "@/lib/progress-utils";
+import { countriesById, peakProvincesById, peaksById } from "@/lib/progress-utils";
 
 export interface FilterFeedOptions {
   feedItems: ReadonlyArray<any>;
@@ -80,7 +80,7 @@ export function filterFeedItems({
         const peak = peaksById.get(summitIdLower);
         if (peak) {
           locName = peak.name;
-          extraLoc = peak.province || "";
+          extraLoc = peakProvincesById.get(summitIdLower)?.join(" ") || peak.province || "";
         }
       }
     } else if (item.type === "experience") {
