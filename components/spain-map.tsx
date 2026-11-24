@@ -203,9 +203,22 @@ export const SpainMap = memo(function SpainMap({
   const activeCodesRef = useRef<string[]>([]);
 
   useEffect(() => {
-    if (!getCachedSpainGeo()) {
-      fetchSpainGeo().then(setGeo).catch(() => setGeo(null));
+    let cancelled = false;
+    const cached = getCachedSpainGeo();
+    if (cached) {
+      setGeo((prev) => prev ?? cached);
+      return;
     }
+    fetchSpainGeo()
+      .then((data) => {
+        if (!cancelled) setGeo(data);
+      })
+      .catch(() => {
+        if (!cancelled) setGeo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const getDiffStyleRef = useCallback((code: string) => {

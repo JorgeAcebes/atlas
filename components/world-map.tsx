@@ -373,9 +373,22 @@ export const WorldMap = memo(function WorldMap({
   selectingLocationRef.current = selectingLocation;
 
   useEffect(() => {
-    if (!getCachedWorldGeo()) {
-      fetchWorldGeo().then(setGeo).catch(() => setGeo(null));
+    let cancelled = false;
+    const cached = getCachedWorldGeo();
+    if (cached) {
+      setGeo((prev) => prev ?? cached);
+      return;
     }
+    fetchWorldGeo()
+      .then((data) => {
+        if (!cancelled) setGeo(data);
+      })
+      .catch(() => {
+        if (!cancelled) setGeo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

@@ -168,10 +168,14 @@ export function MapTileWakeup({ isActive }: { isActive?: boolean }) {
 
     const earlyTimer = setTimeout(() => ensureTiles(false), 200);
     const stallTimer = setTimeout(() => ensureTiles(true), 1600);
+    const settleTimer = setTimeout(() => {
+      revealCompletedTiles(map.getPane("tilePane"));
+    }, 3200);
 
     return () => {
       clearTimeout(earlyTimer);
       clearTimeout(stallTimer);
+      clearTimeout(settleTimer);
     };
   }, [map, isActive]);
 
@@ -189,8 +193,19 @@ export function createTileRetryHandlers(): { tileerror: L.LeafletEventHandlerFn 
       const delay = attempt === 0 ? 350 : 1000;
       setTimeout(() => {
         if (!tile.isConnected) return;
+        if (!tile.dataset.atlasLoadBound) {
+          tile.dataset.atlasLoadBound = "1";
+          tile.addEventListener("load", () => {
+            tile.classList.add("leaflet-tile-loaded");
+            tile.style.opacity = "1";
+          });
+        }
         const cleanSrc = tile.src.replace(/([?&])_r=\d+/, "");
         tile.src = `${cleanSrc}${cleanSrc.includes("?") ? "&" : "?"}_r=${attempt + 1}`;
+        if (tile.complete && tile.naturalWidth > 0) {
+          tile.classList.add("leaflet-tile-loaded");
+          tile.style.opacity = "1";
+        }
       }, delay);
     },
   };

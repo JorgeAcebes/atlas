@@ -489,4 +489,18 @@ describe("Fricción adaptativa móvil, carga fiable de tiles, transición instan
     expect(collective).toContain("[26.0, -19.8]");
     expect(collective).toContain("[47.5, 11.0]");
   });
+
+  it("WorldMap y SpainMap sincronizan geo cacheado en useEffect y createTileRetryHandlers revela tiles reintentados", () => {
+    const world = readFile("components/world-map.tsx");
+    const spain = readFile("components/spain-map.tsx");
+    const lifecycle = readFile("components/maps/map-lifecycle.tsx");
+
+    expect(world).toContain("const cached = getCachedWorldGeo();");
+    expect(world).toContain("setGeo((prev) => prev ?? cached);");
+    expect(spain).toContain("const cached = getCachedSpainGeo();");
+    expect(spain).toContain("setGeo((prev) => prev ?? cached);");
+
+    expect(lifecycle).toContain("atlasLoadBound");
+    expect(lifecycle).toContain("settleTimer");
+  });
 });
