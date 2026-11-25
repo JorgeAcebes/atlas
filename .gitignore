@@ -15,12 +15,19 @@ build
 *.tsbuildinfo
 next-env.d.ts
 
-# Environment variables
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Environment variables (never commit; only .env.example is tracked)
+.env
+.env.*
+!.env.example
 .env*.local
+
+# Keys, certificates and credentials
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
+.vercel
 
 # Logs and debug files
 npm-debug.log*

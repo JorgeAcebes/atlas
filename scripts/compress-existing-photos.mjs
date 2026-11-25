@@ -14,8 +14,13 @@ for (const line of envContent.split("\n")) {
   }
 }
 
-const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL || "https://jgwyrnvmeuxhivferaht.supabase.co";
-const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_vGf3FOq_3FmFdSyB0LOuKw_GjletecK";
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local");
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

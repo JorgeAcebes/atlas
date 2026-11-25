@@ -1,67 +1,64 @@
 ---
 name: media-and-experiences
 description: >-
-  Use this skill whenever working with photo processing, image compression (Sharp, canvas), media uploads, photo cropping, custom experiences, sub-item tracking, or gallery views in the 47 Picos project.
+  Use this skill whenever working with photo processing, image compression, Cloudflare R2 uploads,
+  photo security, lightbox/editor views, custom experiences, sub-item tracking, or companions in Atlas.
 ---
 
 # Media Optimization and Experiences System
 
-This skill covers photo optimization pipelines and the custom/predefined experiences tracking architecture in **47 Picos y 196 Países**.
+This skill covers photo pipelines (Cloudflare R2 + browser compression), lightbox/editor UX, and the predefined/custom experiences architecture in **Atlas (47 Picos & 196 Países)**.
 
 ---
 
-## 1. Media Processing & Image Optimization
+## 1. Media Processing, R2 Storage & Security
 
-### Client-Side Compression & Cropping
-- **Cropping Component**: `components/photo-editor.tsx` (utilizes `react-image-crop`).
-- **In-Browser Compression**: `lib/image-utils.ts` -> `compressImage(file, maxWidthPx = 1200, quality = 0.75)`.
-- **Flow**:
-  1. User selects a photo (raw camera photo can be 10-20MB).
-  2. Canvas scales down the image to a max dimension of 1200px and converts to JPEG at 75% quality.
-  3. Requests presigned upload URL from `/api/photos/upload-intent` (with hard 9.5 GB cap check) and uploads compressed Blob directly to Cloudflare R2 (`atlas-photos/[user_id]/[filename]`).
-  4. Inserts row into `public.summit_photos` with `storage_path`, `public_url`, `file_size`, `taken_on`, and `caption`.
+### Client-Side Compression, Cropping & Display (`lib/image-utils.ts`, `lib/photo-client.ts`)
+- **Cropping & Transform**: `components/photo-editor.tsx` (`react-image-crop`). Toolbar buttons (*"Rotar"*, *"Espejo H"*, *"Espejo V"*, *"Restablecer"*) must remain single-line (`white-space: nowrap`) on all viewports.
+- **In-Browser Compression**: `compressImage(file, maxWidthPx = 1200, quality = 0.75)` scales images down via HTML5 Canvas before upload.
+- **Browser Upload Flow**:
+  1. `uploadPhotoBlob` / `uploadPhotoBlobsBatch` (`lib/photo-client.ts`) chunks compressed blobs (`<= 3.5 MB` and `<= 4` files per request to respect Vercel payload limits) and POSTs to `/api/photos/upload` with the Supabase Bearer token.
+  2. Server validates image magic bytes (`detectSafeImageMime` in `lib/photo-security.ts`), checks the strict **9.5 GiB** R2 storage cap (`checkStorageLimit` in `lib/r2-storage.ts`), and uploads to Cloudflare R2 (`atlas-photos`).
+  3. Client inserts metadata into `public.summit_photos` (`storage_path`, `public_url`, `file_size`, `taken_on`, `shot_at`, `caption`).
+- **REST API v1 / MCP Upload Flow**: Uses `/api/v1/photos/upload-intent` (presigned R2 PUT) followed by `/api/v1/photos/confirm`.
+- **Delivery & Caching**: `getPhotoDisplayUrl()` routes `.r2.dev`, legacy Supabase URLs, and paths through `NEXT_PUBLIC_R2_CUSTOM_DOMAIN` or `/api/photos/view/[...path]` (cached by Service Worker `public/sw.js`).
+- **Lightbox (`components/photo-lightbox.tsx`)**: Pure `#000000` background, independent flex `.lightbox-stage` + `.lightbox-footer` (no title/image overlap), zoom/pan support, closes only via `X` button, `Escape`, or `popstate` (never backdrop click), and **never displays photo dates**.
 
-### Batch Server-Side Compression
-- **Script**: `scripts/compress-existing-photos.mjs`
-- **Library**: `sharp`
-- **Purpose**: Scans `summit-photos` bucket for any photos > 250 KB and compresses them in-place with Sharp.
-- **Execution**:
-  ```bash
-  node scripts/compress-existing-photos.mjs
-  ```
+### Legacy Supabase Batch Script
+- `scripts/compress-existing-photos.mjs` targets historical objects in the legacy Supabase `summit-photos` storage bucket (> 250 KB) using `sharp`.
 
 ---
 
-## 2. Experiences Architecture
-
-The experience tracking system allows users to check off personal achievements beyond mountains and countries.
+## 2. Experiences Architecture (`data/experiences.ts`, `hooks/use-custom-experiences.ts`)
 
 ### Predefined vs. Custom Experiences
 
-Type | Definition Location | DB Table for Definitions | DB Table for Completions
-:--- | :--- | :--- | :---
-**Predefined** | `data/experiences.ts` (`predefinedCategories`) | _None (code-level)_ | `experience_records` (`experience_id: "exp-xxx"`)
-**Custom Category** | User-created in UI | `custom_experience_categories` | -
-**Custom Experience** | User-created in UI | `custom_experiences` | `experience_records` (`experience_id: uuid`)
+| Type | Definition Location | DB Table for Definitions | DB Table for Completions |
+| :--- | :--- | :--- | :--- |
+| **Predefined** | `data/experiences.ts` (`predefinedCategories`) | _None (immutable in code)_ | `experience_records` (`experience_id: "exp-xxx"`) |
+| **Custom Category** | User-created in UI | `custom_experience_categories` | - |
+| **Custom Experience** | User-created in UI | `custom_experiences` | `experience_records` (`experience_id: uuid`) |
+| **Hidden Default** | User-trashed in UI | `hidden_items` | - |
+
+- Default categories (`predefinedCategories`) are strictly immutable in name and icon (only cross/trash icon is shown; editing is restricted to `isCustomCat`).
+- Experiences mode depends strictly on Countries mode (`enable_countries` / `canShowCountries`).
 
 ### Multi-Item / Sub-Item Experiences
-Certain experiences consist of sub-items that can be completed individually (e.g. `exp-big-five-land` with Lion, Elephant, Leopard, Rhino, Buffalo):
-- Sub-item completions are persisted in `experience_records.sub_items` as a JSONB array of strings: `["lion", "rhino"]`.
-- UI renders checkboxes for each sub-item. The experience is considered fully achieved once all sub-items are ticked.
+- Sub-item completions are stored in `experience_records.sub_items` as a JSONB array of strings (e.g. `["lion", "rhino"]`).
+- An experience with sub-items counts as completed **only** when all sub-items are ticked.
 
-### External Links & Route Tracks
-Ascents, visits, and experience records support an optional `link` column (migrations 018 and 020):
-- Stores URLs to external activities (Wikiloc, Strava, Komoot, AllTrails).
-- Validated in UI with clickable icons.
+### Links & Companions
+- Ascents, country visits, and experience records support up to 2 links (`link`/`link_name` and `link_2`/`link_name_2`), with `Footprints` icon for outdoor platforms and dynamic mode placeholders, plus `trip_group_id` / `record_companions` (`lib/companions.ts`).
 
-For complete structure and data models, see [Experiences Reference Guide](./references/experiences-guide.md).
+For full data structures, see [Experiences Reference Guide](./references/experiences-guide.md).
 
 ---
 
 ## 3. Automated Verification
 
-Run tests covering experiences and image compression:
 ```bash
 npm test tests/unit/experiences.test.ts
 npm test tests/unit/image-utils.test.ts
+npm test tests/unit/photo-lightbox.test.ts
+npm test tests/unit/r2-storage-cap.test.ts
 ```

@@ -1,36 +1,39 @@
 ---
 name: supabase-and-migrations
 description: >-
-  Use this skill whenever creating, modifying, or reviewing Supabase database tables, SQL migrations, Row Level Security (RLS) policies, or PostgreSQL stored procedures in the 47 Picos project.
+  Use this skill whenever creating, modifying, or reviewing Supabase database tables,
+  SQL migrations, Row Level Security (RLS) policies, or PostgreSQL stored procedures in the Atlas (47 Picos & 196 Países) project.
 ---
 
 # Supabase and Migrations Management
 
-This skill covers the database architecture, migration conventions, security policies, and maintenance procedures for the Supabase backend in **47 Picos y 196 Países**.
+This skill covers the database architecture, migration conventions, security policies, and maintenance procedures for the Supabase backend in **Atlas (47 Picos & 196 Países)**.
 
 ---
 
 ## 1. Migration File Conventions
 
-All migrations live in `supabase/migrations/` and follow a strict, contiguous naming pattern:
+All migrations live in `supabase/migrations/` and follow a strict, contiguous 3-digit naming pattern:
 
 ```text
 supabase/migrations/
 ├── 001_initial_schema.sql
-├── 002_add_wishlist.sql
 ...
-├── 021_fix_experiences_rls.sql
-└── 022_<descriptive_name>.sql  <-- Next migration must be 022
+├── 021_fix_experiences_rls.sql   <-- 001..021 are FROZEN (never modify/delete)
+...
+├── 036_push_subscriptions.sql
+└── 037_<descriptive_name>.sql    <-- Next migration must be 037
 ```
 
 ### Critical Rules:
-1. **Contiguous 3-Digit Prefix**: Never skip numbers. Always check the highest number currently in the folder before creating a new migration.
-2. **Idempotence**: Every statement should safely execute multiple times without error:
+1. **Frozen Baseline (`001`–`021`)**: Never modify or delete migrations `001` through `021` (enforced by `scripts/protect-files.mjs`).
+2. **Contiguous 3-Digit Prefix**: Never skip numbers. Always check the highest number currently in `supabase/migrations/` before creating a new migration.
+3. **Idempotence**: Every statement should safely execute multiple times without error:
    - Tables: `CREATE TABLE IF NOT EXISTS public.<name> (...)`
    - Columns: `ALTER TABLE public.<name> ADD COLUMN IF NOT EXISTS <col> <type>`
-   - Policies: `DROP POLICY IF EXISTS "<name>" ON public.<table_name>;` followed by `CREATE POLICY ...`
+   - Policies: `DROP POLICY IF EXISTS "<name>" ON public.<table_name>;` (or `DO $$ BEGIN IF NOT EXISTS ... END $$;`) followed by `CREATE POLICY ...`
    - Indexes: `CREATE INDEX IF NOT EXISTS <index_name> ON public.<table_name> (...)`
-3. **Always Enable RLS**:
+4. **Always Enable RLS**:
    ```sql
    ALTER TABLE public.<table_name> ENABLE ROW LEVEL SECURITY;
    ```
@@ -41,7 +44,7 @@ supabase/migrations/
 
 The application distinguishes between private, public, and social follower access based on `profiles.is_public` and `connections`:
 
-### SELECT Policy (Public or Accepted Connections or Owner):
+### SELECT Policy (Owner, Public Profile, or Accepted Follower):
 ```sql
 CREATE POLICY "Public and connections can read <table_name>" ON public.<table_name>
 FOR SELECT
@@ -75,47 +78,29 @@ WITH CHECK (auth.uid() = user_id);
 
 ## 3. Database Functions & Search Path
 
-When creating stored procedures or views (e.g., `ranking_function`, `collective_countries_function`):
-- Use `SECURITY DEFINER` when accessing elevated data across users.
-- Explicitly set `search_path = public` to prevent schema hijack vulnerabilities.
-
-Example:
-```sql
-CREATE OR REPLACE FUNCTION public.get_collective_visited_countries()
-RETURNS TABLE (country_id text, visitor_count bigint)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT a.summit_id AS country_id, COUNT(DISTINCT a.user_id) AS visitor_count
-  FROM public.ascents a
-  JOIN public.profiles p ON p.id = a.user_id
-  WHERE a.summit_id LIKE 'country-%' AND p.is_public = true
-  GROUP BY a.summit_id;
-END;
-$$;
-```
+When creating stored procedures or views (`get_user_ranking`, `get_collective_visited_countries`, `get_total_photos_storage_bytes`, `get_feed_photos`, `get_mutual_followers`):
+- Use `SECURITY DEFINER` when querying across user boundaries.
+- Explicitly set `SET search_path = public` to prevent schema-hijack vulnerabilities.
+- Always exclude test profiles (`p.is_test IS NOT TRUE`) from ranking, collective counts, feed, and recommendations.
 
 ---
 
-## 4. Supabase Storage: `summit-photos`
+## 4. Photo Storage Architecture (Cloudflare R2 + `summit_photos`)
 
-- **Bucket**: `summit-photos` (public: `true`)
-- **Structure**: `[user_id]/[timestamp]_[summit_id].jpg`
-- **Policies**:
-  - `storage.objects` INSERT/UPDATE/DELETE: Checked with `(storage.foldername(name))[1] = auth.uid()::text`.
-  - Public read: `bucket_id = 'summit-photos'`.
+Active photo and avatar storage uses **Cloudflare R2** (bucket `atlas-photos`), tracked in `public.summit_photos.file_size` (`030_storage_tracking_and_r2.sql`):
+- **Storage Cap**: `get_total_photos_storage_bytes()` enforces the strict **9.5 GiB** (`DEFAULT_MAX_STORAGE_BYTES` in `lib/r2-storage.ts`) limit.
+- **Endpoints**:
+  - Browser uploads: `POST /api/photos/upload`, `POST /api/photos/delete`, `GET /api/photos/view/[...path]`
+  - REST API v1 / MCP: `/api/v1/photos/upload-intent` + `/api/v1/photos/confirm`
+- **Legacy Supabase Storage**: Historical `supabase.co/storage/v1/object/public/summit-photos/` URLs are transparently rewritten to `/api/photos/view/...` (or `NEXT_PUBLIC_R2_CUSTOM_DOMAIN`) by `getPhotoDisplayUrl()` in `lib/photo-client.ts`.
 
 ---
 
 ## 5. Keepalive & Pausing Prevention
 
 Supabase free-tier projects pause after 7 days of inactivity.
-This project includes a keepalive ping:
 - Route: `app/api/keepalive/route.ts`
-- Trigger: Vercel Cron configured in `vercel.json` (`schedule: "0 5 * * *"`).
+- Trigger: Vercel Cron configured in `vercel.json` (`schedule: "0 3 * * *"`).
 - Authorization: Requires `CRON_SECRET` header or `SUPABASE_SERVICE_ROLE_KEY`.
 
 ---
@@ -127,8 +112,8 @@ Run the migration integrity tests:
 npm test tests/integration/migrations.test.ts
 ```
 This test checks:
-- Unbroken 3-digit sequence.
+- Unbroken 3-digit sequence (`001`..latest).
 - Non-empty files.
-- RLS enablement on all tables.
+- RLS enablement or policies on all created public tables.
 
 For full schema details, see [Schema Reference](./references/schema-reference.md).

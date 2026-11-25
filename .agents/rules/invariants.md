@@ -1,13 +1,13 @@
 ---
 trigger: model_decision
-description: Invariantes críticas de componentes, feeds, fechas, proporciones de picos, sub-items, autenticación y ranking
+description: Invariantes críticas de UI, feed, fechas, proporciones de picos/experiencias, autenticación, ranking, social, enlaces, perfiles de testeo, fotos y navegación
 ---
 
-# Invariantes Críticas de Arquitectura y Código (Anti-Regresiones)
+# Invariantes Críticas de UI, Feed, Auth y Ranking (Anti-Regresiones)
 
 > ⚠️ **REGLA SUPREMA DE INVARIANTES**: Toda regla documentada en las invariantes (elementos eliminados, jerarquías, estructuras y comportamientos) es **ESTRICTAMENTE VINCULANTE Y NO NEGOCIABLE**. Está **TERMINANTEMENTE PROHIBIDO** modificar, relajar, contradecir o reintroducir elementos eliminados sin el consentimiento previo y explícito del usuario.
 
-Este documento reúne todas las reglas no negociables de la aplicación. Cualquier modificación a componentes de interfaz, navegación, contadores, autenticación o ranking **DEBE** respetar estrictamente estos patrones:
+> Para invariantes de **mapas Leaflet, renderizado vectorial, bloqueo de scroll en modales/pestañas, PWA, iconos y carga perezosa/cachés**, ver [`.agents/rules/invariants-maps-pwa.md`](./invariants-maps-pwa.md).
 
 ---
 
@@ -30,7 +30,7 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 ## 2. Conteos y Proporciones (Picos y Experiencias)
 
 1. **Regla de los 47 Picos (`components/social-tab.tsx`, `components/summit-tracker.tsx`)**:
-   - España tiene 52 demarcaciones provinciales (`peaks.ts`), pero exactamente **47 cumbres físicas únicas**.
+   - España tiene 52 demarcaciones provinciales (`peaks.ts`), pero exactamente **47 cumbres físicas únicas** (compartidas: Gorbea, Torre Cerredo, Peñalara, Peña Trevinca y Moncayo).
    - El total de picos posibles **SIEMPRE** es `47` (no 52).
    - El progreso completado se calcula por **nombres de cumbre únicos**, jamás por identificador de provincia:
      ```ts
@@ -40,16 +40,10 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
      const pCount = uniquePeakNames.size; // Siempre sobre 47
      ```
 2. **Total de Experiencias Predefinidas**:
-   - `cachedTotalCounts.experiences` **NUNCA** debe inicializarse en `0`; inicializar siempre con:
-     ```ts
-     predefinedCategories.reduce((acc, cat) => acc + cat.experiences.length, 0)
-     ```
+   - `cachedTotalCounts.experiences` **NUNCA** debe inicializarse en `0`; inicializar siempre con `predefinedCategories.reduce((acc, cat) => acc + cat.experiences.length, 0)`.
 3. **Completitud de Experiencias con Sub-items**:
    - Una experiencia **sin sub-items** se completa con 1 registro.
-   - Una experiencia **con sub-items** (ej. Big Five, 7 Maravillas) **SÓLO** se computa completada cuando **TODOS** sus sub-items están registrados:
-     ```ts
-     subItemIds.every((id: string) => completedSubItems.has(id))
-     ```
+   - Una experiencia **con sub-items** (ej. Big Five, 7 Maravillas) **SÓLO** se computa completada cuando **TODOS** sus sub-items están registrados: `subItemIds.every((id: string) => completedSubItems.has(id))`.
 4. **Sincronización Custom/Ocultos**: Tanto `social-tab.tsx` como `summit-tracker.tsx` deben sincronizar con `custom_experiences`, `custom_experience_categories` y `hidden_items` para mostrar totales idénticos.
 5. **Inmutabilidad de Categorías por Defecto**: Las categorías predefinidas (`predefinedCategories`) son estrictamente inmutables en nombre e icono. Solo las categorías personalizadas creadas por el usuario (`isCustomCat`) muestran el botón de edición. Para las categorías por defecto únicamente aparece el icono de la cruz para enviarlas a la papelera (`hidden_items`).
 
@@ -66,302 +60,110 @@ Este documento reúne todas las reglas no negociables de la aplicación. Cualqui
 
 ---
 
-## 4. Mapas Leaflet e Hidratación SSR
-
-1. **Sin SSR en Mapas**: Mapas (`spain-map.tsx`, `world-map.tsx`, `collective-map.tsx`) dependen de `window`: cargar siempre con:
-   ```tsx
-   dynamic(() => import("@/components/..."), { ssr: false })
-   ```
-2. **Protección de Hidratación en UI (`components/summit-tracker.tsx`)**:
-   - Proteger los selectores condicionales dependientes de perfil (`enable_experiences`) con estado `mounted`:
-     ```tsx
-     const [mounted, setMounted] = useState(false);
-     useEffect(() => setMounted(true), []);
-     {!isPeaks && (experiencesMode || (mounted && myProfile?.enable_experiences)) && ( ... )}
-     ```
-3. **Blindaje de Sincronización de Canvas Vectorial, Cero-Island y Bloqueo Táctil (`world-map.tsx`, `collective-map.tsx`, `spain-map.tsx`, `lib/leaflet-canvas-patch.ts`)**:
-   - **Instancia Adaptativa de Renderer (`createAdaptiveCanvasRenderer`)**: Cada mapa instancia su propio renderizador Canvas pasado explícitamente a `<MapContainer renderer={canvasRenderer}>`, sin mutar nunca el prototipo global `L.Canvas.prototype.options.padding`. Ajusta dinámicamente el buffer (`padding: 0.5` en escritorio HiDPI; `1.0` mundial/colectivo y `0.8` España en móvil/tableta) y usa `getAdaptiveKeepBuffer()` (`3` escritorio / `4` táctil) para maximizar la fluidez sin desbordar GPU/memoria ni recortar polígonos al hacer zoom out táctil.
-   - **Coordenadas Iniciales Obligatorias en `<MapContainer>`**: Todo contenedor `<MapContainer>` debe declarar `center` y `zoom` iniciales (`center={[20, 0]}` y `zoom={2}` en mundial, `center={[40.4168, -3.7038]}` y `zoom={5}` en España, condicional en colectivo). Erradica la desaparición o desplazamiento hacia el fondo de los polígonos vectoriales en el primer zoom tras refrescar o entrar a la página.
-   - **`animate: false` en Encuadre Inicial y Protección Zero-Island (`FitWorld`, `FitSpain`, `MapActiveSynchronizer`, `MapZoomListener`)**: El primer `map.fitBounds` debe ejecutarse con `{ animate: false }`. El sincronizador activo (`kind="spain"`) y el listener de `mapState_spain` validan los límites geográficos de España al rehidratar tras cambiar de pestaña para impedir saltos a `(0, 0)` (Isla Nula).
-   - **Protección de `MapInvalidator` en Montaje**: `MapInvalidator` invalida una sola vez de forma directa en el montaje inicial, reservando el bucle RAF de 350ms exclusivamente para cuando `panelOpen` cambia de estado.
-   - **Suspensión de Repintado Dinámico en Zoom (`_atlasMovePatched`)**: El re-renderizado (`_onCanvasMove`) debe suspenderse estrictamente durante cualquier gesto o animación de zoom (`this._isZooming`, `_animatingZoom`, `touchZoom._zooming`, `zoomstart`/`zoomend`, o `!(this._map.dragging && this._map.dragging.moving())`), cancelando RAFs pendientes en `zoomstart` y forzando `this._update()` al concluir `zoomend`.
-   - **Prevención Pasiva de Zoom en UI (`components/pwa-zoom-lock.tsx`)**: El bloqueo de zoom de la interfaz usa reglas CSS pasivas `touch-action` junto con listeners `gesturestart`/`gesturechange` en WebKit (sin bloquear listeners `touchstart`/`touchmove` pasivos globales sobre los mapas).
-
----
-
-## 5. Ranking y Estabilidad de Scroll (`components/ranking.css`, `app/globals.css`)
+## 4. Ranking y Estabilidad de Scroll (`components/ranking.css`, `styles/base.css`, `components/ranking-tab.tsx`)
 
 1. **Contenedor Inmutable**: Anchos de columnas fijos independientemente de filtros o longitud de textos.
 2. **Anillos del Podio Top-3**: Los avatares con contorno (`outline: 2px solid ...; outline-offset: 2px;`) deben conservar `margin: 4px;` en `.ranking-avatar` para no ser recortados.
 3. **Gutter Estable**: `html, body` deben conservar `scrollbar-gutter: stable;` para evitar desplazamientos horizontales al cambiar de pestaña.
-4. **Cómputo Estricto de Participantes en Ranking**: El número de exploradores o de personas sobre las que se realiza el ranking contabiliza **ÚNICAMENTE** a usuarios que hayan registrado al menos un elemento (`ascents_count > 0` en países o cumbres físicas). Quienes no hayan registrado al menos un elemento no contabilizan ni forman parte del ranking. En ningún caso debe tomarse el conteo total de la tabla `profiles` como base del ranking.
+4. **Cómputo Estricto de Participantes en Ranking**: El número de exploradores/escaladores contabiliza **ÚNICAMENTE** a usuarios que hayan registrado al menos un elemento (`ascents_count > 0` en países o cumbres físicas). En ningún caso debe tomarse el conteo total de la tabla `profiles`.
 5. **Posición de la Lupa (Buscador del Mapa)**: La lupa (`.map-search-control`) se sitúa en su posición superior estándar (`top: 10px; right: 10px;` en desktop, `top: 8px; right: 8px;` en móvil) tanto en el mapa normal como en el mapa colectivo. **ÚNICAMENTE** se desplaza hacia abajo (`.map-search-control--offset`, `top: 48px;` / `top: 44px;`) cuando se accede al perfil de otro usuario y aparece el botón de comparar (`isReadOnly && session`).
-6. **Estabilidad Cromática de «Comparar conmigo» al Cambiar a Experiencias**: El botón flotante de «Comparar conmigo» (`.map-floating-btn`) no cambia de color al conmutar a modo experiencias (`.mode-experiences`), manteniendo invariables sus colores de fondo blanco, texto y acentos tanto en reposo como en hover y activo (`diffMode`).
-7. **Alineación Exacta de Controles con Pestaña Social y Mapa**: La barra de búsqueda, la píldora de «Siguiendo» y el selector de experiencias (`.social-feed-controls`) en `RankingTab` y `SocialTab` comparten la misma estructura de contenedores (`.page-container` con `paddingTop: '14px'`, `paddingBottom: '70px'`, `paddingLeft: '16px'`, `paddingRight: '16px'` y contenedor interno con `maxWidth: '680px', margin: '0 auto', width: '100%'`, reduciéndose a `padding-top: 8px !important` en móvil `<= 768px`), garantizando que la posición horizontal y vertical sea idéntica a la píldora de experiencias de la página de Mapa (`.map-section` a 14px / 8px del hero) para una transición completamente fluida y sin saltos visuales al alternar entre pestañas.
-8. **Leyenda Comparativa (Centrada en Móvil e Invarianza Cromática en Modo Oscuro)**: La leyenda comparativa (`.diff-legend`: 'Solo tú', 'Solo @usuario', 'Ambos', 'Ninguno') se centra horizontalmente en dispositivos móviles (`<= 768px`) conservando íntegramente todos sus elementos incluido 'Ninguno'. Además, los colores de los marcadores de la leyenda comparativa son estrictamente invariables al cambiar a modo experiencias / modo oscuro (`.mode-experiences`), manteniendo los colores canónicos ('Solo tú': `#7b52ab`, 'Solo @usuario': `#c75a3a`, 'Ambos': `#c5b3da`, 'Ninguno': `#ddd8d0`) sin adoptar variables de acento ni transparencias.
+6. **Estabilidad Cromática de «Comparar conmigo» al Cambiar a Experiencias**: El botón flotante `.map-floating-btn` no cambia de color al conmutar a `.mode-experiences`, manteniendo invariables sus colores de fondo blanco, texto y acentos tanto en reposo como en hover y activo (`diffMode`).
+7. **Alineación Exacta de Controles con Pestaña Social y Mapa**: La barra de búsqueda, la píldora de «Siguiendo» y el selector de experiencias (`.social-feed-controls`) en `RankingTab` y `SocialTab` comparten la misma estructura de contenedores (`.page-container` con `paddingTop: '14px'`, `paddingBottom: '70px'`, `paddingLeft: '16px'`, `paddingRight: '16px'` y contenedor interno con `maxWidth: '680px', margin: '0 auto', width: '100%'`, reduciéndose a `padding-top: 8px !important` en móvil `<= 768px`), garantizando posición idéntica a `.map-section` al alternar entre pestañas.
+8. **Leyenda Comparativa (Centrada en Móvil e Invarianza Cromática en Modo Oscuro)**: `.diff-legend` ('Solo tú', 'Solo @usuario', 'Ambos', 'Ninguno') se centra horizontalmente en móvil (`<= 768px`) conservando todos sus elementos incluido 'Ninguno'. Sus colores son estrictamente invariables en `.mode-experiences`: 'Solo tú' `#7b52ab`, 'Solo @usuario' `#c75a3a`, 'Ambos' `#c5b3da`, 'Ninguno' `#ddd8d0`, sin variables de acento ni transparencias.
 
 ---
 
-## 6. Modo de Experiencias y Cartografía (`components/world-map.tsx`, `components/summit-tracker.tsx`)
+## 5. Enlaces en Registros y Feed (`components/summit-tracker.tsx`, `components/feed-tab.tsx`)
 
-1. **Visibilidad Estricta de Marcadores en Mapa**: Los marcadores de experiencias en el mapa mundial (`WorldMap`) NUNCA deben renderizarse si `experiencesMode` es falso (`if (experiencesMode && experienceRecords)`). Ocultar únicamente mediante CSS es insuficiente porque los hitboxes de Leaflet interceptan clics.
-2. **Cierre de Registro al Desactivar Modo Experiencias**: Al pulsar el botón de alternar experiencias para desactivarlo, si el usuario tiene abierto un registro o panel de experiencia, dicho registro debe cerrarse (`closePanel()`) y purgar el hash `#panel=` de la URL. Si el elemento abierto no es una experiencia (país), debe permanecer abierto.
-
----
-
-## 7. Enlaces en Registros y Feed (`components/summit-tracker.tsx`, `components/feed-tab.tsx`)
-
-1. **Visibilidad de Enlaces en Tarjetas de Registro**: Cuando un ascenso, visita a país o experiencia cuenta con hipervínculo (`link` o `link_2`), debe renderizarse con su botón/insignia interactiva (`renderRecordLink` o `renderFeedLink`) tanto en el feed social como en las tarjetas de registro del panel lateral (`.completed-card`).
-2. **Protocolo Seguro**: Todo hipervínculo debe normalizarse garantizando prefijo `http://` o `https://` para evitar rutas relativas involuntarias al navegar externamente.
-3. **Segundo Enlace y Experiencia Sutil**: Los registros permiten hasta 2 enlaces (`link`, `link_2`). La opción para añadir un segundo enlace solo aparece de manera sutil cuando el texto del primer enlace ha sido cumplimentado. Ambos se visualizan de forma limpia y responsiva como insignias paralelas en el feed y en el panel de detalle.
-4. **Icono Dinámico de Senderismo/Running (`Footprints`) y Placeholders Dinámicos de Enlaces**: Enlaces a plataformas de actividades al aire libre, rutas y running (Strava, Wikiloc, Komoot, AllTrails, Garmin, Outdooractive, Relive, etc.) muestran automáticamente el icono `Footprints` tanto en el panel de detalle como en el feed social, diferenciándose de mapas generales (`MapPin`) o redes sociales. Los textos sugeridos (placeholders) de los enlaces se adaptan dinámicamente según la modalidad:
-   - En picos: 1º enlace `"Ej: Track de la Ruta"`, 2º enlace `"Ej: Equipamiento utilizado"`.
-   - En países: 1º enlace `"Ej: Restaurante favorito"`, 2º enlace `"Ej: Alojamiento recomendado"`.
-   - En experiencias: 1º enlace `"Ej: Vídeo de la experiencia"`, 2º enlace `"Ej: Guía para la experiencia"`.
-5. **Compactación y Límite de Fotos en Diálogo de Registro**: En el diálogo de registro de países no se muestra el continente bajo el título para ahorrar espacio vertical (conservándose en el panel informativo lateral). El segundo enlace no tiene línea divisoria superior punteada. Al alcanzar el límite de 4 fotos, el cajón de subida (`.file-dropzone`) pasa automáticamente a estado deshabilitado y más opaco (`opacity: 0.45`, `cursor: not-allowed`, texto descriptivo de límite alcanzado e input desactivado).
+1. **Visibilidad de Enlaces**: Cuando un ascenso, visita o experiencia cuenta con hipervínculo (`link` o `link_2`), debe renderizarse con `RecordLinkBadge` tanto en el feed social como en las tarjetas del panel lateral (`.completed-card`).
+2. **Protocolo Seguro**: Todo hipervínculo debe normalizarse garantizando prefijo `http://` o `https://`.
+3. **Segundo Enlace y Experiencia Sutil**: Se permiten hasta 2 enlaces (`link`, `link_2`). La opción para añadir un segundo enlace solo aparece cuando el primer enlace ha sido cumplimentado, sin línea divisoria superior punteada.
+4. **Icono Dinámico (`Footprints`) y Placeholders por Modalidad**: Enlaces a plataformas outdoor/running (Strava, Wikiloc, Komoot, AllTrails, Garmin, Outdooractive, Relive, etc.) muestran el icono `Footprints`. Placeholders dinámicos:
+   - Picos: 1º `"Ej: Track de la Ruta"`, 2º `"Ej: Equipamiento utilizado"`.
+   - Países: 1º `"Ej: Restaurante favorito"`, 2º `"Ej: Alojamiento recomendado"`.
+   - Experiencias: 1º `"Ej: Vídeo de la experiencia"`, 2º `"Ej: Guía para la experiencia"`.
+5. **Compactación y Límite de Fotos en Diálogo de Registro**: En el diálogo de registro de países no se muestra el continente bajo el título (conservándose en el panel informativo lateral). Al alcanzar el límite de 4 fotos, `.file-dropzone` pasa a estado deshabilitado (`.file-dropzone--disabled`, `opacity: 0.45`, `cursor: not-allowed`).
 
 ---
 
-## 8. Aislamiento y Sigilo de Perfiles de Testeo (`is_test: true`)
+## 6. Aislamiento y Sigilo de Perfiles de Testeo (`is_test: true`)
 
-1. **Invisibilidad en Ranking**: Todo perfil marcado con `is_test: true` queda **ESTRICTAMENTE EXCLUIDO** de la función `get_user_ranking` (modalidades picos y países) y del conteo de usuarios registrados.
-2. **Invisibilidad en Feed Social**: Las actividades (ascensos y experiencias) de usuarios de testeo no deben aparecer en `feed-tab.tsx`.
-3. **Invisibilidad en Búsqueda y Recomendaciones**: En `social-tab.tsx`, las búsquedas por usuario (`@test...`) y la función `get_recommended_profiles` deben filtrar forzosamente `.neq('is_test', true)`.
-4. **Protección RLS y Vista de Perfil**: Políticas de seguridad a nivel de fila (RLS en Supabase) y `ProfileView` impiden el acceso a perfiles de prueba por parte de otros usuarios.
-5. **Bucle de Ejecución de Tests Profundos**: La suite profunda E2E (`tests/deep/full-user-lifecycle.test.ts`) se ejecuta exclusivamente en el pipeline pre-push (`npm run verify` o `npm run test:deep`), manteniéndose excluida del bucle rápido de desarrollo (`npm run verify:fast`).
+1. **Invisibilidad en Ranking**: Todo perfil marcado con `is_test: true` queda **ESTRICTAMENTE EXCLUIDO** de `get_user_ranking` y del conteo de usuarios registrados.
+2. **Invisibilidad en Feed Social**: Actividades de usuarios de testeo no deben aparecer en `feed-tab.tsx`.
+3. **Invisibilidad en Búsqueda y Recomendaciones**: En `social-tab.tsx` / `lib/social-cache.ts`, búsquedas (`@test...`) y `get_recommended_profiles` deben filtrar `.neq('is_test', true)`.
+4. **Protección RLS y Vista de Perfil**: Políticas RLS en Supabase y `ProfileView` impiden el acceso a perfiles de prueba por otros usuarios.
+5. **Bucle de Ejecución de Tests Profundos**: `tests/deep/full-user-lifecycle.test.ts` se ejecuta exclusivamente en `npm run verify` o `npm run test:deep`, excluido de `npm run verify:fast`.
 
 ---
 
-## 9. Botón de Cuenta en Cabecera (`.account-button`) y Modalidades
+## 7. Botón de Cuenta en Cabecera (`.account-button`) y Modalidades
 
-1. **Solo Foto o Inicial en Cabecera Superior**: Arriba a la derecha (`.account-button`) en `summit-tracker.tsx`, `ranking-tab.tsx` y `social-tab.tsx`, solo debe aparecer el avatar circular (foto de perfil o inicial `?` / letra inicial). En **NINGÚN** caso debe mostrarse texto con el correo electrónico ni el nombre de usuario al lado del avatar.
-2. **Jerarquía de Modalidades**: "Modo experiencias" depende jerárquicamente del "Modo países". Si "Modo países" está desactivado (`enable_countries: false` o `canShowCountries: false`), el "Modo experiencias" queda congelado y no operativo en la interfaz ni en las opciones de perfil.
-3. **Persistencia sin Pérdida de Datos**: Desactivar una modalidad oculta las vistas, botones, publicaciones y registros correspondientes en UI y Feed, pero jamás destruye los datos históricos de ascensos, visitas o experiencias del usuario.
+1. **Solo Foto o Inicial en Cabecera Superior**: En `components/layout/app-topbar.tsx` (usado por `summit-tracker.tsx`, `ranking-tab.tsx` y `social-tab.tsx`), arriba a la derecha (`.account-button`) solo debe aparecer el avatar circular (foto de perfil o inicial `?` / letra inicial), **NUNCA** el correo electrónico ni el nombre de usuario.
+2. **Jerarquía de Modalidades**: "Modo experiencias" depende jerárquicamente del "Modo países". Si "Modo países" está desactivado (`enable_countries: false` o `canShowCountries: false`), el "Modo experiencias" queda congelado y deshabilitado en UI y ajustes.
+3. **Persistencia sin Pérdida de Datos**: Desactivar una modalidad oculta vistas, botones y publicaciones, pero conserva íntegramente los datos históricos del usuario.
 4. **Dimensiones del Panel de Ajustes**: El modal de ajustes de perfil (`ProfileSettings`) debe permanecer visible sin requerir scroll vertical en la vista principal.
 
 ---
 
-## 10. Visualización de Fotos y Fechas (`components/summit-tracker.tsx`, `components/feed-tab.tsx`)
+## 8. Visualización de Fotos, Lightbox y Editor (`components/photo-lightbox.tsx`, `components/photo-editor.tsx`)
 
-1. **Sin Fechas en Fotos**: En ningún caso deben mostrarse fechas como subtítulo o pie de foto (ni en las cuadrículas de fotos ni en el visor a pantalla completa/lightbox).
-2. **Descripción de Fotos**: Si una foto tiene descripción (`caption`), se muestra dicha descripción (`figcaption`). Si no tiene descripción, no se renderiza texto ni fecha automática de fallback.
+1. **Sin Fechas en Fotos**: En ningún caso deben mostrarse fechas como subtítulo o pie de foto (ni en cuadrículas de fotos ni en el lightbox).
+2. **Descripción de Fotos**: Si una foto tiene `caption`, se muestra en `figcaption`. Si no tiene descripción, no se renderiza texto ni fecha de fallback.
 3. **Visor de Foto (Lightbox - `PhotoLightbox`)**:
-   - Al abrir una foto en el visor, se muestra el título del lugar o experiencia y, si existe, la descripción personalizada, pero jamás la fecha del registro o de la toma de la foto.
-   - **Fondo Negro y No Fragilidad**: El visor tiene fondo negro puro (`#000000`). Tocar o hacer clic fuera de la foto en el fondo **no** cierra el visor, evitando cierres accidentales. El cierre se realiza exclusivamente mediante el botón explícito de cerrar (`X`), tecla `Escape` o navegación Atrás del historial.
-   - **Cero Solapamiento de Títulos e Imágenes**: El área de imagen (`.lightbox-stage`) y el área de información inferior (`.lightbox-footer`) son contenedores flex independientes en columna, de modo que la imagen nunca se sobrepone al título ni pie de foto en desktop ni móvil.
-   - **Zoom y Desplazamiento (Pan)**: Soporta ampliación y exploración fluida (rueda de ratón, doble clic/tap, pellizco táctil pinch-to-zoom y controles visuales), permitiendo arrastrar (pan) la imagen cuando el zoom está activo.
-4. **Editor de Fotos en Móvil (`components/photo-editor.tsx`, `app/globals.css`)**: Los botones de la barra inferior de herramientas (*"Rotar"*, *"Espejo H"*, *"Espejo V"*, *"Restablecer"*) deben mostrar su texto estrictamente en una única línea (`white-space: nowrap;`). En ningún caso (especialmente en móvil) debe haber un salto de línea entre *"Espejo"* y *"H"* o *"V"*. El espaciado (`gap`) y padding del contenedor se adaptan fluidamente al ancho móvil (`<= 768px`) para garantizar que todas las etiquetas queden completamente visibles en una sola línea sin desbordamiento.
+   - Muestra el título del lugar o experiencia y, si existe, la descripción personalizada, pero jamás la fecha.
+   - **Fondo Negro y No Fragilidad**: Fondo negro puro (`#000000`). Tocar o hacer clic fuera de la foto **no** cierra el visor; el cierre es exclusivo mediante botón `X`, `Escape` o navegación Atrás del historial.
+   - **Cero Solapamiento**: `.lightbox-stage` y `.lightbox-footer` son contenedores flex independientes en columna para que la imagen nunca tape el título ni el pie de foto.
+   - **Zoom y Pan**: Soporta rueda de ratón, doble clic/tap, pinch-to-zoom, controles visuales y arrastre (pan) con zoom activo.
+4. **Editor de Fotos en Móvil (`components/photo-editor.tsx`)**: Los botones de la barra inferior (*"Rotar"*, *"Espejo H"*, *"Espejo V"*, *"Restablecer"*) deben mostrarse estrictamente en una única línea (`white-space: nowrap;`) sin saltos de línea ni desbordamiento en móvil (`<= 768px`).
 
 ---
 
-## 11. Pantalla de Carga y Modales de Confirmación (`app/loading.tsx`, `components/delete-account-modal.tsx`)
+## 9. Pantalla de Carga y Modales de Seguridad (`app/loading.tsx`, `components/delete-account-modal.tsx`)
 
-1. **Pantalla de Carga sin Abusos (`app/loading.tsx`)**: Una vez abierta una página (ej. Países), los datos quedan guardados y cacheados en memoria. Al navegar entre pestañas (Mapa, Social, Ranking) no debe mostrarse la pantalla de carga para transiciones puntuales o instantáneas. La pantalla de carga completa debe disponer de un retardo (debounce de al menos 700ms) para mostrarse únicamente cuando una carga requiera un tiempo prolongado perceptible.
-2. **Aislamiento en Modal de Eliminar Cuenta (`delete-account-modal.tsx`)**: El diálogo de confirmación debe aislarse completamente del backdrop padre (`ProfileSettings`) y detener la propagación de eventos (`onClick`, `onMouseDown`, `onKeyDown`). El campo de texto de confirmación no debe cerrarse al hacer clic en él ni al escribir en él.
-
----
-
-## 12. Iconos y Logo de la Aplicación (`app/icon.svg`, `app/favicon.ico`, `public/icon-192.svg`, `public/icon-512.svg`, `public/apple-touch-icon.png`, `public/icon-maskable-*.png`)
-
-1. **Logo sin Fondo en Ventana/Pestaña**: El icono de la aplicación en la ventana/pestaña (favicon, PWA y accesos directos estándar) debe ser transparente, compuesto exclusivamente por los dos triángulos estilizados, sin fondo blanco ni crema.
-2. **Tamaño Óptimo en Pestaña vs PWA**: El icono de la ventana del navegador (`app/icon.svg` y `app/favicon.ico`) debe aprovechar el espacio visual de la pestaña (~85%+ de ocupación centrado) para verse grande y nítido. Los iconos de instalación PWA (`public/icon-192.png`, `public/icon-512.png`, `public/icon-1024.png`, `public/apple-touch-icon.png`) y adaptativos maskable (`public/icon-maskable-*.png`) se calibran a una escala fija del **50%** (`ratio = 0.375`) en `scripts/generate-icons.js`, garantizando un margen blanco limpio, proporcionado y centrado dentro de las máscaras circulares y squircle de Android e iOS sin pegarse a los bordes ni quedar diminuto.
+1. **Pantalla de Carga sin Abusos (`app/loading.tsx`)**: Al navegar entre pestañas cacheadas (Mapa, Social, Ranking) no debe parpadear la pantalla de carga; requiere debounce `>= 700ms`.
+2. **Aislamiento en Modal de Eliminar Cuenta (`delete-account-modal.tsx`)**: Aislado del backdrop padre (`ProfileSettings`), deteniendo la propagación (`onClick`, `onMouseDown`, `onKeyDown` con `stopPropagation()`) para que clicar o escribir en el campo de confirmación no cierre el diálogo.
 
 ---
 
-## 13. Textos Simplificados y Estructura en la Portada (`components/summit-tracker.tsx`, `app/globals.css`)
+## 10. Textos Simplificados y Estructura en Portada (`components/summit-tracker.tsx`, `styles/hero.css`)
 
 1. **Eliminación de Subtítulos y Eyebrows**:
-   - Eyebrows de Hero eliminados: *"UN RETO, 47 PICOS"*, *"UN RETO, 196 PAÍSES"*, *"UN RETO, EXPERIENCIAS GLOBALES"*.
-   - Subtítulos de Hero eliminados: *"El mapa para conquistar el techo de cada provincia española."*, *"El mapa para registrar todas las experiencias de tu vida."*, *"El mapa para registrar cada país del mundo que has visitado."*.
-   - Eyebrow de Reto eliminado: *"EL RETO COMPLETO"*.
-   - Eyebrow de Mapa eliminado: *"TU PROGRESO"*.
-   - Subtítulos de Mapa eliminados: *"Selecciona cualquier marcador para conocer el pico o registrar una ascensión."*, *"Haz clic en cualquier país para ver su información o marcarlo como visitado."*.
-2. **Ocultación Estricta de Lemas del Hero en Móvil y Tableta (`<= 1023px`)**:
-   - En todos los dispositivos móviles y tabletas (`<= 1023px`), los lemas y títulos de frases del hero (`hero-title-wrap--motto`, ej. *"Explora el mundo. Márcalo en tu mapa."*, *"Sube alto. Déjalo escrito."*, *"Vive experiencias. Márcalo en tu mapa."*) están **estrictamente ocultos** (`display: none !important;` y clase `hide-on-mobile`). En móvil y tableta el hero muestra exclusivamente la estadística/ratio y la barra de progreso (y el selector de modo si aplica), sin textos de frases.
-3. **Lema de Experiencias**:
-   - En el hero de experiencias, se unifica la redacción a *"Márcalo en tu mapa."*.
-4. **Iconos de Fondo en Desktop Suprimidos**:
-   - Se elimina el símbolo unicode de fondo en el ratio del hero (`mountain-art`).
-5. **Banda del Hero Más Estrecha**:
-   - Reducción del padding vertical del hero a 24px (desktop) y 18-20px (tablet/móvil), y `margin: 0` en `h1`.
-6. **Eliminación de Banda Intermedia**:
-   - Eliminación de la sección `.challenge-summary` ("Un país por descubrir, una cima cada vez" / "Un mundo por explorar...").
-7. **Eliminación de Cabeceras de Listado y Centrado de Búsqueda a la Derecha en Web**:
-   - En el listado principal (`components/summit-tracker.tsx`), se eliminan por completo los lemas y títulos de cabecera en todas las modalidades: *"196 Países del mundo"* / *"Todos los países"* / *"Ordenados alfabéticamente."*, *"52 Territorios - 47 Picos"* / *"Todas las cumbres"* / *"Ordenadas por altitud, de mayor a menor."*, y *"X Experiencias"* / *"Todas tus experiencias"* / *"Agrupadas por categoría."*.
-   - Los controles del listado (`.peak-list-controls`) agrupan en una única fila flexible las píldoras de filtro (`.list-filters`) a la izquierda y el cajón de búsqueda (`.search-input-container`) a la derecha.
-   - En web/escritorio (`> 768px`), el cajón de búsqueda se alinea y centra verticalmente a la derecha de las píldoras de filtro (`align-items: center`, `margin-top: 0`, `margin-left: auto`). En móvil (`<= 768px`), los controles se apilan fluidamente con el cajón de búsqueda a ancho completo arriba (`order: -1`).
+   - Eliminados eyebrows de Hero (*"UN RETO, 47 PICOS"*, *"UN RETO, 196 PAÍSES"*, *"UN RETO, EXPERIENCIAS GLOBALES"*), *"EL RETO COMPLETO"*, *"TU PROGRESO"* y subtítulos explicativos de Hero/Mapa.
+   - En experiencias, el lema unificado es *"Márcalo en tu mapa."*.
+   - Suprimido el símbolo decorativo de fondo (`mountain-art`) y la banda intermedia `.challenge-summary`.
+2. **Ocultación Estricta de Lemas en Móvil y Tableta (`<= 1023px`)**: `hero-title-wrap--motto` (`hide-on-mobile`) está oculto (`display: none !important;`) en `<= 1023px`, mostrando solo el ratio numérico y la barra de progreso. El selector de modalidad (`.app-mode-switch`) reside únicamente en `.topbar`, siempre oculto dentro de `.hero`.
+3. **Bandas del Hero Más Estrechas**: Padding vertical reducido a 24px (escritorio) y 18–20px (tablet/móvil) con `margin: 0` en `h1`.
+4. **Eliminación de Cabeceras de Listado y Alineación de Búsqueda**: Se suprimen títulos/subtítulos de cabecera en el listado en todas las modalidades. `.peak-list-controls` agrupa `.list-filters` a la izquierda y `.search-input-container` a la derecha (`align-items: center`, `margin-left: auto` en `> 768px`; apilado arriba a ancho completo con `order: -1` en `<= 768px`).
 
 ---
 
-## 14. Navegación y Desplazamiento a la Vista de Mapa (`components/summit-tracker.tsx`, `app/globals.css`)
+## 11. Navegación y Desplazamiento a la Vista de Mapa (`components/layout/app-topbar.tsx`, `components/summit-tracker.tsx`)
 
-1. **Cabecera Fija (`position: sticky`)**: `.topbar` debe conservar en todo momento `position: sticky; top: 0; z-index: 20;` para permanecer anclada al hacer scroll. El contenedor `.app-mode-switch` se centra absolutamente sin degradar la cabecera a `position: relative`.
+1. **Cabecera Fija (`position: sticky`)**: `.topbar` conserva siempre `position: sticky; top: 0; z-index: 20;` con `.app-mode-switch` centrado absolutamente sin degradar la cabecera a `position: relative`.
 2. **Comportamiento del Enlace «Mapa»**:
-   - Desde otras pestañas (Social, Ranking, Perfil): el enlace «Mapa» (`topbar-nav-link--mapa`) navega a la página principal de forma normal (`/` o `/picos`), cargando la cabecera y el hero en la parte superior sin forzar ningún scroll.
-   - Estando ya en la página principal: pulsar en «Mapa» ejecuta `scrollToMap`, desplazando la vista suavemente hasta alinear la leyenda (`#mapa`) inmediatamente debajo de la cabecera fija y mostrando el mapa por debajo, ocultando el hero superior.
-   - Pulsar en el logotipo «Atlas» (`brand`) desplaza la vista suavemente arriba del todo (`scrollY: 0`).
+   - Desde otras pestañas: navega normalmente a `/` o `/picos` desde arriba sin scroll forzado.
+   - Estando ya en la página principal: ejecuta `scrollToMap` alineando `#mapa` justo debajo de la cabecera fija.
+   - Pulsar el logotipo «Atlas» (`brand`) desplaza suavemente a `scrollY: 0`.
 
 ---
 
-## 15. Píldora de Búsqueda, Filtro de Siguiendo, Experiencias y Franja Vertebral en Social (`components/social-tab.tsx`, `feed-tab.tsx`, `app/globals.css`)
+## 12. Píldora de Búsqueda, Filtro de Siguiendo, Experiencias y Franja Vertebral en Social (`components/social-tab.tsx`, `components/feed-tab.tsx`)
 
-1. **Píldora de Búsqueda, Filtro de Siguiendo y Píldora de Experiencias en Social**:
-   - En desktop, la barra de controles (`.social-feed-controls`) está alineada con el ancho del contenedor de los posts (`max-width: 680px; margin: 0 auto;`).
-   - La píldora de búsqueda (`.social-search-box`) prescinde del prefijo "Buscar por", usando placeholders concisos según la modalidad activa (`"Usuario, picos, fecha..."`, `"Usuario, país, fecha..."` o `"Usuario, experiencia, fecha..."`). Permite buscar simultáneamente por `@usuario`, país (o cumbre), fecha o combinación de ellos.
-   - El buscador oculta estrictamente el botón de cancelación nativo del navegador (`::-webkit-search-cancel-button`) para prevenir la aparición de dos cruces, manteniendo únicamente el botón de borrado de Atlas (`.social-search-clear`).
-   - A la derecha de la barra de búsqueda (agrupados a la izquierda mediante `.social-feed-controls-left`), se ubica el botón de filtro «Siguiendo» (`.social-following-btn`) con icono `UserRoundCheck`. Al activarse, filtra el feed para mostrar únicamente las actividades de las personas a las que sigue el usuario.
-   - La píldora de alternancia de experiencias (`.diff-toggle-wrap`) se sitúa ajustada a la derecha de la columna de posts en desktop, dejando un espacio visible entre el bloque de búsqueda/siguiendo y el botón de experiencias. Al activarse, traslada toda la pestaña de Social y el feed al modo oscuro (`.mode-experiences`), garantizando máxima legibilidad en publicaciones, cifras, enlaces y campo de búsqueda, y filtrando el feed para mostrar estrictamente solo experiencias (excluyendo países). Al desactivarse, vuelve a mostrar exclusivamente países.
-2. **Alineación Vertical del Perfil**: El bloque de perfil (avatar, `@username` y conexiones) tiene `margin-top: 4px` y `margin-bottom: 0` tanto en desktop como en móvil para sentarse en una posición óptica más baja y natural.
-3. **Inmovilidad e Invarianza de Modo en Móvil**: En móvil (`<= 700px`), el hero de social utiliza una cuadrícula de dos columnas fijas (`grid-template-columns: 1fr 1fr; max-width: 380px; margin: 0 auto;`) con el bloque de perfil alineado al inicio (`padding-left: 6px`). Esto garantiza que el perfil permanezca estrictamente inmóvil e invariable independientemente de si se conmuta entre 47 Picos, 196 Países o Experiencias.
-
----
-
-## 16. Botón Central de Seguir en la Página de Otro Usuario (`components/summit-tracker.tsx`, `app/globals.css`)
-
-1. **Estados del Botón Central**:
-   - **No seguido**: Icono `UserRoundPlus` (`user-round-plus`). Debajo del círculo, etiqueta de texto `"Seguir"` centrada.
-   - **Siguiendo (estado normal)**: Icono `UserRoundCheck` (`user-round-check`). Debajo del círculo, etiqueta de texto `"Siguiendo"`.
-   - **Siguiendo (hover del ratón)**: El icono conmuta a `UserRoundMinus` (`user-round-minus`), adquiriendo estilo de alerta (`color: #e53e3e`).
-   - **Solicitud pendiente (usuario privado)**: Icono `UserRoundArrowLeft` (`user-round-arrow-left`). Debajo del círculo, etiqueta de texto `"pendiente"`.
-2. **Disposición y Centrado**: El contenedor `.hero-target-follow-center` organiza verticalmente el botón circular (`.hero-center-follow-btn`) y el texto (`.hero-center-follow-label`) centrados entre el título del mapa y las estadísticas del usuario.
+1. **Controles en Social**:
+   - Barra `.social-feed-controls` alineada a `max-width: 680px; margin: 0 auto;` en desktop.
+   - `.social-search-box` usa placeholders concisos (`"Usuario, picos, fecha..."`, `"Usuario, país, fecha..."`, `"Usuario, experiencia, fecha..."`), oculta `::-webkit-search-cancel-button` y mantiene `.social-search-clear`.
+   - Botón «Siguiendo» (`.social-following-btn` con `UserRoundCheck`) agrupado a la izquierda en `.social-feed-controls-left`.
+   - Alternancia de experiencias (`.diff-toggle-wrap`) a la derecha: al activarse cambia Social y Feed a tema oscuro (`.mode-experiences`) y filtra estrictamente a solo experiencias (al desactivarse, solo países).
+2. **Alineación Vertical del Perfil e Inmovilidad en Móvil**: `.hero-profile-wrap` con `margin-top: 4px; margin-bottom: 0;`. En móvil (`<= 700px`), `.hero-main--social` usa cuadrícula fija `grid-template-columns: 1fr 1fr; max-width: 380px; margin: 0 auto;` con `padding-left: 6px` en perfil para evitar saltos al cambiar de modalidad.
+3. **Precarga y Persistencia de Conexiones Sociales**: `preloadSocialConnections` (`lib/social-cache.ts`) y `getInitialSocialData` persisten en `localStorage` (`app_social_data_${userId}`) erradicando el parpadeo inicial `"0 seguidores • 0 siguiendo"`.
 
 ---
 
-## 17. Experiencia y Layout en el Mapa Colectivo (`components/collective-map.tsx`, `components/ranking.css`)
+## 13. Botón Central de Seguir en Perfil Ajeno (`components/summit-tracker.tsx`, `styles/hero.css`)
 
-1. **Posición del Pop-up de Visitantes Abajo a la Derecha**:
-   - La tarjeta emergente de visitantes (`.collective-visitors-panel`) se sitúa en la esquina inferior derecha (`bottom: 24px; right: 24px;` en desktop, hoja inferior animada `bottom: 0;` en móvil).
-   - Esta ubicación previene que el panel cubra los controles situados arriba a la derecha (el buscador / lupa `.map-search-control` y el interruptor de experiencias `ExperiencesToggleControl`).
-2. **Botón Unificado de Siguiendo**:
-   - En la cabecera del mapa colectivo se prescinde de píldoras dobles («Global» / «Siguiendo»), empleando el botón canónico `.social-following-btn` con el icono `UserRoundCheck` y la etiqueta `"Siguiendo"`.
-   - Al pulsarlo, conmuta el ámbito a `following` y filtra reactivamente tanto los países como los marcadores de experiencias para reflejar únicamente a los usuarios seguidos.
-3. **Sincronización Bidireccional de «Siguiendo» entre Ranking y Mapa Colectivo**:
-   - El estado del filtro (`scope`: `all` vs `following`) se encuentra sincronizado bidireccionalmente entre la pestaña de Ranking y el Mapa Colectivo.
-   - Si se activa o desactiva en el ranking, el mapa colectivo se abre reflejando ese estado (`scope={scope}`); si se activa o desactiva dentro del mapa colectivo, el cambio se traslada de vuelta al ranking (`onScopeChange={handleScopeChange}`) para mantener la coherencia en todo momento.
-4. **Tipografía Conforme al Sistema de Diseño**:
-   - Encabezados principales (`h2`, `h3` del panel): `Playfair Display, Georgia, serif`.
-   - Interfaz, recuentos, listas, leyendas y tooltips: `DM Sans, sans-serif`.
-5. **Disponibilidad Dual (Países y Picos)**:
-   - El mapa colectivo está plenamente disponible tanto para 196 Países como para 47 Picos desde la pestaña de Ranking.
-   - En ambas modalidades la barra de búsqueda superior derecha (`MapSearchControl`) y el botón de filtro «Siguiendo» (`.social-following-btn` con `UserRoundCheck`) son estructural y visualmente idénticos, adaptando dinámicamente las estadísticas (`picos` y `escaladores`), los marcadores físicos de cumbres y provincias con sus gradientes de color propios (en picos: verde oscuro `#5c9b7d` para 3+, verde claro `#bcd4c8` para 2, terracota `#c75a3a` para 1, y neutro para 0), la leyenda y la cartografía a la geografía española.
-
----
-
-## 18. Ocultación del Botón de Círculos Concéntricos en el Mapa al Seleccionar Ubicación (`components/world-map.tsx`, `components/summit-tracker.tsx`)
-
-1. **Prevención de Bifurcaciones al Seleccionar Ubicación**:
-   - Mientras el usuario se encuentra en el flujo de selección de coordenadas para una experiencia (`selectingLocation` / `selectingLocationForExp` activo, mostrando el aviso flotante *"Haz clic en el mapa para situar la experiencia o busca el lugar aquí"*), el botón flotante del mapa con el icono de círculos concéntricos (`Añadir experiencia en el mapa`) debe permanecer **estrictamente oculto** (`!selectingLocation` y `!selectingLocationForExp`).
-   - Esto evita que el usuario pueda abrir el selector de experiencias e iniciar la selección de otra experiencia diferente simultáneamente mientras ya está definiendo la ubicación de una experiencia previa.
-
----
-
-## 19. Bloqueo de Scroll de Fondo en Modales (`components/summit-tracker.tsx`, `lib/scroll-lock.ts`)
-
-1. **Bloqueo de Fondo al Seleccionar Categoría y Experiencia**:
-   - Al abrir el modal de selección de categoría y experiencia (`expSelectorOpen`), así como los modales de papelera, categorías o confirmación, `isScrollLocked` debe evaluar a `true` e invocar `lockScroll()`, estableciendo `document.documentElement.style.overflow = "hidden"` y `document.body.style.overflow = "hidden"`.
-   - Se debe detener la propagación de eventos `wheel` en el backdrop (`onWheel={(e) => e.stopPropagation()}`) y contener el desplazamiento en el cuerpo del modal (`overscrollBehavior: "contain"`), previniendo cualquier desplazamiento indeseado de la página o mapa en segundo plano.
-
----
-
-## 20. Fijación de Pantalla en el Mapa y Cruz de Cancelación al Situar Experiencia (`components/summit-tracker.tsx`, `components/world-map.tsx`)
-
-1. **Fijación al Mapa y Bloqueo de Scroll Exterior**:
-   - Durante la selección de ubicación de una experiencia (`selectingLocationForExp` / `selectingLocation` activo), se activa `isScrollLocked`, bloqueando estrictamente el scroll de la ventana exterior (`document.documentElement` y `body`).
-   - **En móvil (`<= 768px`)**: La página se desplaza arriba del todo (`window.scrollTo({ top: 0, behavior: "instant" })`), asegurando que ninguna experiencia del listado inferior quede dentro del campo de visión del usuario ni pueda ser seleccionada.
-   - **En escritorio**: La vista se alinea a la sección del mapa (`#mapa`), colocándolo directamente debajo de la cabecera fija.
-   - Se garantiza la interactividad completa sobre el mapa Leaflet: el usuario puede hacer zoom (rueda de ratón, gestos táctiles) y arrastrar/panear el mapa libremente para explorar el mundo sin que la página exterior se mueva.
-
-2. **Botón de Cruz (`X`) para Cancelar y Cerrar Solicitud**:
-   - El banner rectangular flotante superior (*"Haz clic en el mapa para situar la experiencia o busca el lugar aquí"*) dispone en su lateral derecho de un botón circular con el icono de la cruz (`.selecting-location-cancel-btn`).
-   - Pulsar este botón o la tecla `Escape` cancela de forma inmediata la selección de ubicación y desbloquea el scroll general.
-
----
-
-## 21. Aislamiento de Scroll entre Pestañas y Rutas (`components/app-tabs-shell.tsx`, `components/social-tab.tsx`, `components/ranking-tab.tsx`)
-
-1. **Cero Permeabilidad de Scroll entre Vistas**:
-   - El scroll de una página (ej. Social) nunca debe arrastrarse ni permear al resto de páginas (Mapa, Ranking, Perfiles).
-   - Al navegar a una pestaña o ruta diferente mediante clics en la barra de navegación o enlaces, la nueva vista se inicializa estrictamente en la parte superior (`top: 0`) de forma instantánea (`behavior: "instant"`).
-2. **Control Manual de Restauración de Historial**:
-   - En `AppTabsShellInner`, se desactiva la restauración automática del navegador (`window.history.scrollRestoration = "manual"`) para delegar el control a la aplicación.
-   - Un mapa de historial en memoria registra las posiciones para restaurarlas exclusivamente ante eventos reales de navegación atrás/adelante (`popstate`).
-3. **Retorno Suave Arriba en Pestaña Activa**:
-   - Al hacer clic sobre el enlace de la pestaña que ya se encuentra activa en ese momento (ej. pulsar en «Social» estando ya en Social, o «Ranking» estando en Ranking), la página realiza un desplazamiento suave hacia arriba (`window.scrollTo({ top: 0, behavior: "smooth" })`).
-
----
-
-## 22. Ciclo de Vida de Instalación PWA, Icono Oficial y Prevención de Prompts Fantasma (`components/install-prompt.tsx`, `components/summit-tracker.tsx`)
-
-1. **Icono Oficial Raster (`/icon-192.png`)**:
-   - En el diálogo/hoja de instalación (`InstallPrompt`), el icono de la aplicación se renderiza estrictamente mediante la imagen raster oficial `/icon-192.png` precacheada en el Service Worker.
-   - Está prohibido emplear vectores SVG con referencias internas de degradados mediante fragmentos `url(#id)` relativos: en rutas de navegación cliente (ej. `/perfil/[username]`, `/picos`), los navegadores móviles resuelven los fragmentos contra la URL completa (`/perfil/user#id`), provocando la desaparición del degradado y mostrando un recuadro transparente o vacío.
-
-2. **Invalidación por Navegación y Descarte en Sesión (`sessionStorage`)**:
-   - En Chromium/Android, el evento nativo `beforeinstallprompt` queda estrictamente vinculado al contexto de navegación y URL en el que fue emitido. Si el usuario navega a otra URL o ruta diferente, Chromium invalida el token del evento; invocar `.prompt()` sobre un evento retenido de una navegación anterior lanza `InvalidStateError`.
-   - Si el usuario pulsa «Cancelar» o cierra el diálogo de instalación (`handleClose`), se invoca `clearInstallPrompt()` y se persiste `pwa_dismissed_session = "true"` en `sessionStorage`. Esto impide la reapaparición de pop-ups fantasma con eventos caducados al navegar entre páginas durante la misma sesión.
-
-3. **Detección de Instalación y Auto-ocultación de Controles**:
-   - Tras aceptar la instalación (`outcome === "accepted"` o eventos `appinstalled` / `atlas-app-installed`), se persiste `pwa_app_installed = "true"` en `localStorage`.
-   - En la web móvil, el icono de descargar se ubica en la cabecera (topbar) a la izquierda de la foto de perfil en el mismo lugar donde se ubica el icono de estadísticas. Siempre que no aparezca el icono de descarga (porque la app ya esté instalada, no soporte instalación directa, se visualice otro perfil, o en PWA), se muestra en su lugar el icono de estadísticas (`!canInstallMobile`, o `targetProfile`, o `isPwa`).
-   - Cuando la app ya está instalada o se ejecuta en PWA (`alreadyInstalled` o `isStandalone()`), el botón de descarga se oculta automáticamente (`!alreadyInstalled`), mostrándose en su lugar el botón de estadísticas (`isPwa` activo y clase `.is-pwa` en `document.documentElement`).
-   - Si no hay prompt activo por encontrarse la app ya instalada, la interfaz no debe inducir a error con instrucciones manuales ("dale a los 3 puntos"), sino informar de que la aplicación ya está instalada o lista para usar en la pantalla de inicio.
-
----
-
-## 23. Configuración PWA, Splash Screen Nítido y Prevención de Barra Fuera de Ámbito (`app/layout.tsx`, `public/manifest.json`, `app/manifest.webmanifest`, `scripts/generate-icons.js`)
-
-1. **Resolución Nítida del Splash Screen (Sin Fallback Pixelado de Favicon)**:
-   - En `app/layout.tsx`, el recurso `/favicon.ico` **JAMÁS** debe declarar `sizes: "any"`. Chromium / WebAPK en Android evalúa `"any"` como candidato prioritario para la pantalla de bienvenida (splash screen) y extrae el primer frame pequeño de 16x16 o 32x32 píxeles embebido en el .ico, provocando un splash screen extremadamente pixelado en pantallas móviles modernas. `favicon.ico` debe declarar explícitamente `sizes: "16x16 32x32 48x48"`.
-   - En `<head>` y en los manifiestos PWA (`public/manifest.json` y `app/manifest.webmanifest`), se deben enlazar de forma prioritaria los iconos de alta definición `512x512` y `1024x1024` generados con remuestreo Lanczos-3 a 300 DPI, garantizando que el splash screen se renderice nítido y sin artefactos en cualquier resolución de pantalla.
-
-2. **Iconos Adaptativos Maskable al 50% con Fondo Blanco Sólido**:
-   - Para la instalación en Android, se proveen iconos dedicados con `purpose: "maskable"` (`public/icon-maskable-192.png`, `icon-maskable-512.png`, `icon-maskable-1024.png`) con fondo blanco `#ffffff` y los triángulos al 50% de escala (`ratio = 0.375`), asegurando que al recortar la máscara del sistema operativo nunca se muestren bandas grises ni recortes indeseados en los vértices.
-   - Los iconos estándar (`public/icon-192.svg`, `icon-512.svg`, `icon-1024.svg`) no incluyen `<rect>` de fondo (transparencia obligatoria).
-
-3. **Eliminación de la Franja Fuera de Ámbito (CustomTabToolbar en Android)**:
-   - En `manifest.json` y `manifest.webmanifest`: `display: "standalone"`, `display_override: ["standalone", "window-controls-overlay"]`, `start_url: "/"`, y `scope: "/"`.
-   - En `app/layout.tsx`: metaetiquetas `mobile-web-app-capable="yes"` y `application-name="Atlas"`, detección robusta de modo standalone (`display-mode: standalone`, `display-mode: fullscreen`, `navigator.standalone`, y `document.referrer.includes("android-app://")`), y redirección canónica preventiva si se accede desde un dominio heredado fuera de ámbito (`atlas-log.vercel.app`).
-
-4. **Reactividad Asíncrona en el Diálogo de Instalación PWA**:
-   - Tanto en `components/install-prompt.tsx` como en `components/summit-tracker.tsx`, el manejador de clic de instalación implementa una espera asíncrona ante el evento `beforeinstallprompt` (evento personalizado `atlas-install-prompt-ready`) con fallback automático a instrucciones si el dispositivo no soporta el prompt nativo.
-   - Purgado automático de claves antiguas de descarte en `localStorage` (`pwa_install_dismissed`) para permitir que la sugerencia de instalación vuelva a estar activa tras una desinstalación.
-   - Detección preventiva con `navigator.getInstalledRelatedApps()` para no mostrar el botón de descarga en la cabecera si la app ya se encuentra instalada.
-
----
-
-## 24. Sincronización y Renderizado Continuo de Capa Vectorial en Mapas Leaflet (`components/world-map.tsx`, `components/spain-map.tsx`, `components/collective-map.tsx`, `lib/leaflet-canvas-patch.ts`)
-
-1. **Instancias Adaptativas de Renderer (`createAdaptiveCanvasRenderer`)**:
-   - Cada mapa emplea su propia instancia pasada a `<MapContainer renderer={canvasRenderer}>`: `padding: 0.5` en escritorio HiDPI, y `padding: 1.0` (mundial/colectivo) o `0.8` (España) en dispositivos táctiles (`isMobileOrTablet()`), junto con `getAdaptiveKeepBuffer()` (`3` escritorio / `4` táctil).
-   - Queda terminantemente prohibido mutar globalmente `L.Canvas.prototype.options.padding`, previniendo contaminación entre mapas sin disparar framebuffers masivos en escritorio ni recortar polígonos al hacer zoom out táctil.
-2. **Inicialización Obligatoria de Coordenadas en `<MapContainer>`**:
-   - Todo `<MapContainer>` debe declarar obligatoriamente `center` y `zoom` (`center={[20, 0]}` y `zoom={2}` en mundial, `center={[40.4168, -3.7038]}` y `zoom={5}` en España, condicional en colectivo).
-3. **`animate: false` en Encuadre Inicial y Protección Zero-Island (`FitWorld`, `FitSpain`, `MapActiveSynchronizer`)**:
-   - El ajuste inicial en `map.fitBounds` debe ejecutarse con `{ animate: false }`. El sincronizador activo (`kind="spain"`) y el listener de `mapState_spain` validan los límites de España al reactivar la pestaña para erradicar saltos a `(0, 0)`.
-4. **Protección en `MapInvalidator` en el Montaje**:
-   - `MapInvalidator` invalida de forma directa en el montaje inicial y reactivación, reservando el bucle RAF de 350ms exclusivamente para cambios reales de `panelOpen`.
-5. **Repintado Dinámico en Tiempo Real durante Arrastre (`_onCanvasMove`) y Protección de Zoom**:
-   - `ensureLeafletCanvasPatched()` engancha `_onCanvasMove` al evento `events.move` usando umbrales dinámicos y `requestAnimationFrame(() => this._update())`.
-   - Durante gestos o animaciones de zoom (`_isZooming`, `_animatingZoom`, `touchZoom._zooming`, cambio de zoom o `!dragging.moving()`), `_onCanvasMove` se interrumpe inmediatamente, evitando desplazamientos o parpadeos del canvas.
-6. **Optimización de Trazado de Polígonos y Bloqueo Táctil Pasivo**:
-   - `L.Polyline.prototype.options.smoothFactor = 1.2`.
-   - `components/pwa-zoom-lock.tsx` y `styles/maps.css` protegen contra zoom accidental mediante CSS `touch-action` pasivo y listeners WebKit (`gesturestart`/`gesturechange`), sin bloquear listeners táctiles globales sobre los mapas.
-
----
-
-## 25. Carga Perezosa de Pestañas, Precarga Regulada y Arquitectura de Activos (`components/app-tabs-shell.tsx`, `lib/image-preloader.ts`, `styles/`, `lib/r2-storage.ts`, `public/sw.js`)
-
-1. **Pestañas Inactivas Montadas Bajo Demanda + Warmup Inactivo**:
-   - `AppTabsShell` monta inicialmente solo la pestaña activa (`visitedTabs`), manteniendo las demás pestañas preservadas en memoria tras visitarlas por primera vez (`display: none` cuando inactivas), mientras precalienta sus bundles JS con `requestIdleCallback` (`warmChunks`) para evitar trabajo innecesario de red/CPU en el arranque inicial.
-2. **Precarga y Caché Reguladas en Segundo Plano**:
-   - **Feed (`FeedTab` / `lib/feed-fetcher.ts`)**: precarga publicaciones en segundo plano (1100ms tras arranque si inactiva) y emplea `preloadImages(result.preloadUrls, { maxConcurrent: 3, maxCount: 9 })` con `img.decoding = "async"` para no saturar sockets ni CPU.
-   - **Social (`useSocialConnections`) y Ranking (`useRankingData`)**: descargan progreso, conexiones y ranking (países + picos en `globalRankingCache`) de forma escalonada (800ms / 1300ms) con caché de sesión/`localStorage` (`app_social_data_${userId}`) para transiciones instantáneas.
-   - **Tipografía Autoalojada (`next/font` + `styles/tokens.css`) y CSS Modular**: todas las fuentes (`--font-sans`, `--font-mono`, `--font-serif`, `--font-display`) se cargan vía `next/font/google` sin `@import` externos bloqueantes, y `app/globals.css` orquesta 10 hojas modulares en `styles/`.
-   - **Almacenamiento R2 y Proxy de Fotos (`lib/r2-storage.ts`, `/api/photos/view`, `public/sw.js`)**: credenciales configuradas exclusivamente mediante variables de entorno (`CLOUDFLARE_R2_*`), validación mágica de imágenes (`lib/photo-security.ts`), entrega streaming vía `/api/photos/view/[...key]` (o `NEXT_PUBLIC_R2_CUSTOM_DOMAIN` opcional) cacheada en Service Worker (`atlas-photos-v13`).
-
-
-
-
-
-
-
+1. **Estados**:
+   - No seguido: `UserRoundPlus` + `"Seguir"`.
+   - Siguiendo (reposo): `UserRoundCheck` + `"Siguiendo"`.
+   - Siguiendo (hover): `UserRoundMinus` con estilo rojo de alerta (`#e53e3e`).
+   - Solicitud pendiente (usuario privado): `UserRoundArrowLeft` + `"pendiente"`.
+2. **Disposición**: `.hero-target-follow-center` organiza en columna botón circular y etiqueta centrados entre título y estadísticas.

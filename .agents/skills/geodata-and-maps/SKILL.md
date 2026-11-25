@@ -1,19 +1,20 @@
 ---
 name: geodata-and-maps
 description: >-
-  Use this skill whenever working with geographical datasets, map visualization components (Leaflet, TopoJSON, GeoJSON), coordinates, mountain peaks, world countries, or administrative regions in the 47 Picos project.
+  Use this skill whenever working with geographical datasets, Leaflet map components,
+  Canvas vector rendering, TopoJSON/GeoJSON assets, coordinates, Spanish mountain peaks, or the 196 world countries in Atlas.
 ---
 
 # Geodata and Map Visualizations
 
-This skill provides domain rules, procedures, and technical specifications for the cartographic systems in **47 Picos y 196 Países**.
+This skill provides domain rules, procedures, and technical specifications for the cartographic systems in **Atlas (47 Picos & 196 Países)**.
 
 ---
 
 ## 1. Domain Entities & Geodata
 
-### Spain: 52 High Points / 47 Physical Summits
-The challenge encompasses all 50 provinces of Spain plus the Autonomous Cities of Ceuta and Melilla:
+### Spain: 52 High Points / 47 Physical Summits (`data/peaks.ts`)
+The challenge encompasses all 50 provinces of Spain plus Ceuta and Melilla:
 - Total demarcation count: **52**
 - Total unique physical mountains: **47**
 - **5 Shared Summits** (sitting precisely on provincial borders):
@@ -24,14 +25,14 @@ The challenge encompasses all 50 provinces of Spain plus the Autonomous Cities o
   5. **Moncayo** (2314.3m) — Soria (`42`) & Zaragoza (`50`)
 
 > [!IMPORTANT]
-> Shared peaks share the **same string `id`** in `data/peaks.ts` and identical `coordinates` and `altitude`. Marking an ascent for one provincial entry will automatically cover the shared mountain in rankings and views when appropriate (see `008_fix_shared_peaks.sql`).
+> Shared peaks share the **same string `id`** in `data/peaks.ts` and identical `coordinates` and `altitude`. Completed peak progress must always be calculated by unique peak names (`uniquePeakNames.size`), never by demarcation count.
 
 For the full list of 52 peaks, refer to [Peaks Reference Guide](./references/peaks-guide.md).
 
-### World: 196 Countries & Sub-national Regions
+### World: 196 Countries (`data/countries.ts`)
 - Data source: `data/countries.ts` (193 UN members + Palestine + Taiwan + Kosovo).
 - **Kosovo identifier**: Uses `iso_n3: "-99"` to match Natural Earth / World-Atlas TopoJSON.
-- Sub-national regions: `data/regions.ts` contains regional subdivisions (provinces, states, departments) keyed by country `iso_a2` (e.g. `AR`, `UY`, etc.).
+- *(Note: Sub-national regions were removed in `027_remove_regions.sql`; do not reintroduce `regions.ts` or `region-*` IDs.)*
 
 ---
 
@@ -41,52 +42,44 @@ Be mindful of coordinate order inversion:
 - **Leaflet**: Expects `[latitude, longitude]` (e.g., `[40.85, -3.95]`).
 - **GeoJSON / TopoJSON**: Standard geometry format is `[longitude, latitude]` (e.g., `[-3.95, 40.85]`).
 
-When transforming coordinates from GeoJSON features to Leaflet markers or bounds, reverse order:
-```ts
-const [lng, lat] = feature.geometry.coordinates;
-const leafletLatLng: [number, number] = [lat, lng];
-```
+---
+
+## 3. Map Components & Leaflet Canvas Architecture
+
+Map components live in `components/` with lifecycle and helper utilities in `components/maps/` and `lib/`:
+- `components/spain-map.tsx`: Spanish provincial choropleth + Lucide SVG peak markers (`lib/leaflet-icons.ts`).
+- `components/world-map.tsx`: World choropleth with countries and conditional experience markers (rendered **only** when `experiencesMode` is true).
+- `components/collective-map.tsx`: Community aggregated visits for both countries and peaks (`components/maps/collective-visitors-panel.tsx`, `components/maps/experiences-toggle-control.tsx`).
+- `components/maps/map-lifecycle.tsx`: Shared `FitWorld`, `FitSpain`, `MapActiveSynchronizer`, `MapInvalidator`, and `MapZoomListener` helpers.
+
+### Critical Leaflet & SSR Rules
+1. **No SSR**: Always import map components with `dynamic(() => import("@/components/..."), { ssr: false })`.
+2. **Adaptive Canvas Renderer (`lib/leaflet-canvas-patch.ts`)**:
+   - Each map creates its own `createAdaptiveCanvasRenderer` instance passed to `<MapContainer renderer={...}>` — **never** mutate `L.Canvas.prototype.options.padding`.
+   - Uses `padding: 0.5` on desktop HiDPI, `1.0` (world/collective) or `0.8` (Spain) on mobile/tablet, plus `getAdaptiveKeepBuffer()` (`3` desktop / `4` touch).
+   - `ensureLeafletCanvasPatched()` patches `_onCanvasMove` for smooth panning and suspends repainting during zoom gestures/animations.
+   - `L.Polyline.prototype.options.smoothFactor = 1.2`.
+3. **Initial `<MapContainer>` Props & Zero-Island Guard (`lib/leaflet-bounds.ts`)**:
+   - Always pass explicit `center` and `zoom` to `<MapContainer>`.
+   - Initial `map.fitBounds` runs with `{ animate: false }`; Spain maps validate Spanish bounds on tab reactivation to prevent `(0, 0)` Zero-Island jumps.
+4. **Passive UI Zoom Lock**: `components/pwa-zoom-lock.tsx` + `styles/maps.css` block accidental UI zoom without intercepting global map touch listeners.
 
 ---
 
-## 3. Map Components Architecture
+## 4. Processing Boundary Geodata (`public/*.topo.json`)
 
-All map components are located in `components/`:
-- `spain-map.tsx`: Provincial boundaries choropleth + peak markers with color indicators:
-  - Green / Gold: Ascended
-  - Purple / Orange: In wishlist
-  - Gray: Pending / Unascended
-- `world-map.tsx`: World choropleth with countries and optional region drill-down.
-- `collective-map.tsx`: Community aggregated visits.
-
-### SSR Rules for Leaflet:
-Leaflet accesses the browser `window` object at load time. Never import map components statically in Server Components:
-```tsx
-import dynamic from "next/dynamic";
-
-const SpainMap = dynamic(() => import("@/components/spain-map"), { ssr: false });
-```
-
----
-
-## 4. Processing Boundary Geodata
-
-To optimize or regenerate administrative region geometries:
-- Script: `scripts/process-regions.mjs`
-- Dependencies: `topojson-server`, `topojson-simplify`
-- Command:
-  ```bash
-  node scripts/process-regions.mjs
-  ```
-- Output: GeoJSON / TopoJSON assets saved in `public/`.
+Optimized TopoJSON topologies (`public/provincias_spain.topo.json`, `public/world-countries.topo.json`) are loaded via `lib/geo-loader.ts`.
+Regeneration/simplification scripts in `scripts/`:
+- `node scripts/generate-provinces-topo.mjs`
+- `node scripts/simplify-topojson.mjs`
 
 ---
 
 ## 5. Automated Data Validation
 
-Verify the integrity of all geographic files by running:
 ```bash
 npm test tests/unit/peaks.test.ts
 npm test tests/unit/countries.test.ts
-npm test tests/unit/regions.test.ts
+npm test tests/unit/map-rendering-perf.test.ts
+npm test tests/unit/desktop-map-optimizations-and-zero-island-fix.test.ts
 ```

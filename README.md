@@ -92,9 +92,12 @@ npm run harness:eval
 
 ## Skills para Asistentes y Agentes (`.agents/skills/`)
 
-Para asistentes de IA y agentes en Antigravity, se dispone de 4 skills canónicas:
+Para asistentes de IA y agentes en Antigravity, el proyecto dispone de las siguientes skills en `.agents/skills/`:
 
 1. [**`code-verification-and-quality`**](./.agents/skills/code-verification-and-quality/SKILL.md): Puerta de calidad, reglas de TypeScript, ESLint, Vitest y resolución de errores.
-2. [**`supabase-and-migrations`**](./.agents/skills/supabase-and-migrations/SKILL.md): Convenciones de migraciones SQL (001 a 021+), políticas RLS y funciones PL/pgSQL.
-3. [**`geodata-and-maps`**](./.agents/skills/geodata-and-maps/SKILL.md): Gestión de los 52 techos provinciales (47 físicos), 196 países, regiones y mapas Leaflet.
-4. [**`media-and-experiences`**](./.agents/skills/media-and-experiences/SKILL.md): Optimización de imágenes, subidas a storage y sistema de experiencias personalizadas.
+2. [**`supabase-and-migrations`**](./.agents/skills/supabase-and-migrations/SKILL.md): Convenciones de migraciones SQL (`001`–`021` congeladas, `022+` activas), políticas RLS y funciones PL/pgSQL.
+3. [**`geodata-and-maps`**](./.agents/skills/geodata-and-maps/SKILL.md): Gestión de los 52 techos provinciales (47 físicos), 196 países, TopoJSON y mapas Leaflet.
+4. [**`media-and-experiences`**](./.agents/skills/media-and-experiences/SKILL.md): Compresión de imágenes, subidas a Cloudflare R2, visor/editor de fotos y experiencias personalizadas.
+5. [**`frontend-design-system`**](./.agents/skills/frontend-design-system/SKILL.md): Tokens cromáticos por modalidad, tipografía (`next/font`), CSS modular y patrones de diseño.
+6. [**`api-mcp-and-push`**](./.agents/skills/api-mcp-and-push/SKILL.md): REST API v1, claves de API, servidor MCP y notificaciones Web Push (VAPID).
+7. [**`new-migration`**](./.agents/skills/new-migration/SKILL.md) y [**`release-verification`**](./.agents/skills/release-verification/SKILL.md): Flujos guiados para nuevas migraciones y auditoría pre-push.
