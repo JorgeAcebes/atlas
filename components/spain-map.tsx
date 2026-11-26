@@ -6,6 +6,8 @@ import {
   TileLayer,
   GeoJSON,
   Marker,
+  useMap,
+  useMapEvents,
 } from "react-leaflet";
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import type { FeatureCollection, Position } from "geojson";
@@ -120,11 +122,48 @@ function SpainPeakMarkersLayer({
   wishlist: Set<string>;
   onPeakClick: (peak: Peak) => void;
 }) {
+  const map = useMap();
+  const [viewport, setViewport] = useState<{ zoom: number; bounds: L.LatLngBounds | null }>(() => {
+    try {
+      return { zoom: map.getZoom() || 0, bounds: map.getBounds() };
+    } catch {
+      return { zoom: 0, bounds: null };
+    }
+  });
+
+  const syncViewport = useCallback(() => {
+    try {
+      const nextZoom = map.getZoom() || 0;
+      setViewport((prev) => {
+        if (prev.zoom < 8 && nextZoom < 8) return prev;
+        return { zoom: nextZoom, bounds: map.getBounds() };
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [map]);
+
+  useMapEvents({
+    zoomend: syncViewport,
+    moveend: syncViewport,
+  });
+
+  const visiblePeaks = useMemo(() => {
+    if (viewport.zoom < 8) return [];
+    if (!viewport.bounds) return uniquePeakEntries;
+    const padded = viewport.bounds.pad(0.25);
+    return uniquePeakEntries.filter((peak) => padded.contains(peak.coordinates));
+  }, [viewport]);
+
+  if (visiblePeaks.length === 0) {
+    return null;
+  }
+
   const icons = getPeakMarkerIcons();
 
   return (
     <>
-      {uniquePeakEntries.map((peak) => (
+      {visiblePeaks.map((peak) => (
         <PeakMarker
           key={peak.id}
           peak={peak}
@@ -506,6 +545,7 @@ export const SpainMap = memo(function SpainMap({
       inertiaDeceleration={inertiaOptions.inertiaDeceleration}
       inertiaMaxSpeed={inertiaOptions.inertiaMaxSpeed}
       easeLinearity={inertiaOptions.easeLinearity}
+      bounceAtZoomLimits={false}
       minZoom={5}
       maxZoom={10}
       maxBounds={[
@@ -535,7 +575,7 @@ export const SpainMap = memo(function SpainMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         crossOrigin="anonymous"
-        minZoom={5}
+        minZoom={4}
         maxZoom={10}
         keepBuffer={keepBuffer}
         updateWhenIdle={false}

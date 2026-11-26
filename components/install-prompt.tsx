@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useScrollLock } from "@/lib/scroll-lock";
+import { INSTALL_PROMPT_MAX_WIDTH, canDisplayInstallPrompt } from "@/lib/device-utils";
 
 // Key for localStorage
 const DISMISS_KEY = "pwa_install_dismissed_v2";
@@ -39,10 +40,12 @@ export function isStandalone(): boolean {
   return isMatch;
 }
 
+export { INSTALL_PROMPT_MAX_WIDTH, canDisplayInstallPrompt };
+
 export function isMobile(): boolean {
   if (typeof window === "undefined") return false;
   return (
-    window.innerWidth <= 840 ||
+    window.innerWidth <= INSTALL_PROMPT_MAX_WIDTH ||
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   );
 }
@@ -85,18 +88,68 @@ export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: In
   const [closing, setClosing] = useState(false);
   const [showManualAndroidSteps, setShowManualAndroidSteps] = useState(false);
   const onManualCloseRef = useRef(onManualClose);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     onManualCloseRef.current = onManualClose;
   }, [onManualClose]);
 
+  useEffect(() => clearCloseTimer, [clearCloseTimer]);
+
   useScrollLock(showPrompt);
 
   useEffect(() => {
     if (!isActive && showPrompt) {
+      clearCloseTimer();
       setShowPrompt(false);
+      setClosing(false);
     }
-  }, [isActive, showPrompt]);
+  }, [isActive, showPrompt, clearCloseTimer]);
+
+  useEffect(() => {
+    if (!showPrompt) return;
+    const handleViewportChange = () => {
+      if (!canDisplayInstallPrompt()) {
+        clearCloseTimer();
+        setShowPrompt(false);
+        setClosing(false);
+        setShowManualAndroidSteps(false);
+        onManualCloseRef.current?.();
+      }
+    };
+    handleViewportChange();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("orientationchange", handleViewportChange);
+    const mql =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia(`(max-width: ${INSTALL_PROMPT_MAX_WIDTH}px)`)
+        : null;
+    if (mql) {
+      if (typeof mql.addEventListener === "function") {
+        mql.addEventListener("change", handleViewportChange);
+      } else if (typeof (mql as any).addListener === "function") {
+        (mql as any).addListener(handleViewportChange);
+      }
+    }
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("orientationchange", handleViewportChange);
+      if (mql) {
+        if (typeof mql.removeEventListener === "function") {
+          mql.removeEventListener("change", handleViewportChange);
+        } else if (typeof (mql as any).removeListener === "function") {
+          (mql as any).removeListener(handleViewportChange);
+        }
+      }
+    };
+  }, [showPrompt, clearCloseTimer]);
 
   useEffect(() => {
     if (typeof localStorage !== "undefined" && localStorage.getItem("pwa_install_dismissed")) {
@@ -121,7 +174,14 @@ export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: In
         (window as any).__atlasInstallPrompt = pEvent;
       }
       setDeferredPrompt(pEvent);
-      if (isActive && !manualOpen && !isDismissed() && !isStandalone()) {
+      if (
+        isActive &&
+        !manualOpen &&
+        !isDismissed() &&
+        !isStandalone() &&
+        canDisplayInstallPrompt() &&
+        isMobile()
+      ) {
         setShowPrompt(true);
       }
     };
@@ -131,7 +191,14 @@ export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: In
       if (p) {
         setDeferredPrompt(p);
         setShowManualAndroidSteps(false);
-        if (isActive && !manualOpen && !isDismissed() && !isStandalone()) {
+        if (
+          isActive &&
+          !manualOpen &&
+          !isDismissed() &&
+          !isStandalone() &&
+          canDisplayInstallPrompt() &&
+          isMobile()
+        ) {
           setShowPrompt(true);
         }
       }
@@ -154,11 +221,15 @@ export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: In
     }
 
     if (manualOpen && isActive) {
-      setIsManual(true);
-      if (isIOS()) {
-        setIsApple(true);
+      if (!canDisplayInstallPrompt()) {
+        onManualCloseRef.current?.();
+      } else {
+        setIsManual(true);
+        if (isIOS()) {
+          setIsApple(true);
+        }
+        setShowPrompt(true);
       }
-      setShowPrompt(true);
       return () => {
         window.removeEventListener("beforeinstallprompt", handler);
         window.removeEventListener("atlas-install-prompt-ready", handlePromptReady);
@@ -177,20 +248,27 @@ export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: In
     // Check if iOS
     if (isIOS()) {
       setIsApple(true);
-      if (!isStandalone() && !isDismissed()) {
+      if (!isStandalone() && !isDismissed() && canDisplayInstallPrompt()) {
         setShowPrompt(true);
       }
     }
 
     // If prompt already captured
-    if (existingPrompt && !manualOpen && !isDismissed() && !isStandalone() && isMobile()) {
+    if (
+      existingPrompt &&
+      !manualOpen &&
+      !isDismissed() &&
+      !isStandalone() &&
+      canDisplayInstallPrompt() &&
+      isMobile()
+    ) {
       setShowPrompt(true);
     }
 
     // Also show after a short delay for browsers that support PWA
     // but might not fire beforeinstallprompt immediately
     const timer = setTimeout(() => {
-      if (!isStandalone() && isMobile() && !isDismissed()) {
+      if (!isStandalone() && canDisplayInstallPrompt() && isMobile() && !isDismissed()) {
         if (isIOS()) {
           setIsApple(true);
           setShowPrompt(true);
@@ -260,6 +338,7 @@ export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: In
   }, [deferredPrompt]);
 
   const handleClose = useCallback(() => {
+    clearCloseTimer();
     setClosing(true);
     if (typeof sessionStorage !== "undefined") {
       sessionStorage.setItem("pwa_dismissed_session", "true");
@@ -268,13 +347,14 @@ export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: In
     if (dontShowAgain && !isManual) {
       localStorage.setItem(DISMISS_KEY, "true");
     }
-    setTimeout(() => {
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
       setShowPrompt(false);
       setClosing(false);
       setShowManualAndroidSteps(false);
       onManualCloseRef.current?.();
     }, 280);
-  }, [dontShowAgain, isManual]);
+  }, [dontShowAgain, isManual, clearCloseTimer]);
 
   useEffect(() => {
     if (!showPrompt) return;
@@ -287,12 +367,13 @@ export function InstallPrompt({ manualOpen, onManualClose, isActive = true }: In
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showPrompt, handleClose]);
 
-  if (!showPrompt) return null;
+  if (!showPrompt || !canDisplayInstallPrompt()) return null;
 
   return (
     <div
       className={`install-prompt-overlay${closing ? " install-prompt-overlay--closing" : ""}`}
       onClick={handleClose}
+      onWheel={(e) => e.stopPropagation()}
       role="presentation"
     >
       <div

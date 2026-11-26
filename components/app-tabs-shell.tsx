@@ -133,6 +133,17 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual";
     }
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted || typeof document === "undefined") return;
+      const hasActiveOverlay = document.querySelector(
+        ".modal-backdrop, .profile-modal-backdrop, .stats-overlay, .lightbox-backdrop, .install-prompt-overlay, .collective-map-overlay"
+      );
+      if (!hasActiveOverlay) {
+        resetScrollLock();
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
   }, []);
 
   useEffect(() => {
@@ -579,6 +590,7 @@ function AppTabsShellInner({ children }: { children: React.ReactNode }) {
         }
         commitTabNavigation();
       } else {
+        resetScrollLock();
         if (typeof window !== "undefined") {
           const currentKey = window.location.pathname + window.location.search;
           historyScrollPositions.current.set(currentKey, window.scrollY);

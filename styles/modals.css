@@ -545,13 +545,13 @@ textarea:focus {
   align-items: flex-end;
   justify-content: center;
   padding: 0;
-  animation: installOverlayIn 0.3s ease;
+  overscroll-behavior: contain; animation: installOverlayIn 0.3s ease;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
 
 .install-prompt-overlay--closing {
-  animation: installOverlayOut 0.28s ease forwards;
+  pointer-events: none; animation: installOverlayOut 0.28s ease forwards;
 }
 
 .install-prompt-dialog {
@@ -679,7 +679,7 @@ textarea:focus {
   cursor: pointer;
 }
 
-@media (min-width: 701px) {
+@media (min-width: 769px) {
   .install-prompt-overlay {
     display: none;
   }

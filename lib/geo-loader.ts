@@ -17,6 +17,54 @@ let _worldGeoPromise: Promise<FeatureCollection> | null = null;
 let _spainGeoCache: FeatureCollection | null = null;
 let _spainGeoPromise: Promise<FeatureCollection> | null = null;
 
+/**
+ * Strips degenerate / sub-pixel sea-rock rings from MultiPolygon features while always
+ * retaining the largest polygon per feature to avoid redundant Canvas path clipping on zoom.
+ */
+export function pruneMicroPolygons(
+  geo: FeatureCollection,
+  minSpanDegrees = 0.002
+): FeatureCollection {
+  for (const f of geo.features) {
+    if (f?.geometry?.type !== "MultiPolygon") continue;
+    const polys = f.geometry.coordinates;
+    if (!Array.isArray(polys) || polys.length <= 1) continue;
+
+    let largestIdx = 0;
+    let largestArea = -1;
+    const metrics = polys.map((poly, idx) => {
+      const ring = poly?.[0] ?? [];
+      let minLng = Infinity;
+      let maxLng = -Infinity;
+      let minLat = Infinity;
+      let maxLat = -Infinity;
+      for (const coord of ring) {
+        const lng = coord[0];
+        const lat = coord[1];
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+      const spanLng = Number.isFinite(maxLng - minLng) ? maxLng - minLng : 0;
+      const spanLat = Number.isFinite(maxLat - minLat) ? maxLat - minLat : 0;
+      const span = Math.max(spanLng, spanLat);
+      const area = spanLng * spanLat;
+      if (area > largestArea) {
+        largestArea = area;
+        largestIdx = idx;
+      }
+      return { len: ring.length, span };
+    });
+
+    f.geometry.coordinates = polys.filter(
+      (_poly, idx) =>
+        idx === largestIdx || (metrics[idx].len >= 4 && metrics[idx].span >= minSpanDegrees)
+    );
+  }
+  return geo;
+}
+
 export function fixAntimeridian(geo: FeatureCollection): void {
   const fixRing = (ring: Position[]) => {
     for (let i = 1; i < ring.length; i++) {
@@ -87,10 +135,12 @@ export function fetchSpainGeo(): Promise<FeatureCollection> {
         return r.json();
       })
       .then((topology: Topology) => {
-        const provincesGeo = feature(
-          topology,
-          (topology.objects.provincias || Object.values(topology.objects)[0]) as any
-        ) as unknown as FeatureCollection;
+        const provincesGeo = pruneMicroPolygons(
+          feature(
+            topology,
+            (topology.objects.provincias || Object.values(topology.objects)[0]) as any
+          ) as unknown as FeatureCollection
+        );
         _spainGeoCache = provincesGeo;
         return provincesGeo;
       })
@@ -99,8 +149,9 @@ export function fetchSpainGeo(): Promise<FeatureCollection> {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json() as Promise<FeatureCollection>;
         }).then((provincesGeo) => {
-          _spainGeoCache = provincesGeo;
-          return provincesGeo;
+          const cleaned = pruneMicroPolygons(provincesGeo);
+          _spainGeoCache = cleaned;
+          return cleaned;
         })
       )
       .catch((err) => {

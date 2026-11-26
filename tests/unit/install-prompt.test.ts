@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  INSTALL_PROMPT_MAX_WIDTH,
+  canDisplayInstallPrompt,
+} from "@/lib/device-utils";
+import {
   readAllStyles,
   readFile,
   readRankingSources,
@@ -126,5 +130,77 @@ describe("PWA Install Prompt & Topbar Download Button", () => {
     // usePwaInstall sets isPwa to true when standalone or already installed
     expect(pwaHookContent).toContain("const isInstalledOrPwa = standalone || alreadyInstalled;");
     expect(pwaHookContent).toContain("setIsPwa(isInstalledOrPwa);");
+  });
+
+  it("7. Viewport guard prevents invisible InstallPrompt scroll lock on desktop/tablet viewports", () => {
+    expect(INSTALL_PROMPT_MAX_WIDTH).toBe(768);
+
+    const originalWindow = (globalThis as { window?: unknown }).window;
+    try {
+      for (const width of [1280, 840, 769]) {
+        (globalThis as { window?: { innerWidth: number } }).window = { innerWidth: width };
+        expect(canDisplayInstallPrompt()).toBe(false);
+      }
+      for (const width of [390, 700, 768]) {
+        (globalThis as { window?: { innerWidth: number } }).window = { innerWidth: width };
+        expect(canDisplayInstallPrompt()).toBe(true);
+      }
+    } finally {
+      if (originalWindow === undefined) {
+        delete (globalThis as { window?: unknown }).window;
+      } else {
+        (globalThis as { window?: unknown }).window = originalWindow;
+      }
+    }
+
+    const installPromptFile = readFile("components/install-prompt.tsx");
+    expect(installPromptFile).toContain("canDisplayInstallPrompt()");
+    // Every auto-open & manual-open path and resize handler must respect the viewport guard
+    expect(installPromptFile.match(/canDisplayInstallPrompt\(\)/g)?.length).toBeGreaterThanOrEqual(7);
+    expect(installPromptFile).toContain('window.addEventListener("resize", handleViewportChange)');
+
+    const modalsCss = readFile("styles/modals.css");
+    expect(modalsCss).toMatch(/@media\s*\(min-width:\s*769px\)\s*\{\s*\.install-prompt-overlay\s*\{\s*display:\s*none;\s*\}\s*\}/);
+    expect(modalsCss).not.toMatch(/@media\s*\(min-width:\s*701px\)\s*\{\s*\.install-prompt-overlay/);
+  });
+
+  it("8. Hardens InstallPrompt cleanup/matchMedia sync and AppTabsShell route/bfcache scroll-lock hygiene", () => {
+    const originalWindow = (globalThis as { window?: unknown }).window;
+    try {
+      (globalThis as { window?: unknown }).window = {
+        innerWidth: 768,
+        matchMedia: (query: string) => ({ matches: query.includes("768px") ? false : true }),
+      };
+      expect(canDisplayInstallPrompt()).toBe(false);
+
+      (globalThis as { window?: unknown }).window = {
+        innerWidth: 800,
+        matchMedia: (query: string) => ({ matches: query.includes("768px") }),
+      };
+      expect(canDisplayInstallPrompt()).toBe(true);
+    } finally {
+      if (originalWindow === undefined) {
+        delete (globalThis as { window?: unknown }).window;
+      } else {
+        (globalThis as { window?: unknown }).window = originalWindow;
+      }
+    }
+
+    const installPromptFile = readFile("components/install-prompt.tsx");
+    expect(installPromptFile).toContain("closeTimerRef");
+    expect(installPromptFile).toContain("clearCloseTimer");
+    expect(installPromptFile).toContain('window.addEventListener("orientationchange", handleViewportChange)');
+    expect(installPromptFile).toContain("window.matchMedia(`(max-width: ${INSTALL_PROMPT_MAX_WIDTH}px)`)");
+    expect(installPromptFile).toContain("if (!showPrompt || !canDisplayInstallPrompt()) return null;");
+    expect(installPromptFile).toContain("onWheel={(e) => e.stopPropagation()}");
+
+    const modalsCss = readFile("styles/modals.css");
+    expect(modalsCss).toMatch(/\.install-prompt-overlay\s*\{[^}]*overscroll-behavior:\s*contain;/);
+    expect(modalsCss).toMatch(/\.install-prompt-overlay--closing\s*\{[^}]*pointer-events:\s*none;/);
+
+    const tabsShellFile = readFile("components/app-tabs-shell.tsx");
+    expect(tabsShellFile).toContain('window.addEventListener("pageshow", handlePageShow)');
+    expect(tabsShellFile).toMatch(/event\.persisted[\s\S]*resetScrollLock\(\)/);
+    expect(tabsShellFile).toMatch(/\}\s*else\s*\{\s*resetScrollLock\(\);[\s\S]*router\.push\(targetPath\);/);
   });
 });

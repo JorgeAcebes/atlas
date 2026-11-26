@@ -750,6 +750,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
             inertiaDeceleration={inertiaOptions.inertiaDeceleration}
             inertiaMaxSpeed={inertiaOptions.inertiaMaxSpeed}
             easeLinearity={inertiaOptions.easeLinearity}
+            bounceAtZoomLimits={false}
             minZoom={isPeaks ? 5 : 2}
             maxZoom={isPeaks ? 10 : 12}
             maxBounds={isPeaks ? [[26.0, -19.8], [47.5, 11.0]] : [[-60, -180], [83, 180]]}
@@ -762,7 +763,7 @@ export function CollectiveMap({ onClose, scope: propScope, onScopeChange, mode =
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
               crossOrigin="anonymous"
-              minZoom={isPeaks ? 5 : 2}
+              minZoom={isPeaks ? 4 : 1}
               maxZoom={isPeaks ? 10 : 12}
               keepBuffer={keepBuffer}
               updateWhenIdle={false}

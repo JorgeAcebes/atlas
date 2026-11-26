@@ -676,6 +676,7 @@ export const WorldMap = memo(function WorldMap({
       inertiaDeceleration={inertiaOptions.inertiaDeceleration}
       inertiaMaxSpeed={inertiaOptions.inertiaMaxSpeed}
       easeLinearity={inertiaOptions.easeLinearity}
+      bounceAtZoomLimits={false}
       minZoom={isCompactMobile ? 1.5 : 2}
       maxZoom={12}
       maxBounds={[

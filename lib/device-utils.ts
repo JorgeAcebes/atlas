@@ -7,6 +7,17 @@
  * and pinch-to-zoom gestures require wide vector buffers.
  */
 
+/** Max viewport width (px) at which the install-prompt overlay is visible (matches CSS). */
+export const INSTALL_PROMPT_MAX_WIDTH = 768;
+
+export function canDisplayInstallPrompt(): boolean {
+  if (typeof window === "undefined") return false;
+  if (typeof window.matchMedia === "function") {
+    return window.matchMedia(`(max-width: ${INSTALL_PROMPT_MAX_WIDTH}px)`).matches;
+  }
+  return window.innerWidth <= INSTALL_PROMPT_MAX_WIDTH;
+}
+
 export function isMobileOrTablet(): boolean {
   if (typeof window === "undefined") return false;
 

@@ -298,11 +298,11 @@ export function MapZoomListener({
       onInteractionStartRef.current?.();
     },
     zoom: () => {
-      if (isActive === false || (map as any)._isWheeling) return;
+      if (isActive === false || (map as any)._isWheeling || (map.touchZoom as any)?._zooming) return;
       if (rafRef.current !== null) return;
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
-        if ((map as any)._isWheeling) return;
+        if ((map as any)._isWheeling || (map.touchZoom as any)?._zooming) return;
         const container = map.getContainer();
         if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
         const rounded = Math.max(0, Math.round(map.getZoom() || 0)).toString();
