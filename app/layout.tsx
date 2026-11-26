@@ -1,36 +1,45 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans, DM_Mono, Fraunces, Playfair_Display } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppTabsShell } from "@/components/app-tabs-shell";
 
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const dmSans = localFont({
+  src: "./fonts/dm-sans-latin.woff2",
+  weight: "400 700",
+  style: "normal",
   variable: "--font-dm-sans",
   display: "swap",
+  adjustFontFallback: "Arial",
 });
 
-const dmMono = DM_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const dmMono = localFont({
+  src: [
+    { path: "./fonts/dm-mono-400-latin.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/dm-mono-500-latin.woff2", weight: "500", style: "normal" },
+  ],
   variable: "--font-dm-mono",
   display: "swap",
+  adjustFontFallback: false,
 });
 
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  weight: ["600", "700"],
+const fraunces = localFont({
+  src: "./fonts/fraunces-latin.woff2",
+  weight: "600 700",
+  style: "normal",
   variable: "--font-fraunces",
   display: "swap",
+  adjustFontFallback: "Times New Roman",
 });
 
-const playfair = Playfair_Display({
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  style: ["normal", "italic"],
+const playfair = localFont({
+  src: [
+    { path: "./fonts/playfair-display-latin.woff2", weight: "600 700", style: "normal" },
+    { path: "./fonts/playfair-display-italic-latin.woff2", weight: "600 700", style: "italic" },
+  ],
   variable: "--font-playfair",
   display: "swap",
+  adjustFontFallback: "Times New Roman",
 });
 
 export const metadata: Metadata = {
